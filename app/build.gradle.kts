@@ -26,7 +26,7 @@ android {
         // Cliente OAuth "Web" de Google (el mismo que acepta la API en GOOGLE_CLIENT_IDS) y URL de la API.
         // Se pasan con -PGOOGLE_WEB_CLIENT_ID=... y -PCUADRA_API_URL=...; sin ellos la app compila pero el acceso con Google avisa que falta configurar.
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${providers.gradleProperty("GOOGLE_WEB_CLIENT_ID").getOrElse("")}\"")
-        buildConfigField("String", "API_URL", "\"${providers.gradleProperty("CUADRA_API_URL").getOrElse("http://10.0.2.2:8086")}\"")
+        buildConfigField("String", "API_URL", "\"${providers.gradleProperty("CUADRA_API_URL").getOrElse("http://10.0.2.2:8086")}\"") // depuración: emulador; release: ver abajo
     }
 
     // Firma de release: keystore/release.properties (no versionado). Sin él se firma con la clave debug.
@@ -45,6 +45,8 @@ android {
 
     buildTypes {
         release {
+            // La versión de producción habla con la API pública por https (se puede cambiar con -PCUADRA_API_URL=…).
+            buildConfigField("String", "API_URL", "\"${providers.gradleProperty("CUADRA_API_URL").getOrElse("https://cuadra-backend-production.up.railway.app")}\"")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
