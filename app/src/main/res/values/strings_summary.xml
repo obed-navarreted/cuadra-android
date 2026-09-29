@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="summary_title">Resumen</string>
+    <string name="summary_today">Hoy</string>
+    <string name="summary_week">7 días</string>
+    <string name="summary_month">Este mes</string>
+    <string name="summary_loading">Calculando…</string>
+    <string name="summary_sales">Ventas</string>
+    <plurals name="summary_sales_hint">
+        <item quantity="one">%1$d venta · ticket %2$s</item>
+        <item quantity="other">%1$d ventas · ticket %2$s</item>
+    </plurals>
+    <string name="summary_expenses">Gastos</string>
+    <string name="summary_expenses_hint">Sin compras de mercadería (%1$s)</string>
+    <string name="summary_profit">Ganancia estimada</string>
+    <string name="summary_profit_formula">ventas − costo de lo vendido − gastos</string>
+    <string name="summary_coverage_warning">El costo está anotado en %1$d %% de lo vendido: la ganancia real puede ser menor.</string>
+    <string name="summary_receivable">Por cobrar (fiado)</string>
+    <plurals name="summary_low_stock">
+        <item quantity="one">%1$d producto con poca existencia</item>
+        <item quantity="other">%1$d productos con poca existencia</item>
+    </plurals>
+    <string name="summary_methods">Cómo pagaron</string>
+    <string name="summary_top">Lo más vendido</string>
+    <string name="summary_no_cost">sin costo</string>
+    <string name="summary_empty">Todavía no hay ventas en este periodo.</string>
+    <string name="summary_scope_note">Con lo que este teléfono ha sincronizado.</string>
+    <string name="more_summary">Resumen del negocio</string>
+</resources>

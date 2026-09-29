@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="summary_title">Summary</string>
+    <string name="summary_today">Today</string>
+    <string name="summary_week">7 days</string>
+    <string name="summary_month">This month</string>
+    <string name="summary_loading">Calculating…</string>
+    <string name="summary_sales">Sales</string>
+    <plurals name="summary_sales_hint">
+        <item quantity="one">%1$d sale · ticket %2$s</item>
+        <item quantity="other">%1$d sales · ticket %2$s</item>
+    </plurals>
+    <string name="summary_expenses">Expenses</string>
+    <string name="summary_expenses_hint">Without merchandise purchases (%1$s)</string>
+    <string name="summary_profit">Estimated profit</string>
+    <string name="summary_profit_formula">sales − cost of goods − expenses</string>
+    <string name="summary_coverage_warning">Cost is recorded on %1$d %% of what was sold: the real profit may be lower.</string>
+    <string name="summary_receivable">Owed to you (tabs)</string>
+    <plurals name="summary_low_stock">
+        <item quantity="one">%1$d product running low</item>
+        <item quantity="other">%1$d products running low</item>
+    </plurals>
+    <string name="summary_methods">How they paid</string>
+    <string name="summary_top">Best sellers</string>
+    <string name="summary_no_cost">no cost</string>
+    <string name="summary_empty">There are no sales in this period yet.</string>
+    <string name="summary_scope_note">Based on what this phone has synced.</string>
+    <string name="more_summary">Business summary</string>
+</resources>

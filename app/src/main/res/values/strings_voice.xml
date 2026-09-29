@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_dictate">Dictar por voz</string>
+    <string name="voice_prompt">Habla ahora</string>
+    <string name="voice_unavailable">Este teléfono no tiene dictado por voz. Activa o instala el servicio de voz de Google.</string>
+</resources>
