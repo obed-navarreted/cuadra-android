@@ -1,7 +1,7 @@
 package com.cuadra.caja.domain
 
 /**
- * Entrada del equipo con CÓDIGO DEL NEGOCIO + USUARIO + PIN (ADR 0012). Todo lo que se decide sin pantalla vive aquí, con pruebas:
+ * Entrada del equipo con CÓDIGO DEL NEGOCIO + PIN (ADR 0012; el PIN identifica a la persona, no se repite dentro del negocio). Todo lo que se decide sin pantalla vive aquí, con pruebas:
  * el código, el formulario de entrada, la elección del PIN nuevo (dos veces) y los textos para compartir.
  */
 object AccessCode {
@@ -21,24 +21,21 @@ object AccessCode {
     /** Mensaje para que el dueño lo mande: `template` lleva `%1$s` (negocio) y `%2$s` (código). */
     fun shareMessage(template: String, business: String, code: String): String = template.format(business.trim(), code)
 
-    /** Lo que se le da a una persona nueva: negocio, código, usuario y PIN. `template`: `%1$s` negocio, `%2$s` código, `%3$s` usuario, `%4$s` PIN. */
-    fun credentialsMessage(template: String, business: String, code: String, username: String, pin: String): String =
-        template.format(business.trim(), code, username.trim(), pin)
+    /** Lo que se le da a una persona nueva: negocio, código y PIN (su nombre, solo de referencia). `template`: `%1$s` negocio, `%2$s` código, `%3$s` nombre, `%4$s` PIN. */
+    fun credentialsMessage(template: String, business: String, code: String, name: String, pin: String): String =
+        template.format(business.trim(), code, name.trim(), pin)
 }
 
-/** El formulario de entrada del equipo: código, usuario y PIN de 5 números con el teclado de la app. */
-data class MemberLoginForm(val code: String = "", val username: String = "", val pin: String = "") {
-    val cleanUsername: String get() = TeamRules.cleanName(username)
-
+/** El formulario de entrada del equipo: código del negocio y PIN de 5 números con el teclado de la app (sin usuario: el PIN dice quién es). */
+data class MemberLoginForm(val code: String = "", val pin: String = "") {
     fun withCode(raw: String) = copy(code = AccessCode.sanitize(raw))
-    fun withUsername(raw: String) = copy(username = raw.take(TeamRules.NAME_MAX))
     fun digit(d: Char) = if (d in '0'..'9' && pin.length < PinRules.LENGTH) copy(pin = pin + d) else this
     fun backspace() = copy(pin = pin.dropLast(1))
 
-    /** Están los tres datos completos. */
-    val ready: Boolean get() = AccessCode.isComplete(code) && cleanUsername.isNotEmpty() && PinRules.isValid(pin)
+    /** Están los dos datos completos. */
+    val ready: Boolean get() = AccessCode.isComplete(code) && PinRules.isValid(pin)
 
-    /** Al escribir el 5.º número se entra solo, pero solo si el código y el usuario ya estaban. */
+    /** Al escribir el 5.º número se entra solo, pero solo si el código ya estaba. */
     fun autoSubmits(afterDigit: MemberLoginForm): Boolean = afterDigit.ready && !ready
 }
 

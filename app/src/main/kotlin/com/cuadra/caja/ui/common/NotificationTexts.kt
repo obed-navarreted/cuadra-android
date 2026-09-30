@@ -44,7 +44,9 @@ object NotificationTexts {
                 res.getString(R.string.notif_cost_changed_title, s("productName")) to res.getString(R.string.notif_cost_changed_body, s("memberName"))
             }
             "DEVICE_STALE" -> res.getString(R.string.notif_device_stale_title) to res.getString(R.string.notif_device_stale_body, s("deviceName"), s("pending"))
-            "PIN_LOCKOUT" -> res.getString(R.string.notif_pin_lockout_title) to res.getString(R.string.notif_pin_lockout_body, s("memberName"))
+            // Sin nombre: se pausó la entrada con código de TODO el negocio (10 PIN incorrectos; nadie sabe quién se equivocó).
+            "PIN_LOCKOUT" -> if (s("scope") == "BUSINESS") res.getString(R.string.notif_business_lockout_title) to res.getString(R.string.notif_business_lockout_body)
+                else res.getString(R.string.notif_pin_lockout_title) to res.getString(R.string.notif_pin_lockout_body, s("memberName"))
             "MEMBER_JOINED" -> res.getString(R.string.notif_member_joined_title) to res.getString(R.string.notif_member_joined_body, s("memberName"))
             "DAILY_SUMMARY" -> res.getString(R.string.notif_daily_summary_title) to res.getString(R.string.notif_daily_summary_body, s("salesCount"), money(l("totalMinor")), money(l("expensesMinor")))
             // Un aviso programado lleva el texto que escribió quien lo programó.

@@ -114,10 +114,6 @@ data class CobroUi(
     val doneSaleId: String? = null,
     /** Cuándo se cobró (reloj de este teléfono): «Anular esta venta» se ofrece los primeros 5 minutos. */
     val doneAtMillis: Long? = null,
-    /** El motivo que se escribe para anularla (nulo = hoja cerrada) y si ya pasó el plazo al confirmar. */
-    val undoReason: String? = null, val undoTooLate: Boolean = false,
-    /** Ya se anuló. */
-    val undone: Boolean = false,
 ) {
     /** ¿Una regla del negocio impide fiar así? (cliente obligatorio o límite de crédito que bloquea). Nulo si no hay fiado o todo está bien. */
     val creditBlock: com.cuadra.caja.domain.CreditRules.Block?
@@ -126,6 +122,12 @@ data class CobroUi(
             return com.cuadra.caja.domain.CreditRules.block(requiresCustomer, limitEnforced, customer != null, saveAsCustomer, customer?.creditLimitMinor, customer?.balanceMinor ?: 0, credit.amountMinor)
         }
 }
+
+/** El aviso flotante que queda en la venta nueva tras cobrar («Vuelto C$ X · Anular» / «Venta cobrada · C$ X · Anular»); `undone`: «Venta anulada». */
+data class SaleNoticeUi(val saleId: String, val totalMinor: Long, val changeMinor: Long, val doneAtMillis: Long, val undone: Boolean = false)
+
+/** La hoja «Anular esta venta» abierta desde el aviso: el motivo que se escribe y si ya pasó el plazo al confirmar. */
+data class SaleUndoUi(val saleId: String, val doneAtMillis: Long, val reason: String = "", val tooLate: Boolean = false)
 
 /** Producto nuevo desde la caja. `pricing`: FIXED (precio fijo), BY_WEIGHT (por libra) u OPEN (sin precio fijo: se pregunta al vender; el precio es solo un sugerido). */
 data class ProductDraft(
@@ -181,6 +183,9 @@ data class CajaUi(
     /** Aviso flotante de impresión («Impreso», «Sin impresora conectada», «No se pudo imprimir»); `printTick` reinicia su conteo. */
     val printNotice: PrintNotice? = null,
     val printTick: Int = 0,
+    /** Aviso de la última venta cobrada (vuelto / anular); se va con el primer toque del teclado o de un producto, o a los 8 s. */
+    val saleNotice: SaleNoticeUi? = null,
+    val saleUndo: SaleUndoUi? = null,
     /** Producto con el menú de frecuentes abierto (pulsación larga). */
     val productMenu: ProductEntity? = null,
     /** Pestaña Productos en modo «Ordenar frecuentes». */
@@ -194,7 +199,7 @@ data class CajaUi(
 enum class HardwareScanRoute { ADD, EDITOR, IGNORE }
 
 fun CajaUi.hardwareScanRoute(): HardwareScanRoute = when {
-    cobro != null || weighing != null || openPrice != null || receiptOpen || editingLineId != null || parking || showParked || notice != null || share != null || productMenu != null -> HardwareScanRoute.IGNORE
+    cobro != null || saleUndo != null || weighing != null || openPrice != null || receiptOpen || editingLineId != null || parking || showParked || notice != null || share != null || productMenu != null -> HardwareScanRoute.IGNORE
     draft != null -> HardwareScanRoute.EDITOR
     else -> HardwareScanRoute.ADD
 }
@@ -248,10 +253,10 @@ class CajaViewModel(private val c: AppContainer) : ViewModel(), CajaActions {
     private val decimals: Int get() = business.value?.let { Currency.of(it.currency).decimals } ?: 2
 
     // ---------- teclado ----------
-    override fun key(d: Char) = _ui.update { it.copy(entry = it.entry.digit(d, decimals)) }
-    override fun dot() = _ui.update { it.copy(entry = it.entry.dot(decimals)) }
-    override fun times() = _ui.update { it.copy(entry = it.entry.times()) }
-    override fun backspace() = _ui.update { it.copy(entry = it.entry.backspace()) }
+    override fun key(d: Char) = _ui.update { it.copy(entry = it.entry.digit(d, decimals), saleNotice = null) }
+    override fun dot() = _ui.update { it.copy(entry = it.entry.dot(decimals), saleNotice = null) }
+    override fun times() = _ui.update { it.copy(entry = it.entry.times(), saleNotice = null) }
+    override fun backspace() = _ui.update { it.copy(entry = it.entry.backspace(), saleNotice = null) }
     override fun setDescription(text: String) = _ui.update { it.copy(description = text.take(80)) }
     override fun setTab(tab: PosTab) = _ui.update { it.copy(tab = tab) }
 
@@ -259,7 +264,7 @@ class CajaViewModel(private val c: AppContainer) : ViewModel(), CajaActions {
     private fun edit(f: (CartWithUndo) -> CartWithUndo) = _ui.update { s ->
         val next = f(CartWithUndo(s.cart, s.undoStack))
         s.copy(
-            cart = next.cart, undoStack = next.stack,
+            cart = next.cart, undoStack = next.stack, saleNotice = null,
             undoShown = if (next.pushed) true else s.undoShown && next.stack.isNotEmpty(), undoTick = if (next.pushed) s.undoTick + 1 else s.undoTick,
         )
     }
@@ -502,7 +507,7 @@ class CajaViewModel(private val c: AppContainer) : ViewModel(), CajaActions {
                 availableMethods = PaymentMethods.available(business.value?.let { b -> runCatching { b.modules() }.getOrNull() }.orEmpty()),
                 offerWhatsApp = c.display.offerWhatsApp.value,
             ),
-            receiptOpen = false, undoShown = false, editingLineId = null,
+            receiptOpen = false, undoShown = false, editingLineId = null, saleNotice = null,
         )
     }
     override fun cancelCobro() = _ui.update { it.copy(cobro = null) }
@@ -567,7 +572,11 @@ class CajaViewModel(private val c: AppContainer) : ViewModel(), CajaActions {
     override fun pickName(name: String) = updateCobro { it.copy(debtor = name, nameSuggestions = emptyList(), customerMatches = emptyList(), plan = it.plan.withDebtor(name, it.debtorPhone, null)) }
     override fun toggleSaveCustomer() = updateCobro { it.copy(saveAsCustomer = !it.saveAsCustomer) }
     override fun toggleSendWhatsApp() = updateCobro { it.copy(sendWhatsApp = !it.sendWhatsApp) }
-    override fun shareDismiss() = _ui.update { it.copy(share = null) }
+    /** Cerrar el envío por WhatsApp: si se abrió sobre «Venta cobrada», de ahí se pasa a la venta nueva. */
+    override fun shareDismiss() {
+        _ui.update { it.copy(share = null) }
+        if (_ui.value.cobro?.doneSaleId != null) finishCobro()
+    }
     override fun shareDone(request: ShareRequest?) = _ui.update { it.copy(share = request) }
     override fun setOtherLabel(text: String) = updateCobro { c ->
         c.copy(otherLabel = text.take(40), plan = PaymentPlan(c.plan.totalMinor, c.plan.entries.map { if (it.method == PayMethod.OTHER) it.copy(otherLabel = text.trim().ifEmpty { null }) else it }))
@@ -620,33 +629,36 @@ class CajaViewModel(private val c: AppContainer) : ViewModel(), CajaActions {
         }
     }
 
-    // ---------- «Anular esta venta» (la última propia, primeros 5 minutos) ----------
-    private fun updateDone(f: (CobroUi) -> CobroUi) = _ui.update { s -> s.cobro?.takeIf { it.doneSaleId != null }?.let { s.copy(cobro = f(it)) } ?: s }
-
-    override fun askUndoSale() = updateDone { it.copy(undoReason = "", undoTooLate = false) }
-    override fun setUndoReason(text: String) = updateDone { it.copy(undoReason = text.take(com.cuadra.caja.domain.SaleDeletion.MAX_REASON)) }
-    override fun closeUndo() = updateDone { it.copy(undoReason = null, undoTooLate = false) }
+    // ---------- «Anular esta venta» (la última propia, primeros 5 minutos), desde el aviso de la venta nueva ----------
+    override fun askUndoSale() = _ui.update { s -> s.saleNotice?.takeIf { !it.undone }?.let { s.copy(saleUndo = SaleUndoUi(it.saleId, it.doneAtMillis)) } ?: s }
+    override fun setUndoReason(text: String) = _ui.update { s -> s.copy(saleUndo = s.saleUndo?.copy(reason = text.take(com.cuadra.caja.domain.SaleDeletion.MAX_REASON))) }
+    override fun closeUndo() = _ui.update { it.copy(saleUndo = null) }
+    override fun hideSaleNotice() = _ui.update { if (it.saleUndo != null) it else it.copy(saleNotice = null) }
 
     override fun confirmUndo() {
-        val cobro = _ui.value.cobro ?: return
-        val saleId = cobro.doneSaleId ?: return
-        val reason = com.cuadra.caja.domain.SaleDeletion.clean(cobro.undoReason.orEmpty()) ?: return
+        val undo = _ui.value.saleUndo ?: return
+        val reason = com.cuadra.caja.domain.SaleDeletion.clean(undo.reason) ?: return
         viewModelScope.launch {
             val me = c.sessionStore.current().memberId
             val last = c.sales.lastCompletedBy(me)
             // Se vuelve a comprobar al confirmar: pudieron pasar los 5 minutos con la hoja abierta.
-            val ok = last?.id == saleId && com.cuadra.caja.domain.SaleUndo.remaining(cobro.doneAtMillis, System.currentTimeMillis()) > 0
+            val ok = last?.id == undo.saleId && com.cuadra.caja.domain.SaleUndo.remaining(undo.doneAtMillis, System.currentTimeMillis()) > 0
             if (!ok) {
-                updateDone { it.copy(undoTooLate = true) }
+                _ui.update { it.copy(saleUndo = it.saleUndo?.copy(tooLate = true)) }
                 return@launch
             }
-            c.sales.cancel(saleId, reason)
-            updateDone { it.copy(undoReason = null, undone = true, doneShare = null) }
+            c.sales.cancel(undo.saleId, reason)
+            _ui.update { it.copy(saleUndo = null, saleNotice = SaleNoticeUi(undo.saleId, it.saleNotice?.totalMinor ?: 0, 0, undo.doneAtMillis, undone = true)) }
         }
     }
 
-    /** "Nueva venta": limpia el recibo y cierra el cobro terminado. */
-    override fun finishCobro() = _ui.update { CajaUi(tab = it.tab, printer = it.printer, reordering = it.reordering) }
+    /** Pasa de «Venta cobrada» a la venta nueva (un toque o el tiempo) y deja el aviso flotante con el vuelto y «Anular». */
+    override fun finishCobro() = _ui.update { s ->
+        val done = s.cobro
+        val saleId = done?.doneSaleId ?: return@update s
+        val notice = done.doneAtMillis?.let { SaleNoticeUi(saleId, done.plan.totalMinor, done.doneChangeMinor ?: 0, it) }
+        CajaUi(tab = s.tab, printer = s.printer, reordering = s.reordering, printNotice = s.printNotice, printTick = s.printTick, saleNotice = notice)
+    }
 
     // ---------- impresora ----------
     /** Imprime el recibo de una venta y deja el aviso que corresponde. Con la opción apagada no hace nada (ni pide permisos). */
@@ -659,7 +671,7 @@ class CajaViewModel(private val c: AppContainer) : ViewModel(), CajaActions {
     }
 
     override fun printAgain() {
-        val id = _ui.value.cobro?.doneSaleId
+        val id = _ui.value.cobro?.doneSaleId ?: _ui.value.saleNotice?.saleId
         _ui.update { it.copy(printNotice = null) }
         // En la pantalla de venta completa se vuelve a armar el recibo; ya en la caja (pasó a otra venta) se reintenta el último trabajo que falló.
         if (id != null) printSale(id)

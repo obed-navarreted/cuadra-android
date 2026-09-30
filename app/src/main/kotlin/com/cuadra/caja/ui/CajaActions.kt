@@ -89,6 +89,8 @@ interface CajaActions {
     fun askUndoSale() {}
     fun setUndoReason(text: String) {}
     fun closeUndo() {}
+    /** El aviso de la venta cobrada (vuelto / «Anular») se oculta solo a los 8 s. */
+    fun hideSaleNotice() {}
     fun confirmUndo() {}
     /** «Imprimir recibo» / «Reintentar»: vuelve a imprimir la venta que se acaba de cobrar. */
     fun printAgain() {}

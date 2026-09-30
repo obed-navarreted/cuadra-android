@@ -1,6 +1,16 @@
 package com.cuadra.caja.ui.screens
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -94,7 +104,17 @@ fun CobroContent(ui: CajaUi, actions: CajaActions, nowMillis: Long = System.curr
 
     // El cobro ocupa toda la pantalla: la raíz ya pone el margen superior y aquí solo falta el inferior (la barra de navegación se oculta).
     val done = cobro.doneChangeMinor
-    Box(Modifier.fillMaxSize()) {
+    // «Venta cobrada» vuelve sola a la venta nueva (1.2 s; 4 s con el botón de WhatsApp) y un toque en cualquier parte la adelanta. Mientras el envío por WhatsApp
+    // está abierto no corre el tiempo (al cerrarlo se pasa a la venta nueva).
+    val flashMillis = com.cuadra.caja.domain.SaleFlash.durationMillis(cobro.offerWhatsApp, cobro.doneShare != null)
+    val progress = remember { Animatable(1f) }
+    if (done != null) LaunchedEffect(ui.share == null) {
+        if (ui.share != null) return@LaunchedEffect
+        progress.snapTo(1f)
+        progress.animateTo(0f, tween(flashMillis.toInt(), easing = LinearEasing))
+        actions.finishCobro()
+    }
+    Box(Modifier.fillMaxSize().then(if (done != null) Modifier.pointerInput(Unit) { detectTapGestures { actions.finishCobro() } } else Modifier)) {
     ScreenFrame(
         Modifier.fillMaxSize().navigationBarsPadding().imePadding().padding(horizontal = 16.dp), spacing = 8.dp,
         header = {
@@ -108,16 +128,12 @@ fun CobroContent(ui: CajaUi, actions: CajaActions, nowMillis: Long = System.curr
         },
         footer = {
             if (done != null) {
-                if (!cobro.undone) {
-                    cobro.doneShare?.let { CuadraButton(stringResource(R.string.pay_done_send), { actions.shareDone(it) }, Modifier.fillMaxWidth(), kind = ButtonKind.WHATSAPP) }
-                    // Solo con la impresora activada: imprimir (o volver a imprimir) el comprobante de esta venta.
-                    if (ui.printer != PrinterBadge.OFF) CuadraButton(stringResource(R.string.print_receipt), actions::printAgain, Modifier.fillMaxWidth(), height = 48)
-                    // Los primeros 5 minutos, quien cobró puede anular esta venta (con motivo; el dueño recibe aviso).
-                    if (com.cuadra.caja.domain.SaleUndo.remaining(cobro.doneAtMillis, nowMillis) > 0) {
-                        CuadraButton(stringResource(R.string.sale_undo_action), actions::askUndoSale, Modifier.fillMaxWidth(), kind = ButtonKind.DANGER, height = 48)
-                    }
+                // «Venta cobrada» no pide nada: vuelve sola a una venta nueva. Solo con la preferencia de WhatsApp encendida se queda más y ofrece el botón, con una barra del tiempo que queda.
+                // (El comprobante se imprime solo si la impresora está activada y conectada; «Anular» vive en el aviso de la venta nueva y en Ventas.)
+                cobro.doneShare?.let {
+                    FlashProgress(progress.value)
+                    CuadraButton(stringResource(R.string.pay_done_send), { actions.shareDone(it) }, Modifier.fillMaxWidth().padding(bottom = 8.dp), kind = ButtonKind.WHATSAPP)
                 }
-                CuadraButton(stringResource(R.string.pay_new_sale), actions::finishCobro, Modifier.fillMaxWidth().padding(bottom = 8.dp), kind = ButtonKind.PRIMARY, height = 56)
             } else {
                 // Vuelto o faltante SIEMPRE a la vista, junto al botón: con el teclado abierto el campo «Recibido» sube, esto no se mueve.
                 val cash = plan.entries.firstOrNull { it.method == PayMethod.CASH }
@@ -155,17 +171,11 @@ fun CobroContent(ui: CajaUi, actions: CajaActions, nowMillis: Long = System.curr
     ) {
         if (done != null) {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                if (cobro.undone) {
-                    Text(stringResource(R.string.pay_undone), style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center, color = CuadraColors.Red)
-                    Text(stringResource(R.string.pay_undone_help), style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, color = CuadraColors.Muted)
-                } else {
                 Text("✓", style = MaterialTheme.typography.displaySmall, color = CuadraColors.Green)
                 Text(stringResource(R.string.pay_done), style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
-                val left = com.cuadra.caja.domain.SaleUndo.minutesLeft(cobro.doneAtMillis, nowMillis)
-                if (left > 0) Text(pluralStringResource(R.plurals.undo_minutes_left, left, left), style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, color = CuadraColors.Muted)
-                }
-                if (done > 0 && !cobro.undone) {
-                    Text(stringResource(R.string.pay_done_change, money.format(done)), style = MaterialTheme.typography.displaySmall, color = CuadraColors.Green, textAlign = TextAlign.Center, maxLines = 2, minScale = 0.4f)
+                // El vuelto, grande y en negrita: lo que la persona tiene que ver antes de que la pantalla vuelva sola a la venta nueva.
+                if (com.cuadra.caja.domain.SaleFlash.showsChange(done)) {
+                    Text(stringResource(R.string.pay_done_change, money.format(done)), style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.ExtraBold, color = CuadraColors.Green, textAlign = TextAlign.Center, maxLines = 2, minScale = 0.4f)
                 }
             }
         } else {
@@ -179,10 +189,15 @@ fun CobroContent(ui: CajaUi, actions: CajaActions, nowMillis: Long = System.curr
             }
         }
     }
-    // Aviso flotante de impresión («Impreso», «Sin impresora conectada»…): encima, sin ocupar lugar; la venta ya está cobrada y no espera por él.
-    if (done != null) ui.printNotice?.let { PrintNoticePopup(it, actions::printAgain, actions::dismissPrintNotice, Modifier.align(Alignment.TopCenter).padding(top = 8.dp)) }
     }
-    cobro.undoReason?.let { SaleReasonSheet(it, actions::setUndoReason, actions::closeUndo, actions::confirmUndo, undo = true, tooLate = cobro.undoTooLate) }
+}
+
+/** La barra fina del tiempo que queda en «Venta cobrada» con el botón de WhatsApp (de llena a vacía). */
+@Composable
+private fun FlashProgress(remaining: Float) {
+    Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)).background(CuadraColors.Line)) {
+        Box(Modifier.fillMaxWidth(remaining.coerceIn(0f, 1f)).fillMaxHeight().background(CuadraColors.Green))
+    }
 }
 
 /** «Falta C$ X» y, debajo, «Completar con: Efectivo · Transferencia · Tarjeta · Fiado»: un toque agrega una línea con lo que falta. */

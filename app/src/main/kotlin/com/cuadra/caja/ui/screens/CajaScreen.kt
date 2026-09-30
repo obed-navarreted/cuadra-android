@@ -83,6 +83,7 @@ import com.cuadra.caja.ui.common.LocalMoney
 import com.cuadra.caja.ui.common.MoneyText
 import com.cuadra.caja.ui.common.ScanButton
 import com.cuadra.caja.ui.common.PrintNoticePopup
+import com.cuadra.caja.ui.common.SaleNoticePopup
 import com.cuadra.caja.domain.printing.PrintNotice
 import com.cuadra.caja.domain.printing.PrinterBadge
 import com.cuadra.caja.ui.common.DescriptionAmountRow
@@ -146,10 +147,20 @@ fun CajaContent(
     val activeTab = if (ui.tab in tabs) ui.tab else tabs.first()
     val cobro = ui.cobro
     // El aviso de impresión se oculta solo: «Impreso» pronto; las advertencias se quedan el doble (traen «Reintentar»). Un aviso nuevo (printTick) reinicia la cuenta.
-    LaunchedEffect(ui.printTick, ui.printNotice) {
+    // Con el aviso de la venta cobrada a la vista (vuelto / «Anular») el de impresión espera su turno: su cuenta empieza cuando nada más lo tapa.
+    val saleNotice = ui.saleNotice
+    val saleNoticeShown = cobro == null && saleNotice != null && !ui.receiptOpen
+    LaunchedEffect(ui.printTick, ui.printNotice, saleNoticeShown, cobro != null) {
         val notice = ui.printNotice ?: return@LaunchedEffect
+        if (cobro != null || saleNoticeShown) return@LaunchedEffect
         delay(if (notice == PrintNotice.PRINTED) UNDO_MILLIS else UNDO_MILLIS * 2)
         actions.dismissPrintNotice()
+    }
+    // El aviso de la venta cobrada se queda hasta el primer toque del teclado o de un producto (lo quita el ViewModel) o unos 8 s; con la hoja «Anular» abierta no corre.
+    LaunchedEffect(saleNotice?.saleId, saleNotice?.undone, ui.saleUndo != null) {
+        if (saleNotice == null || ui.saleUndo != null) return@LaunchedEffect
+        delay(com.cuadra.caja.domain.SaleNotice.visibleMillis(saleNotice.undone))
+        actions.hideSaleNotice()
     }
     if (cobro != null) {
         CobroContent(ui, actions)
@@ -192,10 +203,20 @@ fun CajaContent(
                     PosBottomBar(ui.cart, actions)
                 }
             },
-            // Aviso flotante «Cuajada ×1 · C$ 25.00 · Deshacer»: justo DEBAJO del total y sin ocupar lugar (el total y las teclas no se mueven, y nada tapa el total).
+            // Aviso flotante «Cuajada ×1 · C$ 25.00 · Deshacer»: en el hueco libre entre las pestañas y la calculadora (o sobre el encabezado), sin ocupar lugar
+            // ni tapar las pestañas, el total, las teclas o la barra (ver `RegisterFrame`).
             // Con la hoja del recibo abierta, el aviso se dibuja dentro de la hoja (esta capa queda detrás de su fondo oscuro).
-            overlay = ui.undo?.takeIf { !ui.receiptOpen }?.let { u -> { UndoPopup(u, actions::undoLast) } }
+            // Prioridad: el aviso de la venta cobrada (vuelto / «Anular», destacado), luego «Deshacer» de la calculadora y al final los avisos de impresión
+            // (las advertencias de impresión esperan a que el aviso de la venta se vaya).
+            overlay = saleNotice?.takeIf { !ui.receiptOpen }?.let { n ->
+                {
+                    val content = com.cuadra.caja.domain.SaleNotice.of(n.totalMinor, n.changeMinor, n.doneAtMillis, System.currentTimeMillis(), n.undone)
+                    SaleNoticePopup(content, printed = ui.printNotice == PrintNotice.PRINTED, onUndo = actions::askUndoSale)
+                }
+            }
+                ?: ui.undo?.takeIf { !ui.receiptOpen }?.let { u -> { UndoPopup(u, actions::undoLast) } }
                 ?: ui.printNotice?.takeIf { !ui.receiptOpen }?.let { n -> { PrintNoticePopup(n, actions::printAgain, actions::dismissPrintNotice) } },
+            overlayLarge = saleNotice != null && !ui.receiptOpen,
         )
     }
     Overlays(ui, actions, parked)
@@ -237,7 +258,7 @@ private fun TypeDock(ui: CajaUi, entryTotal: Long?, keyHeight: androidx.compose.
 private fun Tabs(tabs: List<PosTab>, activeTab: PosTab, actions: CajaActions) {
     // Las pestañas (dos palabras cortas: «Manual» y «Productos») se quedan en UNA fila aunque la letra sea enorme: su letra crece hasta 1.15× como máximo.
     CappedFontScale(1.15f) {
-        ChipGrid(Modifier.fillMaxWidth()) { tabs.forEach { t -> CuadraChip(stringResource(tabLabel(t)), t == activeTab, { actions.setTab(t) }) } }
+        ChipGrid(Modifier.fillMaxWidth().testTag(TAG_REGISTER_TABS)) { tabs.forEach { t -> CuadraChip(stringResource(tabLabel(t)), t == activeTab, { actions.setTab(t) }) } }
     }
 }
 
@@ -318,12 +339,12 @@ private fun tabLabel(t: PosTab) = when (t) {
 }
 
 /**
- * Encabezado compacto de la caja: una fila (nombre del negocio, «Apartadas», cambiar de cajero) y, si hay alto de sobra (`full`), quién atiende y lo vendido hoy.
- * Es lo primero que se acorta si no hay alto para el total (ver `RegisterFrame`).
+ * Encabezado de la caja: la fila (nombre del negocio, «Apartadas», cambiar de cajero) con un margen chico arriba y abajo y, si hay alto de sobra (`full`),
+ * «Atiende: …» en su línea y «Vendido hoy …» en la suya, las dos a la izquierda y en negrita. Es lo primero que se acorta si no hay alto para el total (ver `RegisterFrame`).
  */
 @Composable
 private fun Header(full: Boolean, business: String, member: String, parkedCount: Int, soldToday: Long, onParked: () -> Unit, onLock: () -> Unit) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(Modifier.fillMaxWidth().padding(vertical = com.cuadra.caja.ui.common.HEADER_GAP), verticalArrangement = Arrangement.spacedBy(com.cuadra.caja.ui.common.HEADER_LINE_GAP)) {
         // Los botones nunca se pisan con el nombre: si no caben lado a lado, quedan arriba a la derecha y el nombre baja (SplitRow).
         SplitRow(
             Modifier.fillMaxWidth(), endMaxFraction = 0.6f, spacing = 8.dp,
@@ -337,12 +358,21 @@ private fun Header(full: Boolean, business: String, member: String, parkedCount:
             // El nombre del negocio es lo único que puede terminar en «…» (deliberado, etiquetado): hasta 2 líneas y, antes, la letra baja hasta 70 %.
             Text(business, style = MaterialTheme.typography.titleMedium, maxLines = 2, ellipsize = true, minScale = 0.7f)
         }
-        if (full) ChipFlow(Modifier.fillMaxWidth(), spacing = 0.dp) {
-            Text(stringResource(R.string.more_signed_in_as, member) + "   ", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, ellipsize = true)
-            Text(stringResource(R.string.register_sold_today, money(soldToday)), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (full) {
+            Text(
+                stringResource(R.string.more_signed_in_as, member), Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Start, maxLines = 2, ellipsize = true,
+            )
+            Text(
+                stringResource(R.string.register_sold_today, money(soldToday)), Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Start,
+            )
         }
     }
 }
+
+/** La fila de pestañas «Manual | Productos» (el aviso flotante nunca la tapa). */
+const val TAG_REGISTER_TABS = "register_tabs"
 
 /**
  * El total: la tarjeta oscura con el número entero. Nunca se recorta (`RegisterFrame` le da prioridad) y es compacta: el alto y la letra crecen con la letra del

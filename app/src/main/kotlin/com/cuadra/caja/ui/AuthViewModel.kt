@@ -92,23 +92,32 @@ class PinViewModel(private val c: AppContainer) : ViewModel() {
         _ui.value = PinUi()
     }
 
-    /** Al escribir el 5.º número se entra solo (sin botón). */
+    /**
+     * Al escribir el 5.º número se entra solo (sin botón). Sin persona elegida es «Escribe tu PIN»: el PIN dice quién atiende (el camino principal);
+     * elegir el nombre de la lista es el secundario.
+     */
     fun digit(d: Char) {
-        _ui.update { if (it.pin.length < PinRules.LENGTH && !it.busy) it.copy(pin = it.pin + d, wrong = false) else it }
+        _ui.update { if (it.pin.length < PinRules.LENGTH && !it.busy && !it.noPin) it.copy(pin = it.pin + d, wrong = false) else it }
         if (_ui.value.pin.length == PinRules.LENGTH && !_ui.value.creating) submit()
     }
     fun backspace() = _ui.update { it.copy(pin = it.pin.dropLast(1), wrong = false) }
 
     fun submit() {
         val state = _ui.value
-        val member = state.selected ?: return
         if (!PinRules.isValid(state.pin) || state.busy) return
+        val member = state.selected
+        if (member == null) {
+            _ui.update { it.copy(busy = true, errorRes = null) }
+            viewModelScope.launch { handle(c.auth.unlockByPin(state.pin)) }
+            return
+        }
         _ui.update { it.copy(busy = true, errorRes = null) }
         viewModelScope.launch {
             if (state.creating) {
                 c.auth.setOwnPin(state.pin, member.id).fold(
                     onSuccess = { c.auth.loadDirectory(); handle(c.auth.unlock(member.id, state.pin)) },
-                    onFailure = { e -> _ui.update { it.copy(busy = false, errorRes = e.errorMessage(), pin = "") } },
+                    // PIN_TAKEN: el PIN es de otra persona del negocio.
+                    onFailure = { e -> _ui.update { it.copy(busy = false, errorRes = e.teamError(), pin = "") } },
                 )
             } else {
                 handle(c.auth.unlock(member.id, state.pin))
@@ -131,7 +140,6 @@ class PinViewModel(private val c: AppContainer) : ViewModel() {
 /** Lo que la pantalla «Entrar con el código del negocio» le pide al ViewModel. Cuerpos vacíos por omisión: la guardia usa `object : MemberLoginActions {}`. */
 interface MemberLoginActions {
     fun setCode(raw: String) {}
-    fun setUsername(raw: String) {}
     fun digit(d: Char) {}
     fun backspace() {}
     fun submit() {}
@@ -140,7 +148,7 @@ interface MemberLoginActions {
 data class MemberLoginUi(val form: MemberLoginForm = MemberLoginForm(), val busy: Boolean = false, val error: ErrorMessage? = null)
 
 /**
- * Entrada del equipo (ADR 0012): código del negocio + usuario + PIN. Al lograrlo la sesión cambia (teléfono vinculado y persona activa) y la pantalla
+ * Entrada del equipo (ADR 0012): código del negocio + PIN (el PIN dice quién es). Al lograrlo la sesión cambia (teléfono vinculado y persona activa) y la pantalla
  * raíz avanza sola: a la caja, o a «Elige tu PIN nuevo» si el dueño puso un PIN que debe cambiarse.
  */
 class MemberLoginViewModel(private val c: AppContainer) : ViewModel(), MemberLoginActions {
@@ -158,7 +166,6 @@ class MemberLoginViewModel(private val c: AppContainer) : ViewModel(), MemberLog
     private fun edit(f: (MemberLoginForm) -> MemberLoginForm) = _ui.update { if (it.busy) it else it.copy(form = f(it.form), error = null) }
 
     override fun setCode(raw: String) = edit { it.withCode(raw) }
-    override fun setUsername(raw: String) = edit { it.withUsername(raw) }
     override fun backspace() = edit { it.backspace() }
 
     override fun digit(d: Char) {
@@ -172,7 +179,7 @@ class MemberLoginViewModel(private val c: AppContainer) : ViewModel(), MemberLog
         if (s.busy || !s.form.ready) return
         _ui.update { it.copy(busy = true, error = null) }
         viewModelScope.launch {
-            c.auth.memberLogin(s.form.code, s.form.cleanUsername, s.form.pin).fold(
+            c.auth.memberLogin(s.form.code, s.form.pin).fold(
                 // La sesión cambia y la pantalla raíz avanza sola.
                 onSuccess = { _ui.update { it.copy(busy = false, form = it.form.copy(pin = "")) } },
                 onFailure = { e -> _ui.update { it.copy(busy = false, form = it.form.copy(pin = ""), error = e.loginError()) } },

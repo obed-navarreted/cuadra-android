@@ -36,7 +36,6 @@
     <string name="undo_confirm">Undo sale</string>
     <string name="undo_too_late">The 5 minutes have passed (or it is no longer your last sale). Ask the owner or an admin to delete it.</string>
     <string name="pay_undone">Sale undone</string>
-    <string name="pay_undone_help">It was recorded as voided, with the reason. The owner is notified.</string>
     <string name="close_returns">Returns (%1$d)</string>
     <string name="close_prior_cancelled">Sales from earlier days voided (%1$d)</string>
     <string name="close_net">Net for the day</string>
@@ -101,4 +100,7 @@
         <item quantity="one">This phone has %1$d operation not yet sent: the server\'s close does not include it yet.</item>
         <item quantity="other">This phone has %1$d operations not yet sent: the server\'s close does not include them yet.</item>
     </plurals>
+    <string name="sale_notice_change">Change %1$s</string>
+    <string name="sale_notice_sold">Sale complete · %1$s</string>
+    <string name="sale_notice_undo">Undo sale</string>
 </resources>

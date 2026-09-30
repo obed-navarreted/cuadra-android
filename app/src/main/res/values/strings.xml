@@ -26,9 +26,12 @@
     <string name="onboarding_start">Empezar a vender</string>
     <string name="onboarding_your_businesses">Tus negocios</string>
     <string name="onboarding_use_here">Usar en este teléfono</string>
-    <string name="onboarding_cannot_link">Tu rol no puede vincular teléfonos con Google. Cierra sesión y entra con el código del negocio, tu usuario y tu PIN.</string>
+    <string name="onboarding_cannot_link">Tu rol no puede vincular teléfonos con Google. Cierra sesión y entra con el código del negocio y tu PIN.</string>
     <string name="onboarding_or">o</string>
     <string name="pin_who">¿Quién atiende?</string>
+    <string name="pin_type_yours">Escribe tu PIN</string>
+    <string name="pin_or_pick">O elige tu nombre</string>
+    <string name="pin_checking">Comprobando…</string>
     <string name="pin_enter">PIN de %1$s</string>
     <string name="pin_wrong">PIN incorrecto</string>
     <string name="pin_locked">Demasiados intentos. Espera %1$d s.</string>
@@ -106,7 +109,6 @@
     <string name="pay_confirm_change">Cobrar · vuelto %1$s</string>
     <string name="pay_done">Venta cobrada</string>
     <string name="pay_done_change">Vuelto %1$s</string>
-    <string name="pay_new_sale">Nueva venta</string>
     <string name="pay_amount">Monto</string>
     <string name="weight_by_weight">Por peso</string>
     <string name="weight_by_amount">Por monto</string>

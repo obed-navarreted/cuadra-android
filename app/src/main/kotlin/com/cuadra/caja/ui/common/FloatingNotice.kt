@@ -27,6 +27,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.cuadra.caja.ui.theme.CuadraColors
 
@@ -35,6 +36,9 @@ const val TAG_OVERLAY = "TransientOverlay"
 
 /** Cuánto dura a la vista un aviso flotante (ms). */
 const val NOTICE_MILLIS = 3500L
+
+/** Tope de la letra del aviso destacado (vuelto tras cobrar). */
+const val LARGE_NOTICE_FONT_CAP = 1.3f
 
 /**
  * Aviso flotante de una línea (píldora oscura): NO ocupa lugar en la pantalla; se dibuja encima, anclado arriba y centrado, con hasta 90 % del ancho.
@@ -51,40 +55,54 @@ fun FloatingNotice(
     @androidx.annotation.DrawableRes icon: Int? = null, iconTint: Color = CuadraColors.OnInkGreen,
     /** Segunda acción («Después»): también con 48 dp de área tocable. Si el texto y las acciones no caben en una línea, las acciones bajan debajo del texto. */
     secondLabel: String? = null, onSecond: () -> Unit = {},
+    /** Aviso destacado (el vuelto tras cobrar): letra más grande y en negrita, hasta 2 líneas y el monto nunca se corta con «…». */
+    large: Boolean = false,
 ) {
-    val tall = LocalDensity.current.fontScale > 1.3f || secondLabel != null
+    val tall = LocalDensity.current.fontScale > 1.3f || secondLabel != null || large
     val lines = if (tall) 2 else 1
+    val style = if (large) MaterialTheme.typography.titleMedium else MaterialTheme.typography.labelMedium
+    val weight = if (large) FontWeight.ExtraBold else null
+    val ellipsis = ellipsize && !large
     Box(modifier.fillMaxWidth(0.9f), contentAlignment = Alignment.TopCenter) {
         Box(Modifier.widthIn(min = 48.dp).testTag(TAG_OVERLAY).semantics { liveRegion = LiveRegionMode.Polite }) {
             // La píldora visible (36 dp) va detrás; el contenido mide 48 dp como mínimo para que «Deshacer» se pueda tocar sin apuntar fino.
-            Surface(Modifier.matchParentSize().padding(vertical = 6.dp), shape = if (secondLabel != null) RoundedCornerShape(22.dp) else RoundedCornerShape(50), color = CuadraColors.Ink, shadowElevation = 6.dp) {}
+            Surface(Modifier.matchParentSize().padding(vertical = 6.dp), shape = if (secondLabel != null || large) RoundedCornerShape(22.dp) else RoundedCornerShape(50), color = CuadraColors.Ink, shadowElevation = 6.dp) {}
             val body: @Composable () -> Unit = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (icon != null) Icon(painterResource(icon), contentDescription = null, tint = iconTint, modifier = Modifier.padding(end = 8.dp).size(18.dp))
                     Text(
-                        text, Modifier.weight(1f, fill = false).padding(vertical = 8.dp), color = CuadraColors.Bg, style = MaterialTheme.typography.labelMedium,
-                        maxLines = lines, ellipsize = ellipsize,
+                        text, Modifier.weight(1f, fill = false).padding(vertical = 8.dp), color = CuadraColors.Bg, style = style, fontWeight = weight,
+                        maxLines = lines, ellipsize = ellipsis,
                     )
                 }
             }
-            if (secondLabel == null) {
+            if (large && secondLabel == null) {
+                // Aviso destacado (vuelto): letra con tope 1.3x (con 2.0x el monto y «Anular» no caben en un teléfono angosto), texto hasta en 2 líneas y la acción al lado.
+                CappedFontScale(LARGE_NOTICE_FONT_CAP) {
+                    Row(Modifier.heightIn(min = 48.dp).padding(start = 16.dp, end = if (actionLabel == null) 16.dp else 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (icon != null) Icon(painterResource(icon), contentDescription = null, tint = iconTint, modifier = Modifier.padding(end = 8.dp).size(18.dp))
+                        Text(text, Modifier.weight(1f, fill = false).padding(vertical = 8.dp), color = CuadraColors.Bg, style = style, fontWeight = weight, maxLines = lines, ellipsize = ellipsis)
+                        if (actionLabel != null) LinkAction(actionLabel, onAction, color = CuadraColors.GreenSoft, style = style)
+                    }
+                }
+            } else if (secondLabel == null) {
                 // Un aviso de una acción («Deshacer»): texto y acción en la misma fila, como siempre.
                 Row(Modifier.heightIn(min = 48.dp).padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (icon != null) Icon(painterResource(icon), contentDescription = null, tint = iconTint, modifier = Modifier.padding(end = 8.dp).size(18.dp))
                     Text(
-                        text, Modifier.weight(1f, fill = false).padding(vertical = 8.dp), color = CuadraColors.Bg, style = MaterialTheme.typography.labelMedium,
-                        maxLines = lines, ellipsize = ellipsize,
+                        text, Modifier.weight(1f, fill = false).padding(vertical = 8.dp), color = CuadraColors.Bg, style = style, fontWeight = weight,
+                        maxLines = lines, ellipsize = ellipsis,
                     )
-                    if (actionLabel != null) LinkAction(actionLabel, onAction, color = CuadraColors.GreenSoft, style = MaterialTheme.typography.labelMedium)
+                    if (actionLabel != null) LinkAction(actionLabel, onAction, color = CuadraColors.GreenSoft, style = style)
                     else Box(Modifier.width(12.dp))
                 }
             } else {
                 // Dos acciones: texto y acciones en una fila si caben; si no, las acciones pasan a la línea de abajo (el texto nunca queda apretado hasta partir palabras).
-                FlowRow(Modifier.heightIn(min = 48.dp).padding(start = 16.dp, end = 4.dp), verticalArrangement = Arrangement.Center, itemVerticalAlignment = Alignment.CenterVertically) {
+                FlowRow(Modifier.heightIn(min = 48.dp).padding(start = 16.dp, end = if (actionLabel == null) 16.dp else 4.dp), verticalArrangement = Arrangement.Center, itemVerticalAlignment = Alignment.CenterVertically) {
                     body()
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (actionLabel != null) LinkAction(actionLabel, onAction, color = CuadraColors.GreenSoft, style = MaterialTheme.typography.labelMedium)
-                        LinkAction(secondLabel, onSecond, color = CuadraColors.Line, style = MaterialTheme.typography.labelMedium)
+                        if (actionLabel != null) LinkAction(actionLabel, onAction, color = CuadraColors.GreenSoft, style = style)
+                        if (secondLabel != null) LinkAction(secondLabel, onSecond, color = CuadraColors.Line, style = MaterialTheme.typography.labelMedium)
                     }
                 }
             }
@@ -109,4 +127,21 @@ fun PrintNoticePopup(notice: PrintNotice, onRetry: () -> Unit, onLater: () -> Un
             secondLabel = stringResource(R.string.print_later), onSecond = onLater,
         )
     }
+}
+
+/**
+ * El aviso que queda en la venta nueva tras cobrar: «Vuelto C$ 27.50 · Anular» (con vuelto) o «Venta cobrada · C$ 100.00 · Anular». Más grande y en negrita que
+ * el de «Deshacer». Con el comprobante ya impreso lleva el ícono de la impresora. «Anular» solo mientras siga el plazo de 5 minutos. Flotante: no ocupa lugar.
+ */
+@Composable
+fun SaleNoticePopup(content: com.cuadra.caja.domain.SaleNoticeContent, printed: Boolean, onUndo: () -> Unit, modifier: Modifier = Modifier) {
+    val text = when (content.kind) {
+        com.cuadra.caja.domain.SaleNoticeContent.Kind.CHANGE -> stringResource(R.string.sale_notice_change, money(content.changeMinor))
+        com.cuadra.caja.domain.SaleNoticeContent.Kind.SOLD -> stringResource(R.string.sale_notice_sold, money(content.totalMinor))
+        com.cuadra.caja.domain.SaleNoticeContent.Kind.UNDONE -> stringResource(R.string.pay_undone)
+    }
+    FloatingNotice(
+        text, if (content.canUndo) stringResource(R.string.sale_notice_undo) else null, onUndo, modifier, large = true,
+        icon = if (printed) R.drawable.ic_printer else null,
+    )
 }

@@ -7,9 +7,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.collectAsState
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -151,12 +149,6 @@ fun MemberLoginContent(ui: MemberLoginUi, actions: MemberLoginActions, onBack: (
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(stringResource(R.string.login_code_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             DigitsCodeField(f.code, actions::setCode, stringResource(R.string.login_code_label), enabled = !ui.busy, supporting = stringResource(R.string.login_code_help))
-            // sin voz: usuario (el nombre con el que el dueño te dio de alta; se escribe tal cual)
-            OutlinedTextField(
-                f.username, actions::setUsername, Modifier.fillMaxWidth(), enabled = !ui.busy, singleLine = true, label = hint { Text(stringResource(R.string.login_user_label)) },
-                supportingText = { Text(stringResource(R.string.login_user_help)) },
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
-            )
             SectionLabel(stringResource(R.string.login_pin_label))
             PinDots(f.pin.length)
             ErrorText(ui.error)

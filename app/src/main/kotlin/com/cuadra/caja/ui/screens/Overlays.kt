@@ -56,6 +56,8 @@ fun Overlays(ui: CajaUi, actions: CajaActions, parked: List<SaleEntity>) {
     ui.openPrice?.let { OpenPriceDialog(it, actions) }
     ui.draft?.let { ProductDialog(it, actions) }
     ui.notice?.let { NoticeDialog(it, actions) }
+    // «Anular esta venta» desde el aviso de la venta cobrada (motivo obligatorio; mismos 5 minutos).
+    ui.saleUndo?.let { SaleReasonSheet(it.reason, actions::setUndoReason, actions::closeUndo, actions::confirmUndo, undo = true, tooLate = it.tooLate) }
     if (ui.scanning) {
         BarcodeScannerDialog(
             onDismiss = actions::closeScanner, onCode = actions::onScanned, continuousOption = true, addedCount = ui.scanAdded,

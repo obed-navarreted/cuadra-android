@@ -28,6 +28,8 @@
     <string name="notif_device_stale_body">%1$s tiene %2$s operaciones sin enviar.</string>
     <string name="notif_pin_lockout_title">PIN bloqueado</string>
     <string name="notif_pin_lockout_body">%1$s se equivocó varias veces con el PIN.</string>
+    <string name="notif_business_lockout_title">Entrada con código en pausa</string>
+    <string name="notif_business_lockout_body">Se probaron 10 PIN incorrectos con el código del negocio. Nadie puede entrar con código y PIN durante 15 minutos.</string>
     <string name="notif_member_joined_title">Se unió alguien al equipo</string>
     <string name="notif_member_joined_body">%1$s aceptó tu invitación.</string>
     <string name="notif_daily_summary_title">Resumen del día</string>

@@ -37,6 +37,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.unit.dp
 import org.junit.Rule
 import org.junit.Test
+import com.cuadra.caja.ui.SaleNoticeUi
+import com.cuadra.caja.ui.SaleUndoUi
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -134,16 +136,23 @@ class GuardCajaTest {
                 GuardCase("Cobro: tres líneas (transferencia, tarjeta, efectivo con vuelto)", GuardMatrix.FULL) { Cobro(Fixtures.cobro(Fixtures.HUGE, PaymentEntry(PayMethod.TRANSFER, Fixtures.BIG), PaymentEntry(PayMethod.CARD, Fixtures.BIG), PaymentEntry(PayMethod.CASH, Fixtures.HUGE - 2 * Fixtures.BIG, tenderedMinor = Fixtures.HUGE), tendered = "99999999")) },
                 GuardCase("Cobro: módulo Fiado apagado (sin Fiado, con Falta)", GuardMatrix.FULL) { Cobro(Fixtures.cobro(Fixtures.HUGE, PaymentEntry(PayMethod.CARD, Fixtures.BIG)).copy(availableMethods = com.cuadra.caja.domain.PaymentMethods.available(mapOf("credit" to false)))) },
                 GuardCase("Cobro: listo con vuelto", GuardMatrix.FULL) { Cobro(Fixtures.cobro(Fixtures.BIG, PaymentEntry(PayMethod.CASH, Fixtures.BIG), done = Fixtures.HUGE)) },
-                // «Anular esta venta» (primeros 5 minutos): el botón, la hoja del motivo (con teclado y ya fuera de plazo) y la venta ya anulada.
-                GuardCase("Cobro: listo, con «Anular esta venta»", GuardMatrix.FULL) {
-                    Cobro(Fixtures.cobro(Fixtures.BIG, PaymentEntry(PayMethod.CASH, Fixtures.BIG), done = Fixtures.HUGE).copy(doneSaleId = "s1", doneAtMillis = Fixtures.NOW - 60_000, offerWhatsApp = true,
+                // «Venta cobrada» ya no pide nada: sin botones de «Nueva venta» ni «Anular»; vuelve sola (1.2 s; 4 s con WhatsApp encendido y su botón).
+                GuardCase("Cobro: listo sin vuelto (tarjeta, 1.2 s)", GuardMatrix.FULL) { Cobro(Fixtures.cobro(Fixtures.BIG, PaymentEntry(PayMethod.CARD, Fixtures.BIG), done = 0L).copy(doneSaleId = "s1", doneAtMillis = Fixtures.NOW)) },
+                GuardCase("Cobro: listo con vuelto enorme, WhatsApp encendido (4 s, botón y barra)", GuardMatrix.FULL) {
+                    Cobro(Fixtures.cobro(Fixtures.BIG, PaymentEntry(PayMethod.CASH, Fixtures.BIG), done = Fixtures.HUGE).copy(doneSaleId = "s1", doneAtMillis = Fixtures.NOW, offerWhatsApp = true,
                         doneShare = com.cuadra.caja.ui.ShareRequest.Ticket(listOf(Fixtures.NAME_120 to Fixtures.BIG), Fixtures.BIG)))
                 },
-                GuardCase("Cobro: anular (motivo)", GuardMatrix.FULL) { Cobro(Fixtures.cobro(Fixtures.BIG, PaymentEntry(PayMethod.CASH, Fixtures.BIG), done = 0L).copy(doneSaleId = "s1", doneAtMillis = Fixtures.NOW, undoReason = "")) },
-                GuardCase("Cobro: anular fuera de plazo (teclado)", GuardMatrix.KEYBOARD) {
-                    Cobro(Fixtures.cobro(Fixtures.BIG, PaymentEntry(PayMethod.CASH, Fixtures.BIG), done = 0L).copy(doneSaleId = "s1", doneAtMillis = Fixtures.NOW, undoReason = Fixtures.NAME_120, undoTooLate = true))
+                // El aviso de la venta nueva (vuelto / «Anular») y la hoja del motivo (con teclado y ya fuera de plazo).
+                GuardCase("Caja: aviso «Vuelto C$ X · Anular»", GuardMatrix.FULL, CAJA_KEYS) { Caja(Fixtures.cajaUi(cart = Fixtures.cartOf(3), entry = Fixtures.entry('7')).copy(saleNotice = SaleNoticeUi("s1", Fixtures.BIG, Fixtures.HUGE, System.currentTimeMillis()))) },
+                GuardCase("Caja: aviso «Venta cobrada · C$ X · Anular»", GuardMatrix.FULL, CAJA_KEYS) { Caja(Fixtures.cajaUi(cart = Fixtures.cartOf(3), entry = Fixtures.entry('7')).copy(saleNotice = SaleNoticeUi("s1", Fixtures.HUGE, 0, System.currentTimeMillis()))) },
+                GuardCase("Caja: aviso del vuelto con el comprobante impreso", GuardMatrix.FULL, CAJA_KEYS) {
+                    Caja(Fixtures.cajaUi(cart = Fixtures.cartOf(3), entry = Fixtures.entry('7')).copy(saleNotice = SaleNoticeUi("s1", Fixtures.BIG, 2_750, System.currentTimeMillis()), printer = com.cuadra.caja.domain.printing.PrinterBadge.CONNECTED, printNotice = com.cuadra.caja.domain.printing.PrintNotice.PRINTED))
                 },
-                GuardCase("Cobro: venta anulada", GuardMatrix.FULL) { Cobro(Fixtures.cobro(Fixtures.BIG, PaymentEntry(PayMethod.CASH, Fixtures.BIG), done = Fixtures.HUGE).copy(doneSaleId = "s1", doneAtMillis = Fixtures.NOW, undone = true)) },
+                GuardCase("Caja: aviso de venta anulada", GuardMatrix.FULL, CAJA_KEYS) { Caja(Fixtures.cajaUi(cart = Fixtures.cartOf(3), entry = Fixtures.entry('7')).copy(saleNotice = SaleNoticeUi("s1", Fixtures.BIG, 0, Fixtures.NOW, undone = true))) },
+                GuardCase("Caja: anular (motivo)", GuardMatrix.FULL) { Caja(Fixtures.cajaUi(cart = Fixtures.cartOf(3)).copy(saleNotice = SaleNoticeUi("s1", Fixtures.BIG, 0, Fixtures.NOW), saleUndo = SaleUndoUi("s1", Fixtures.NOW))) },
+                GuardCase("Caja: anular fuera de plazo (teclado)", GuardMatrix.KEYBOARD) {
+                    Caja(Fixtures.cajaUi(cart = Fixtures.cartOf(3)).copy(saleNotice = SaleNoticeUi("s1", Fixtures.BIG, 0, Fixtures.NOW), saleUndo = SaleUndoUi("s1", Fixtures.NOW, Fixtures.NAME_120, tooLate = true)))
+                },
                 // WhatsApp al terminar es opcional: apagado no hay botón; encendido sí (con el detalle del fiado si lo hubo) y la casilla del fiado solo si está encendido.
                 GuardCase("Cobro: listo, WhatsApp encendido (botón)", GuardMatrix.FULL) { Cobro(Fixtures.cobro(Fixtures.BIG, PaymentEntry(PayMethod.CASH, Fixtures.BIG), done = Fixtures.HUGE).copy(offerWhatsApp = true, doneShare = com.cuadra.caja.ui.ShareRequest.Ticket(listOf(Fixtures.NAME_120 to Fixtures.BIG), Fixtures.BIG))) },
                 GuardCase("Cobro: listo sin vuelto, WhatsApp encendido (botón)", GuardMatrix.FULL) { Cobro(Fixtures.cobro(Fixtures.BIG, PaymentEntry(PayMethod.CARD, Fixtures.BIG), done = 0L).copy(offerWhatsApp = true, doneShare = com.cuadra.caja.ui.ShareRequest.Ticket(listOf(Fixtures.NAME_120 to Fixtures.BIG), Fixtures.BIG))) },

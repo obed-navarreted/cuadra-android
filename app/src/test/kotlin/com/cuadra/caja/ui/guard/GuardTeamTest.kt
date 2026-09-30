@@ -97,6 +97,10 @@ class GuardTeamTest {
                 GuardCase("Equipo: restablecer PIN (no coincide)", full) { Team(ui(dialog = pinD)) },
                 GuardCase("Equipo: restablecer PIN (no coincide) (teclado)", kb) { Team(ui(dialog = pinD)) },
                 GuardCase("Equipo: agregar persona con error de plan", full) { Team(ui(dialog = newD)) },
+                // El PIN no se repite dentro del negocio: al agregar y al restablecer.
+                GuardCase("Equipo: agregar persona con PIN ocupado", full) { Team(ui(dialog = takenD.copy(error = ErrorMessage(R.string.team_err_PIN_TAKEN)))) },
+                GuardCase("Equipo: agregar persona con PIN ocupado (teclado)", kb) { Team(ui(dialog = takenD.copy(name = Fixtures.NAME_60, error = ErrorMessage(R.string.team_err_PIN_TAKEN)))) },
+                GuardCase("Equipo: restablecer PIN ocupado", full) { Team(ui(dialog = pinD.copy(confirm = "43210", error = ErrorMessage(R.string.team_err_PIN_TAKEN)))) },
                 GuardCase("Equipo: agregar persona con error de plan (teclado)", kb) { Team(ui(dialog = newD)) },
                 // Código del negocio (arriba de la lista): dueño con todo, admin sin renovar/elegir, sin conexión, con el código más largo posible.
                 GuardCase("Equipo: código del negocio (dueño)", full) { Team(ui().copy(businessName = Fixtures.BUSINESS_120, accessCode = "13085")) },
@@ -107,7 +111,7 @@ class GuardTeamTest {
                 GuardCase("Equipo: elegir mi código", full) { Team(ui().copy(accessCode = "13085", dialog = TeamDialog.ChooseCode("123"))) },
                 GuardCase("Equipo: elegir mi código ocupado (teclado)", kb) { Team(ui().copy(accessCode = "13085", dialog = TeamDialog.ChooseCode("24680", ErrorMessage(R.string.team_err_ACCESS_CODE_TAKEN)))) },
                 GuardCase("Equipo: elegir mi código con 0 al inicio (teclado)", kb) { Team(ui().copy(accessCode = "13085", dialog = TeamDialog.ChooseCode("01234", ErrorMessage(R.string.team_err_INVALID_ACCESS_CODE)))) },
-                // Tarjeta de datos para entrar tras crear a alguien: código + usuario + PIN.
+                // Tarjeta de datos para entrar tras crear a alguien: código + PIN (y el nombre, de referencia).
                 GuardCase("Equipo: datos para entrar (persona recién creada)", full) { Team(ui().copy(accessCode = "13085", dialog = credentials)) },
                 GuardCase("Equipo: agregar con nombre repetido (teclado)", kb) { Team(ui(dialog = takenD)) },
                 GuardCase("Equipo: renombrar a un nombre repetido (teclado)", kb) { Team(ui(dialog = renameTaken)) },

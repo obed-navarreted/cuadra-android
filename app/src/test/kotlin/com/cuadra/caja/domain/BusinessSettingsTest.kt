@@ -135,9 +135,9 @@ class BusinessSettingsTest {
         assertEquals(listOf(RegisterTab.PRODUCTS), PosViews.tabs(listOf("QUICK")))
         assertEquals(listOf(RegisterTab.PRODUCTS), PosViews.tabs(listOf("LIST")))
         assertEquals(listOf(RegisterTab.MANUAL), PosViews.tabs(listOf("TYPE")))
-        // Nada (o algo desconocido): al menos una pestaña, «Manual».
-        assertEquals(listOf(RegisterTab.MANUAL), PosViews.tabs(emptyList()))
-        assertEquals(listOf(RegisterTab.MANUAL), PosViews.tabs(listOf("OTRA")))
+        // Nada (o algo desconocido): las dos, como el valor por omisión del servidor.
+        assertEquals(listOf(RegisterTab.MANUAL, RegisterTab.PRODUCTS), PosViews.tabs(emptyList()))
+        assertEquals(listOf(RegisterTab.MANUAL, RegisterTab.PRODUCTS), PosViews.tabs(listOf("OTRA")))
     }
 
     @Test fun productsToggleSwitchesQuickAndListTogether() {

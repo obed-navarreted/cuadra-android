@@ -34,9 +34,9 @@ data class BusinessDto(
 @Serializable data class LinkInfoBody(val deviceName: String, val model: String? = null, val osVersion: String? = null, val appVersion: String? = null)
 @Serializable data class SelfLinkedDto(val deviceId: String, val deviceToken: String, val cashRegisterId: String? = null)
 
-/** Entrar con código del negocio + usuario + PIN (`POST /api/auth/member-login`, ADR 0012). */
+/** Entrar con código del negocio + PIN (`POST /api/auth/member-login`, ADR 0012). */
 @Serializable data class MemberLoginBody(
-    val businessCode: String, val username: String, val pin: String,
+    val businessCode: String, val pin: String,
     val deviceName: String? = null, val model: String? = null, val osVersion: String? = null, val appVersion: String? = null,
 )
 @Serializable data class MemberLoginResult(

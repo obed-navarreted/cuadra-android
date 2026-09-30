@@ -26,9 +26,12 @@
     <string name="onboarding_start">Start selling</string>
     <string name="onboarding_your_businesses">Your businesses</string>
     <string name="onboarding_use_here">Use on this phone</string>
-    <string name="onboarding_cannot_link">Your role can\'t link phones with Google. Sign out and enter with the business code, your username and your PIN.</string>
+    <string name="onboarding_cannot_link">Your role can\'t link phones with Google. Sign out and enter with the business code and your PIN.</string>
     <string name="onboarding_or">or</string>
     <string name="pin_who">Who is at the register?</string>
+    <string name="pin_type_yours">Type your PIN</string>
+    <string name="pin_or_pick">Or pick your name</string>
+    <string name="pin_checking">Checking…</string>
     <string name="pin_enter">%1$s\'s PIN</string>
     <string name="pin_wrong">Wrong PIN</string>
     <string name="pin_locked">Too many attempts. Wait %1$d s.</string>
@@ -106,7 +109,6 @@
     <string name="pay_confirm_change">Charge · change %1$s</string>
     <string name="pay_done">Sale complete</string>
     <string name="pay_done_change">Change %1$s</string>
-    <string name="pay_new_sale">New sale</string>
     <string name="pay_amount">Amount</string>
     <string name="weight_by_weight">By weight</string>
     <string name="weight_by_amount">By amount</string>

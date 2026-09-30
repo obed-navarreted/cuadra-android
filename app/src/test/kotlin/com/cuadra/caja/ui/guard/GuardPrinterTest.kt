@@ -168,11 +168,9 @@ class GuardPrinterTest {
                     Caja(Fixtures.cajaUi(cart = Fixtures.oneLineCart, entry = Fixtures.bigEntry).copy(printer = PrinterBadge.DISCONNECTED), readerReady = true, business = Fixtures.BUSINESS_120)
                 },
                 GuardCase("Caja: aviso «Sin impresora conectada» tras vender", full, CAJA_KEYS) { Caja(typing.copy(printer = PrinterBadge.DISCONNECTED, printNotice = PrintNotice.NO_PRINTER)) },
-                GuardCase("Venta completa: con «Imprimir recibo»", full) { CobroContent(cobro(PrinterBadge.CONNECTED), object : CajaActions {}) },
-                GuardCase("Venta completa: «Impreso»", full) { CobroContent(cobro(PrinterBadge.CONNECTED, PrintNotice.PRINTED), object : CajaActions {}) },
-                GuardCase("Venta completa: «Sin impresora conectada»", full) { CobroContent(cobro(PrinterBadge.DISCONNECTED, PrintNotice.NO_PRINTER), object : CajaActions {}) },
-                GuardCase("Venta completa: «No se pudo imprimir»", full) { CobroContent(cobro(PrinterBadge.CONNECTED, PrintNotice.FAILED), object : CajaActions {}) },
-                GuardCase("Venta completa: impresora apagada (sin botón)", full) { CobroContent(cobro(PrinterBadge.OFF), object : CajaActions {}) },
+                // El comprobante se imprime solo (sin botón) y los avisos de impresión salen en el aviso flotante de la venta nueva, no aquí.
+                GuardCase("Venta completa: impresora conectada (sin botón de imprimir)", full) { CobroContent(cobro(PrinterBadge.CONNECTED), object : CajaActions {}) },
+                GuardCase("Venta completa: impresora apagada", full) { CobroContent(cobro(PrinterBadge.OFF), object : CajaActions {}) },
             ),
         )
         runner.assertClean()

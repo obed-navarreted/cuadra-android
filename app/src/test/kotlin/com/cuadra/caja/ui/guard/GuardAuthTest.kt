@@ -37,8 +37,8 @@ class GuardAuthTest {
     @Test fun authScreens() {
         val runner = GuardRunner(rule, "auth")
         val actions = object : MemberLoginActions {}
-        val filled = MemberLoginForm("13085", Fixtures.NAME_60, "123")
-        val complete = MemberLoginForm("13085", Fixtures.NAME_120.take(80), "12345")
+        val filled = MemberLoginForm("13085", "123")
+        val complete = MemberLoginForm("13085", "12345")
         runner.run(
             listOf(
                 // Los dos caminos: Google (dueño) y código del negocio (equipo).
@@ -63,7 +63,13 @@ class GuardAuthTest {
                 GuardCase("PIN nuevo: repetir", full) { ChangePinContent(ChangePinUi(NewPinEntry("12345", "12")), object : ChangePinActions {}, {}) },
                 GuardCase("PIN nuevo: no coinciden y error de red", full) { ChangePinContent(ChangePinUi(NewPinEntry(mismatch = true), error = ErrorMessage(R.string.error_offline)), object : ChangePinActions {}, {}) },
                 GuardCase("PIN nuevo: guardando", full) { ChangePinContent(ChangePinUi(NewPinEntry("12345", "12345"), busy = true), object : ChangePinActions {}, {}) },
+                // «Escribe tu PIN» (principal) + la lista de nombres (secundaria).
                 GuardCase("PIN: elegir persona", full) { PinScreen(Fixtures.members, PinUi(), true, { _, _ -> }, {}, {}, {}, {}, {}) },
+                GuardCase("PIN: escribiendo tu PIN, incorrecto", full) { PinScreen(Fixtures.members, PinUi(pin = "12", wrong = true), false, { _, _ -> }, {}, {}, {}, {}, {}) },
+                GuardCase("PIN: tu PIN, comprobando", full) { PinScreen(Fixtures.members, PinUi(pin = "12345", busy = true), false, { _, _ -> }, {}, {}, {}, {}, {}) },
+                GuardCase("PIN: tu PIN, espera por intentos", full) { PinScreen(Fixtures.members, PinUi(lockedMillis = 45_000), false, { _, _ -> }, {}, {}, {}, {}, {}) },
+                GuardCase("PIN: nadie tiene PIN todavía", full) { PinScreen(Fixtures.members.map { it.copy(pinSet = false, pinHash = null) }, PinUi(), true, { _, _ -> }, {}, {}, {}, {}, {}) },
+                GuardCase("PIN: creando, PIN ocupado", full) { PinScreen(Fixtures.members, PinUi(selected = Fixtures.members[2], creating = true, errorRes = ErrorMessage(R.string.team_err_PIN_TAKEN)), true, { _, _ -> }, {}, {}, {}, {}, {}) },
                 GuardCase("PIN: escribiendo", full) { PinScreen(Fixtures.members, PinUi(selected = Fixtures.members[0], pin = "1234", wrong = true, lockedMillis = 45_000), false, { _, _ -> }, {}, {}, {}, {}, {}) },
                 GuardCase("PIN: creando", full) { PinScreen(Fixtures.members, PinUi(selected = Fixtures.members[2], pin = "12", creating = true), true, { _, _ -> }, {}, {}, {}, {}, {}) },
                 GuardCase("PIN: creando, completo", full) { PinScreen(Fixtures.members, PinUi(selected = Fixtures.members[2], pin = "12345", creating = true), true, { _, _ -> }, {}, {}, {}, {}, {}) },

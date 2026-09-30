@@ -28,6 +28,8 @@
     <string name="notif_device_stale_body">%1$s has %2$s operations waiting.</string>
     <string name="notif_pin_lockout_title">PIN locked</string>
     <string name="notif_pin_lockout_body">%1$s entered the wrong PIN several times.</string>
+    <string name="notif_business_lockout_title">Code sign-in paused</string>
+    <string name="notif_business_lockout_body">10 wrong PINs were tried with the business code. Nobody can sign in with code and PIN for 15 minutes.</string>
     <string name="notif_member_joined_title">Someone joined the team</string>
     <string name="notif_member_joined_body">%1$s accepted your invitation.</string>
     <string name="notif_daily_summary_title">Daily summary</string>

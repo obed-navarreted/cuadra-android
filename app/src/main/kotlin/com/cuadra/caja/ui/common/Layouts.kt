@@ -258,7 +258,9 @@ fun ScreenFrame(
  * Orden de prioridad (lo primero que se garantiza): footer > dock > hero > body (mínimo: una fila de pestañas) > encabezado (compacto, luego completo) > resto del body.
  * Es decir: el total NUNCA se recorta ni queda detrás de la calculadora; si no hay alto para todo, el encabezado se acorta (primero pierde sus líneas de estado, luego
  * se desplaza por dentro) y, en un extremo, no se dibuja. Lo que no cabe NO se compone (no queda una pieza invisible que un lector de pantalla pueda enfocar).
- * `overlay` (aviso «Deshacer») se dibuja justo DEBAJO del total y no ocupa lugar.
+ * `overlay` (aviso «Deshacer», avisos de impresión) no ocupa lugar ni mueve nada, y nunca tapa las pestañas, el total, las teclas ni la barra: va centrado en el
+ * hueco que queda libre entre las pestañas y la calculadora (en «Manual» con alto de sobra); en «Productos», al pie de la lista, justo arriba de la barra;
+ * si no, encima de las líneas centradas del encabezado; y si no hay ningún lugar seguro (extremo: teclado del sistema abierto), no se compone.
  *
  * `bodyNatural`: el cuerpo es solo la fila de pestañas (mide lo que mide); si no, es una lista que toma el alto que sobre (mínimo [BODY_MIN]).
  * `header(full)`: `full = false` es la fila compacta (nombre, «Apartadas», cambiar de cajero); `true` añade las líneas de estado (quién atiende, vendido hoy).
@@ -274,6 +276,8 @@ fun RegisterFrame(
     dock: (@Composable () -> Unit)? = null,
     footer: @Composable () -> Unit,
     overlay: (@Composable () -> Unit)? = null,
+    /** El aviso flotante es el destacado (vuelto tras cobrar: letra más grande, hasta 2 líneas): se reserva su alto mayor. */
+    overlayLarge: Boolean = false,
 ) {
     SubcomposeLayout(modifier) { constraints ->
         val w = constraints.maxWidth
@@ -297,7 +301,9 @@ fun RegisterFrame(
         val bodyMin = if (!bodyOk) 0 else if (bodyNatural) bodyFirst.sumOf { it.height } else BODY_MIN.roundToPx()
         // Encabezado: completo si cabe con holgura; si no, la fila compacta (que se desplaza por dentro si apenas cabe); si casi no queda, no se compone.
         val headerRoom = room - bodyMin - g
-        val fullEstimate = (HEADER_ROW.toPx() + 2 * 18.sp.toPx() + 4.dp.toPx()).toInt()
+        // Completo = la fila + «Atiende» + «Vendido hoy» (cada una en su línea, a la izquierda y en negrita) + los márgenes de arriba y abajo.
+        val lineH = 20.sp.toPx()
+        val fullEstimate = (HEADER_ROW.toPx() + 2 * lineH + 2 * HEADER_GAP.toPx() + 2 * HEADER_LINE_GAP.toPx()).toInt()
         val headerP = if (bodyOk && headerRoom >= HEADER_MIN.roundToPx()) {
             val full = headerRoom >= fullEstimate
             subcompose(Slot.HEADER) { Box(Modifier.verticalScroll(rememberScrollState())) { header(full) } }.map { it.measure(Constraints(maxWidth = w, maxHeight = headerRoom)) }
@@ -315,7 +321,22 @@ fun RegisterFrame(
         }
         val bodyH = bodyP.sumOf { it.height }
         val total = if (bounded) constraints.maxHeight else top + heroH + g + bodyH + g + bottomBlock
-        val overlayP = overlay?.let { one(Slot.OVERLAY, open, it) }.orEmpty()
+        // Dónde va el aviso flotante (ver la documentación): se decide con su alto ESTIMADO antes de componerlo (lo que no tiene lugar no se compone)
+        // y se comprueba con el medido.
+        val bodyBottom = top + heroH + g + bodyH
+        val dockTop = total - footerH - g - (if (hasDock) dockH + g else 0)
+        val slack = if (bodyNatural && hasDock) dockTop - bodyBottom else 0
+        val noticeEstimate = if (overlayLarge) maxOf(48.dp.toPx(), 2 * 22.sp.toPx() * minOf(fontScale, LARGE_NOTICE_FONT_CAP) / fontScale + 16.dp.toPx()).toInt() else maxOf(48.dp.toPx(), (if (fontScale > 1.3f) 2 else 1) * 16.sp.toPx() + 16.dp.toPx()).toInt()
+        val tabsReserve = (TABS_RESERVE.toPx() + g).toInt()
+        fun zone(oh: Int): Int? = when {
+            slack >= oh + 2 * g -> bodyBottom + (slack - oh) / 2
+            // «Productos»: al pie de la lista, justo arriba de la barra (como un aviso normal), lejos de las pestañas.
+            !bodyNatural && bodyH >= oh + tabsReserve -> bodyBottom - oh
+            headerH >= oh -> headerH - oh   // tapa las líneas centradas (lo menos necesario), no la fila del negocio
+            else -> null
+        }
+        val overlayP = if (overlay != null && zone(noticeEstimate) != null) one(Slot.OVERLAY, open, overlay) else emptyList()
+        val overlayY = overlayP.maxOfOrNull { it.height }?.let { zone(it) }
         layout(w, total) {
             // Abajo primero (footer y dock pegados al fondo); arriba después: si algo se traslapara en un extremo, el total queda por encima.
             var y = total - footerH
@@ -325,7 +346,7 @@ fun RegisterFrame(
             headerP.forEach { it.placeRelative(0, 0) }
             bodyP.forEach { it.placeRelative(0, top + heroH + g) }
             heroP.forEach { it.placeRelative(0, top, zIndex = 1f) }
-            overlayP.forEach { it.placeRelative((w - it.width) / 2, top + heroH + g / 2, zIndex = 2f) }
+            if (overlayY != null) overlayP.forEach { it.placeRelative((w - it.width) / 2, overlayY, zIndex = 2f) }
         }
     }
 }
@@ -337,6 +358,13 @@ private val BODY_MIN = 48.dp
 
 /** Alto de la fila compacta del encabezado (los botones miden 48 dp). */
 private val HEADER_ROW = 48.dp
+
+/** Margen de arriba y de abajo de la fila del encabezado, y entre sus líneas centradas. */
+internal val HEADER_GAP = 6.dp
+internal val HEADER_LINE_GAP = 2.dp
+
+/** Lo que se deja libre arriba de la lista de «Productos» (la fila de pestañas) al poner ahí el aviso flotante. */
+private val TABS_RESERVE = 72.dp
 
 /** Menos que esto no vale la pena dibujar el encabezado (se ve cortado): en un extremo simplemente no se dibuja. */
 private val HEADER_MIN = 48.dp

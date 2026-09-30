@@ -30,11 +30,15 @@ import com.cuadra.caja.ui.common.ButtonKind
 import com.cuadra.caja.ui.common.CuadraButton
 import com.cuadra.caja.ui.common.CuadraCard
 import com.cuadra.caja.ui.common.Keypad
+import com.cuadra.caja.ui.common.SectionLabel
 import com.cuadra.caja.ui.theme.CuadraColors
 
 private fun initials(name: String) = name.trim().split(Regex("\\s+")).take(2).joinToString("") { it.take(1).uppercase() }
 
-/** "¿Quién atiende?": se elige a la persona y se valida su PIN en el teléfono, aunque no haya internet. */
+/**
+ * "¿Quién atiende?": lo principal es «Escribe tu PIN» (el PIN dice quién es; se valida en el teléfono, aunque no haya internet). Elegir el nombre de la
+ * lista queda como camino secundario (y es el único para quien todavía no tiene PIN).
+ */
 @Composable
 fun PinScreen(
     members: List<MemberEntity>, ui: PinUi, canCreatePin: Boolean, onSelect: (MemberEntity, Boolean) -> Unit, onBack: () -> Unit,
@@ -48,6 +52,16 @@ fun PinScreen(
         if (selected == null) {
             Text(stringResource(R.string.pin_who), style = MaterialTheme.typography.headlineMedium)
             if (members.isEmpty()) Text(stringResource(R.string.pin_loading), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (members.any { it.pinSet }) {
+                SectionLabel(stringResource(R.string.pin_type_yours))
+                PinDots(ui.pin.length)
+                if (ui.busy) Text(stringResource(R.string.pin_checking), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+                if (ui.wrong) Text(stringResource(R.string.pin_wrong), color = CuadraColors.Red, fontWeight = FontWeight.Bold)
+                ui.lockedMillis?.let { Text(stringResource(R.string.pin_locked, ((it + 999) / 1000).toInt()), color = CuadraColors.Red, fontWeight = FontWeight.Bold) }
+                ErrorText(ui.errorRes)
+                Keypad(onDigit, onBackspace, Modifier.fillMaxWidth())
+                if (members.isNotEmpty()) SectionLabel(stringResource(R.string.pin_or_pick))
+            }
             members.forEach { m ->
                 CuadraCard(onClick = { onSelect(m, canCreatePin) }) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {

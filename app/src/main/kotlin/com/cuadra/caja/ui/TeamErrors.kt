@@ -14,6 +14,7 @@ fun Throwable?.teamError(): ErrorMessage = when (this) {
         "USE_OWNER_TRANSFER" -> ErrorMessage(R.string.team_err_USE_OWNER_TRANSFER)
         "INVALID_ROLE" -> ErrorMessage(R.string.team_err_INVALID_ROLE)
         "INVALID_PIN" -> ErrorMessage(R.string.team_err_INVALID_PIN)
+        "PIN_TAKEN" -> ErrorMessage(R.string.team_err_PIN_TAKEN)
         "INVALID_STATUS" -> ErrorMessage(R.string.team_err_INVALID_STATUS)
         "MEMBER_NOT_FOUND" -> ErrorMessage(R.string.team_err_MEMBER_NOT_FOUND)
         "NAME_TAKEN" -> ErrorMessage(R.string.team_err_NAME_TAKEN)

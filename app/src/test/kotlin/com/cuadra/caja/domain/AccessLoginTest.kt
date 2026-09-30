@@ -32,18 +32,18 @@ class AccessLoginTest {
     }
 
     @Test fun shareMessageNamesTheBusinessAndTheCode() {
-        val es = "Para entrar a %1\$s en la app Cuentiva: código %2\$s, tu usuario y tu PIN."
-        assertEquals("Para entrar a Panadería Sol en la app Cuentiva: código 13085, tu usuario y tu PIN.", AccessCode.shareMessage(es, "  Panadería Sol ", "13085"))
-        val en = "To get into %1\$s in the Cuentiva app: code %2\$s, your username and your PIN."
-        assertEquals("To get into Sol Bakery in the Cuentiva app: code 13085, your username and your PIN.", AccessCode.shareMessage(en, "Sol Bakery", "13085"))
+        val es = "Para entrar a %1\$s en la app Cuentiva: código %2\$s y tu PIN."
+        assertEquals("Para entrar a Panadería Sol en la app Cuentiva: código 13085 y tu PIN.", AccessCode.shareMessage(es, "  Panadería Sol ", "13085"))
+        val en = "To get into %1\$s in the Cuentiva app: code %2\$s and your PIN."
+        assertEquals("To get into Sol Bakery in the Cuentiva app: code 13085 and your PIN.", AccessCode.shareMessage(en, "Sol Bakery", "13085"))
     }
 
-    @Test fun credentialsMessageCarriesCodeUserAndPin() {
-        val t = "Para entrar a %1\$s en la app Cuentiva: código %2\$s, usuario %3\$s, PIN %4\$s."
-        assertEquals("Para entrar a Sol en la app Cuentiva: código 13085, usuario Prueba app, PIN 12345.", AccessCode.credentialsMessage(t, "Sol", "13085", " Prueba app ", "12345"))
+    @Test fun credentialsMessageCarriesCodeAndPinWithTheNameForReference() {
+        val t = "%3\$s: para entrar a %1\$s en la app Cuentiva usa el código %2\$s y tu PIN %4\$s."
+        assertEquals("Prueba app: para entrar a Sol en la app Cuentiva usa el código 13085 y tu PIN 12345.", AccessCode.credentialsMessage(t, "Sol", "13085", " Prueba app ", "12345"))
     }
 
-    // ---- formulario de entrada ----
+    // ---- formulario de entrada (código + PIN, sin usuario) ----
     @Test fun pinTakesAtMostFiveDigitsAndIgnoresOtherKeys() {
         var f = MemberLoginForm()
         "123456".forEach { f = f.digit(it) }
@@ -55,31 +55,25 @@ class AccessLoginTest {
         assertEquals("", MemberLoginForm().backspace().pin)
     }
 
-    @Test fun formIsReadyWithCodeUserAndFiveDigitPin() {
-        val ok = MemberLoginForm("13085", "Kevin", "12345")
+    @Test fun formIsReadyWithCodeAndFiveDigitPin() {
+        val ok = MemberLoginForm("13085", "12345")
         assertTrue(ok.ready)
         assertFalse(ok.copy(code = "1308").ready)
-        assertFalse(ok.copy(username = "   ").ready)
         assertFalse(ok.copy(pin = "1234").ready)
         assertFalse(MemberLoginForm().ready)
     }
 
-    @Test fun editingCleansTheCodeAndCapsTheUser() {
-        val f = MemberLoginForm().withCode(" 13-085 9").withUsername("x".repeat(200))
-        assertEquals("13085", f.code)
-        assertEquals(TeamRules.NAME_MAX, f.username.length)
-        assertEquals("Kevin", MemberLoginForm(username = "  Kevin ").cleanUsername)
+    @Test fun editingCleansTheCode() {
+        assertEquals("13085", MemberLoginForm().withCode(" 13-085 9").code)
     }
 
-    @Test fun theFifthDigitSubmitsOnlyWhenCodeAndUserAreThere() {
-        val before = MemberLoginForm("13085", "Kevin", "1234")
+    @Test fun theFifthDigitSubmitsOnlyWhenTheCodeIsThere() {
+        val before = MemberLoginForm("13085", "1234")
         assertTrue(before.autoSubmits(before.digit('5')))
-        val noUser = MemberLoginForm("13085", "", "1234")
-        assertFalse(noUser.autoSubmits(noUser.digit('5')))
-        val noCode = MemberLoginForm("130", "Kevin", "1234")
+        val noCode = MemberLoginForm("130", "1234")
         assertFalse(noCode.autoSubmits(noCode.digit('5')))
         // Los primeros cuatro números no envían nada.
-        val early = MemberLoginForm("13085", "Kevin", "123")
+        val early = MemberLoginForm("13085", "123")
         assertFalse(early.autoSubmits(early.digit('4')))
     }
 

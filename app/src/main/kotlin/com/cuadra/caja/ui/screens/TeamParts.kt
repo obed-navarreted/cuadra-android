@@ -120,20 +120,20 @@ fun AccessCodeCard(business: String, code: String?, isOwner: Boolean, actions: T
     }
 }
 
-/** Lo que se le da a una persona recién creada: código + usuario + PIN (el PIN no se vuelve a mostrar), con «Copiar» y «Compartir». */
+/** Lo que se le da a una persona recién creada: código + PIN (el PIN no se vuelve a mostrar; el nombre, de referencia), con «Copiar» y «Compartir». */
 @Composable
-fun CredentialsCard(business: String, code: String, username: String, pin: String) {
+fun CredentialsCard(business: String, code: String, name: String, pin: String) {
     val labelStyle = MaterialTheme.typography.labelMedium
     CuadraCard {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.cred_title), fontWeight = FontWeight.ExtraBold)
             Text(stringResource(R.string.cred_business, business), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted, maxLines = 3, ellipsize = true)
             CredentialLine(stringResource(R.string.cred_code), if (AccessCode.isComplete(code)) AccessCode.spaced(code) else "—", labelStyle)
-            CredentialLine(stringResource(R.string.cred_user), username, labelStyle)
             CredentialLine(stringResource(R.string.cred_pin), AccessCode.spaced(pin), labelStyle)
+            CredentialLine(stringResource(R.string.cred_user), name, labelStyle)
             Text(stringResource(R.string.cred_pin_once), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Orange, fontWeight = FontWeight.Bold)
             CopyShareRow(
-                AccessCode.credentialsMessage(stringResource(R.string.cred_share_message), business, code, username, pin), stringResource(R.string.cred_title),
+                AccessCode.credentialsMessage(stringResource(R.string.cred_share_message), business, code, name, pin), stringResource(R.string.cred_title),
                 stringResource(R.string.cred_title), enabled = AccessCode.isComplete(code),
             )
         }

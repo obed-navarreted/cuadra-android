@@ -27,7 +27,7 @@
     <string name="team_change_my_pin">Cambiar mi PIN</string>
     <string name="team_reset_pin">Restablecer PIN</string>
     <string name="team_edit_title">Editar persona</string>
-    <string name="team_name_label">Nombre (es su usuario)</string>
+    <string name="team_name_label">Nombre</string>
     <string name="team_color">Color</string>
     <string name="team_role_label">Rol</string>
     <string name="team_confirm_do">Confirmar</string>
@@ -35,7 +35,7 @@
     <string name="team_confirm_make_cashier">%1$s dejará de administrar y solo podrá vender y cambiar su propio PIN.</string>
     <string name="team_confirm_disable">%1$s ya no podrá entrar a la caja. Su historial se conserva y puedes volver a habilitarla.</string>
     <string name="team_confirm_enable">%1$s podrá volver a entrar a la caja.</string>
-    <string name="team_new_hint">Crea a alguien que entrará con el código del negocio, su nombre (usuario) y su PIN, sin cuenta de Google.</string>
+    <string name="team_new_hint">Crea a alguien que entrará con el código del negocio y su PIN, sin cuenta de Google. El PIN no se puede repetir dentro del negocio.</string>
     <string name="team_create">Crear persona</string>
     <string name="team_pin_title">PIN nuevo para %1$s</string>
     <string name="team_pin_save">Guardar PIN</string>
@@ -47,7 +47,7 @@
     <string name="team_must_change_help">Al entrar por primera vez tendrá que elegir su propio PIN.</string>
     <string name="team_saved">Cambios guardados.</string>
     <string name="team_pin_saved">PIN de %1$s guardado. Díselo ahora: por seguridad no se puede volver a ver.</string>
-    <string name="team_created">%1$s ya puede entrar con el código del negocio, su usuario y su PIN.</string>
+    <string name="team_created">%1$s ya puede entrar con el código del negocio y su PIN.</string>
 
     <!-- Equipo: errores del servidor -->
     <string name="team_err_CANNOT_MODIFY_OWNER">Solo el dueño puede modificar esta cuenta.</string>
@@ -55,6 +55,7 @@
     <string name="team_err_USE_OWNER_TRANSFER">El dueño solo cambia con el traspaso de propiedad, desde el panel web.</string>
     <string name="team_err_INVALID_ROLE">Ese rol no se puede asignar. Elige cajero o administrador.</string>
     <string name="team_err_INVALID_PIN">El PIN debe tener exactamente 5 números.</string>
+    <string name="team_err_PIN_TAKEN">Ese PIN ya lo usa otra persona del negocio. Elige otro.</string>
     <string name="team_err_INVALID_STATUS">Ese estado no es válido.</string>
     <string name="team_err_MEMBER_NOT_FOUND">Esa persona ya no está en el equipo.</string>
     <string name="team_err_DEVICE_NOT_FOUND">Ese teléfono ya no está vinculado.</string>
@@ -92,8 +93,8 @@
     <string name="account_pin_hint_none">Todavía no tienes PIN. Crea uno para entrar rápido a la caja en este teléfono.</string>
     <string name="account_pin_current">PIN actual</string>
     <string name="account_saved">Listo: tus cambios quedaron guardados.</string>
-    <string name="team_name_help">Con este nombre entra; no puede repetirse.</string>
-    <string name="team_err_NAME_TAKEN">Ya hay otra persona con ese nombre en este negocio. Elige otro (es el usuario con el que entra).</string>
+    <string name="team_name_help">Para reconocerla en la caja; no puede repetirse.</string>
+    <string name="team_err_NAME_TAKEN">Ya hay otra persona con ese nombre en este negocio. Elige otro para no confundirlas.</string>
     <string name="team_err_ACCESS_CODE_TAKEN">Ese código ya lo usa otro negocio. Elige otro.</string>
     <string name="team_err_INVALID_ACCESS_CODE">El código debe tener 5 números y no empezar con 0.</string>
     <string name="team_created_title">Persona creada</string>

@@ -30,13 +30,16 @@ object PosViews {
     /** En el orden canónico, sin repetir y sin valores desconocidos. */
     fun canonical(views: Collection<String>): List<String> = ALL.filter { it in views }
 
-    /** Pestañas de la caja según `pos_views` del negocio: TYPE → Manual; QUICK o LIST → Productos. Siempre queda al menos una (Manual). */
+    /**
+     * Pestañas de la caja según `pos_views` del negocio: TYPE → Manual; QUICK o LIST → Productos. Por omisión (negocio nuevo, datos aún sin llegar
+     * o ilegibles) van LAS DOS, igual que el valor por omisión del servidor (V16).
+     */
     fun tabs(views: Collection<String>): List<RegisterTab> {
         val tabs = buildList {
             if ("TYPE" in views) add(RegisterTab.MANUAL)
             if (views.any { it in PRODUCTS }) add(RegisterTab.PRODUCTS)
         }
-        return tabs.ifEmpty { listOf(RegisterTab.MANUAL) }
+        return tabs.ifEmpty { listOf(RegisterTab.MANUAL, RegisterTab.PRODUCTS) }
     }
 
     /** Encender o apagar «Productos» en Ajustes: van juntas las dos vistas viejas (QUICK y LIST). */

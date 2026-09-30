@@ -27,7 +27,7 @@
     <string name="team_change_my_pin">Change my PIN</string>
     <string name="team_reset_pin">Reset PIN</string>
     <string name="team_edit_title">Edit person</string>
-    <string name="team_name_label">Name (it is their username)</string>
+    <string name="team_name_label">Name</string>
     <string name="team_color">Color</string>
     <string name="team_role_label">Role</string>
     <string name="team_confirm_do">Confirm</string>
@@ -35,7 +35,7 @@
     <string name="team_confirm_make_cashier">%1$s will stop managing and will only be able to sell and change their own PIN.</string>
     <string name="team_confirm_disable">%1$s will no longer be able to use the register. Their history is kept and you can enable them again.</string>
     <string name="team_confirm_enable">%1$s will be able to use the register again.</string>
-    <string name="team_new_hint">Create someone who will sign in with the business code, their name (username) and their PIN, without a Google account.</string>
+    <string name="team_new_hint">Create someone who will sign in with the business code and their PIN, without a Google account. A PIN cannot repeat inside the business.</string>
     <string name="team_create">Create person</string>
     <string name="team_pin_title">New PIN for %1$s</string>
     <string name="team_pin_save">Save PIN</string>
@@ -47,7 +47,7 @@
     <string name="team_must_change_help">On first sign-in they will have to choose their own PIN.</string>
     <string name="team_saved">Changes saved.</string>
     <string name="team_pin_saved">PIN for %1$s saved. Tell them now: for security it cannot be seen again.</string>
-    <string name="team_created">%1$s can now sign in with the business code, their username and their PIN.</string>
+    <string name="team_created">%1$s can now sign in with the business code and their PIN.</string>
 
     <!-- Team: server errors -->
     <string name="team_err_CANNOT_MODIFY_OWNER">Only the owner can change this account.</string>
@@ -55,6 +55,7 @@
     <string name="team_err_USE_OWNER_TRANSFER">The owner can only change through the ownership transfer, from the web panel.</string>
     <string name="team_err_INVALID_ROLE">That role cannot be assigned. Choose cashier or admin.</string>
     <string name="team_err_INVALID_PIN">The PIN must be exactly 5 digits.</string>
+    <string name="team_err_PIN_TAKEN">Someone else in this business already uses that PIN. Pick another.</string>
     <string name="team_err_INVALID_STATUS">That status is not valid.</string>
     <string name="team_err_MEMBER_NOT_FOUND">That person is no longer on the team.</string>
     <string name="team_err_DEVICE_NOT_FOUND">That phone is no longer linked.</string>
@@ -93,8 +94,8 @@
     <string name="account_pin_hint_none">You do not have a PIN yet. Create one to sign in quickly on this phone.</string>
     <string name="account_pin_current">Current PIN</string>
     <string name="account_saved">Done: your changes were saved.</string>
-    <string name="team_name_help">They sign in with this name; it can\'t be repeated.</string>
-    <string name="team_err_NAME_TAKEN">Someone else in this business already has that name. Pick another (it is the username they sign in with).</string>
+    <string name="team_name_help">So you can tell who is at the register; it can\'t be repeated.</string>
+    <string name="team_err_NAME_TAKEN">Someone else in this business already has that name. Pick another so they are not confused.</string>
     <string name="team_err_ACCESS_CODE_TAKEN">Another business already uses that code. Pick another.</string>
     <string name="team_err_INVALID_ACCESS_CODE">The code must be 5 digits and not start with 0.</string>
     <string name="team_created_title">Person created</string>

@@ -2,6 +2,9 @@ package com.cuadra.caja.data.repo
 
 import android.os.Build
 import at.favre.lib.crypto.bcrypt.BCrypt
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.first
 import com.cuadra.caja.BuildConfig
 import com.cuadra.caja.data.local.CuadraDatabase
 import com.cuadra.caja.data.local.mergeMembers
@@ -82,13 +85,13 @@ class AuthRepository(
     }
 
     /**
-     * Entrada del equipo (ADR 0012): código del negocio + usuario + PIN. Si el servidor acepta, este teléfono queda vinculado y la persona activa
+     * Entrada del equipo (ADR 0012): código del negocio + PIN (el servidor reconoce a la persona por su PIN). Si el servidor acepta, este teléfono queda vinculado y la persona activa
      * (acaba de demostrar quién es), y el directorio se trae COMO TELÉFONO (con los hashes de PIN que este teléfono puede usar sin conexión) ANTES de
      * cambiar la sesión, para que la pantalla no pase por «¿Quién atiende?». Necesita conexión.
      */
-    suspend fun memberLogin(code: String, username: String, pin: String): Result<MemberLoginResult> {
+    suspend fun memberLogin(code: String, pin: String): Result<MemberLoginResult> {
         val info = deviceInfo()
-        val body = MemberLoginBody(code, username.trim(), pin, info.deviceName, info.model, info.osVersion, info.appVersion)
+        val body = MemberLoginBody(code, pin, info.deviceName, info.model, info.osVersion, info.appVersion)
         return apiCall { api.memberLogin(body) }.mapCatching { r ->
             // El código es de OTRO negocio que el de los datos del teléfono: se vacían (o se bloquea si el anterior tiene algo sin enviar). Se decide
             // después de entrar porque solo el servidor sabe de qué negocio es el código.
@@ -143,6 +146,24 @@ class AuthRepository(
     }
 
     /**
+     * «Escribe tu PIN» en un teléfono compartido: el PIN dice quién es (no se repite entre las personas activas del negocio). Se compara, sin conexión,
+     * contra el hash de cada persona que este teléfono puede usar (en paralelo: bcrypt es lento a propósito). Mismo bloqueo por intentos que al elegir
+     * a la persona.
+     */
+    suspend fun unlockByPin(pin: String): UnlockResult {
+        if (guard.isLocked()) return UnlockResult.Locked(guard.waitMillis())
+        val candidates = db.directory().activeMembers().first().filter { it.pinHash != null }
+        val match = matchPin(pin, candidates.map { it.id to it.pinHash!! })?.let { id -> candidates.first { it.id == id } }
+        if (match == null) {
+            guard.recordFailure()
+            return if (guard.isLocked()) UnlockResult.Locked(guard.waitMillis()) else UnlockResult.WrongPin
+        }
+        guard.recordSuccess()
+        session.setActiveMember(match.id, match.displayName, match.role)
+        return UnlockResult.Ok(match.id, match.displayName, match.role)
+    }
+
+    /**
      * Comprueba el PIN ACTUAL de una persona sin cambiar de cajero (para cambiar el propio PIN). Usa el mismo bloqueo por intentos que la
      * pantalla de PIN: quien adivina el PIN desde «Mi cuenta» se topa con la misma espera.
      */
@@ -180,3 +201,13 @@ class AuthRepository(
  * pantalla vuelve a usar la del teléfono para decidir a qué día pertenece algo. Un identificador que Java no reconoce (p. ej. "GMT+05:30") no se envía.
  */
 internal fun phoneTimeZone(id: String = java.util.TimeZone.getDefault().id): String? = id.takeIf { runCatching { java.time.ZoneId.of(it) }.isSuccess && it.contains('/') || it == "UTC" }
+
+/** Cuál de las personas (`id` → hash bcrypt) tiene este PIN; null si ninguna. Todas se comprueban a la vez en hilos de cálculo. */
+internal suspend fun matchPin(pin: String, hashes: List<Pair<String, String>>): String? {
+    if (!com.cuadra.caja.domain.PinRules.isValid(pin) || hashes.isEmpty()) return null
+    return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+        hashes.map { (id, hash) ->
+            async { id.takeIf { runCatching { BCrypt.verifyer().verify(pin.toCharArray(), hash.toCharArray()).verified }.getOrDefault(false) } }
+        }.awaitAll().firstOrNull { it != null }
+    }
+}
