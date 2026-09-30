@@ -20,8 +20,10 @@ data class AppConfigState(
     val dismissedRecommended: String? = null,
     val dismissedAnnouncementId: String? = null,
     val lastSuccessAt: Long? = null,
-    val donationMode: String? = null,
-    val donationUrl: String? = null,
+    val supportEmail: String? = null,
+    val supportWhatsapp: String? = null,
+    /** El panel web (la consola de la plataforma vive en `panelUrl/console`). */
+    val panelUrl: String? = null,
 )
 
 private val Context.appConfigDataStore by preferencesDataStore("app_config")
@@ -36,8 +38,9 @@ class AppConfigStore(context: Context) {
         val dismissedRecommended = stringPreferencesKey("dismissed_recommended")
         val dismissedAnnouncement = stringPreferencesKey("dismissed_announcement")
         val lastSuccess = longPreferencesKey("last_success_at")
-        val donationMode = stringPreferencesKey("donation_mode")
-        val donationUrl = stringPreferencesKey("donation_url")
+        val supportEmail = stringPreferencesKey("support_email")
+        val supportWhatsapp = stringPreferencesKey("support_whatsapp")
+        val panelUrl = stringPreferencesKey("panel_url")
     }
 
     val flow: Flow<AppConfigState> = store.data.catch { if (it is IOException) emit(emptyPreferences()) else throw it }.map { it.toState() }
@@ -47,8 +50,9 @@ class AppConfigStore(context: Context) {
         put(p, K.min, cfg.minAppVersion)
         put(p, K.recommended, cfg.recommendedAppVersion)
         put(p, K.announcement, cfg.announcement?.let { ApiJson.encodeToString(AnnouncementDto.serializer(), it) })
-        put(p, K.donationMode, cfg.donationMode)
-        put(p, K.donationUrl, cfg.donationUrl)
+        put(p, K.supportEmail, cfg.supportEmail)
+        put(p, K.supportWhatsapp, cfg.supportWhatsapp)
+        put(p, K.panelUrl, cfg.panelUrl)
         p[K.lastSuccess] = now
     }
 
@@ -66,7 +70,8 @@ class AppConfigStore(context: Context) {
         dismissedRecommended = this[K.dismissedRecommended],
         dismissedAnnouncementId = this[K.dismissedAnnouncement],
         lastSuccessAt = this[K.lastSuccess],
-        donationMode = this[K.donationMode],
-        donationUrl = this[K.donationUrl],
+        supportEmail = this[K.supportEmail],
+        supportWhatsapp = this[K.supportWhatsapp],
+        panelUrl = this[K.panelUrl],
     )
 }

@@ -4,8 +4,8 @@
     <string name="notif_channel_cash">Register and closings</string>
     <string name="notif_channel_team">Team</string>
     <string name="notif_channel_scheduled">Scheduled</string>
-    <string name="notif_channel_credit">Tabs</string>
-    <string name="notif_channel_platform">Cuadra news</string>
+    <string name="notif_channel_credit">Credit</string>
+    <string name="notif_channel_platform">Cuentiva news</string>
     <string name="notif_low_stock_title">Running low: %1$s</string>
     <string name="notif_low_stock_body">%1$s left. Time to restock.</string>
     <string name="notif_out_of_stock_title">%1$s is out of stock</string>
@@ -18,6 +18,12 @@
     <string name="notif_shift_not_closed_body">%1$s\'s shift is still open.</string>
     <string name="notif_sale_deleted_title">Sale deleted</string>
     <string name="notif_sale_deleted_body">%1$s deleted a sale of %2$s.</string>
+    <string name="notif_sale_conflict_title">Sale to review</string>
+    <string name="notif_sale_conflict_body">A sale of %1$s by %2$s clashed with a ticket already charged or discarded on another phone. It was saved separately so no money is lost: check whether it is a duplicate.</string>
+    <string name="notif_price_changed_title">Price change: %1$s</string>
+    <string name="notif_price_changed_body">%1$s changed the price from %2$s to %3$s.</string>
+    <string name="notif_cost_changed_title">Cost change: %1$s</string>
+    <string name="notif_cost_changed_body">%1$s changed the cost.</string>
     <string name="notif_device_stale_title">A phone has not synced</string>
     <string name="notif_device_stale_body">%1$s has %2$s operations waiting.</string>
     <string name="notif_pin_lockout_title">PIN locked</string>
@@ -43,6 +49,8 @@
     <string name="notif_type_SHIFT_DIFFERENCE">Difference in a closing</string>
     <string name="notif_type_SHIFT_NOT_CLOSED">Register not closed</string>
     <string name="notif_type_SALE_DELETED">Sale deleted</string>
+    <string name="notif_type_SALE_CONFLICT">Sale in conflict (to review)</string>
+    <string name="notif_type_PRICE_CHANGED">A cashier changed a price or cost</string>
     <string name="notif_type_DEVICE_STALE">Phone not synced</string>
     <string name="notif_type_PIN_LOCKOUT">PIN locked</string>
     <string name="notif_type_MEMBER_JOINED">Someone joined the team</string>

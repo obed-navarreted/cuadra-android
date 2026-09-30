@@ -1,5 +1,6 @@
 package com.cuadra.caja.data.remote
 
+import com.cuadra.caja.domain.DayRuleDto
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
@@ -19,12 +20,30 @@ data class BusinessDto(
     val defaultLocale: String, val dayCutoff: String, val inventoryMode: String, val modules: Map<String, Boolean>, val posViews: List<String>,
     val creditRequiresCustomer: Boolean, val creditDefaultDueDays: Int? = null, val creditOverdueDays: Int, val creditLimitEnforced: Boolean,
     val shiftRequired: Boolean, val shiftNoteThresholdMinor: Long? = null, val status: String,
+    /** Historial de zona/corte (ADR 0011): la última puede regir desde una jornada futura (`dayRuleEffectiveFrom`). */
+    val dayRules: List<DayRuleDto> = emptyList(), val dayRuleEffectiveFrom: String? = null,
+    /** Código del negocio (5 dígitos): con él, el usuario y el PIN, cada persona entra en su teléfono (ADR 0012). Solo lo trae el servidor a dueño/admin. */
+    val accessCode: String? = null,
+    /** La moneda ya no se puede cambiar: hay actividad registrada en ella (antes de la primera venta, sí). */
+    val currencyLocked: Boolean = false,
 )
+
+/** Un país con la moneda, zona horaria e idioma que sugiere al crear un negocio (`GET /api/config/countries`). */
+@Serializable data class CountryDto(val code: String, val currency: String, val timezone: String, val locale: String = "es")
 
 @Serializable data class LinkInfoBody(val deviceName: String, val model: String? = null, val osVersion: String? = null, val appVersion: String? = null)
 @Serializable data class SelfLinkedDto(val deviceId: String, val deviceToken: String, val cashRegisterId: String? = null)
-@Serializable data class LinkRequestCreatedDto(val code: String, val pollSecret: String, val expiresAt: String)
-@Serializable data class LinkStatusDto(val status: String, val expiresAt: String, val deviceToken: String? = null, val deviceId: String? = null, val businessId: String? = null)
+
+/** Entrar con código del negocio + usuario + PIN (`POST /api/auth/member-login`, ADR 0012). */
+@Serializable data class MemberLoginBody(
+    val businessCode: String, val username: String, val pin: String,
+    val deviceName: String? = null, val model: String? = null, val osVersion: String? = null, val appVersion: String? = null,
+)
+@Serializable data class MemberLoginResult(
+    val deviceId: String, val deviceToken: String, val businessId: String, val memberId: String, val memberName: String, val role: String, val pinMustChange: Boolean = false,
+)
+@Serializable data class AccessCodeDto(val accessCode: String)
+@Serializable data class SetAccessCodeBody(val accessCode: String)
 
 @Serializable
 data class MemberDto(
@@ -32,6 +51,20 @@ data class MemberDto(
     val pinMustChange: Boolean, val color: String? = null, val pinHash: String? = null,
 )
 @Serializable data class PinBody(val pin: String, val mustChangePin: Boolean = false)
+
+// ---------- Equipo: personas y teléfonos (solo en línea) ----------
+
+@Serializable data class CreateMemberBody(val displayName: String, val role: String, val pin: String, val mustChangePin: Boolean = false)
+
+/** Solo viaja lo que cambia (`explicitNulls = false`): un campo en nulo no se envía. */
+@Serializable data class UpdateMemberBody(val displayName: String? = null, val role: String? = null, val status: String? = null, val color: String? = null)
+
+@Serializable
+data class DeviceDto(
+    val id: String, val name: String, val model: String? = null, val appVersion: String? = null, val cashRegisterId: String? = null,
+    val cashRegisterName: String? = null, val linkedAt: String? = null, val lastSeenAt: String? = null, val lastSyncAt: String? = null,
+    val pendingOps: Int = 0, val revoked: Boolean = false,
+)
 
 @Serializable
 data class ProductDto(
@@ -58,7 +91,21 @@ data class ProductInputDto(
 data class SaleItemDto(
     val id: String, val productId: String? = null, val barcode: String? = null, val name: String, val variant: String? = null,
     val unitPriceMinor: Long, val unitCostMinor: Long? = null, val quantityMilli: Long, val discountMinor: Long, val lineTotalMinor: Long,
+    /** Cuánto de esta línea ya se devolvió. */
+    val returnedMilli: Long = 0,
 )
+@Serializable data class ReturnItemDto(val id: String? = null, val saleItemId: String, val productId: String? = null, val name: String = "", val quantityMilli: Long, val amountMinor: Long = 0)
+@Serializable data class RefundDto(val method: String, val amountMinor: Long, val creditId: String? = null)
+/** Una devolución (cuenta en la jornada en que se hizo, `occurredAt`). */
+@Serializable
+data class ReturnDto(
+    val id: String, val saleId: String, val reason: String, val refundMethod: String, val totalMinor: Long, val createdBy: MemberRefDto? = null,
+    val occurredAt: String, val items: List<ReturnItemDto> = emptyList(), val refunds: List<RefundDto> = emptyList(),
+)
+/** Cuerpo de SALE_RETURN (cola) y de `PUT sales/{id}/returns/{returnId}`. */
+@Serializable
+data class ReturnInputDto(val saleId: String, val items: List<ReturnLineInputDto>, val reason: String, val refundMethod: String, val occurredAt: String? = null)
+@Serializable data class ReturnLineInputDto(val saleItemId: String, val quantityMilli: Long)
 @Serializable
 data class SalePaymentDto(
     val id: String, val method: String, val otherLabel: String? = null, val amountMinor: Long, val tenderedMinor: Long? = null,
@@ -73,6 +120,11 @@ data class SaleDto(
     val cancelledBy: MemberRefDto? = null, val cancelledAt: String? = null, val cancelReason: String? = null, val lockedByDeviceId: String? = null,
     val lockedUntil: String? = null, val createdAt: String, val updatedAt: String, val rev: Long,
     val items: List<SaleItemDto> = emptyList(), val payments: List<SalePaymentDto> = emptyList(),
+    /** Guardada aparte porque chocó con otra versión: revisar. */
+    val conflictOfSaleId: String? = null,
+    /** LATE_AFTER_DISABLE | CLOCK_ADJUSTED (para revisar). */
+    val reviewFlag: String? = null,
+    val returnedMinor: Long = 0, val returns: List<ReturnDto> = emptyList(),
 )
 
 /** Cuerpo de SALE_UPSERT. */
@@ -80,6 +132,8 @@ data class SaleDto(
 data class SaleInputDto(
     val status: String, val label: String? = null, val cashRegisterId: String? = null, val discountMinor: Long = 0, val createdAt: String? = null,
     val completedAt: String? = null, val items: List<SaleItemInputDto> = emptyList(), val payments: List<SalePaymentInputDto> = emptyList(),
+    /** "PARKED" al cobrar una cuenta apartada retomada: si ya se cobró o descartó en otro teléfono, el servidor la guarda aparte en vez de perderla. */
+    val fromStatus: String? = null,
 )
 @Serializable
 data class SaleItemInputDto(
@@ -93,9 +147,11 @@ data class SalePaymentInputDto(
 )
 @Serializable data class CancelBody(val reason: String? = null)
 
-@Serializable data class OpDto(val opId: String, val kind: String, val entityId: String, val payload: JsonElement)
+/** `memberId`: quién hizo la operación (el servidor la aplica con esa persona); `createdAt`: hora del teléfono al hacerla (ISO-8601). */
+@Serializable data class OpDto(val opId: String, val kind: String, val entityId: String, val payload: JsonElement, val memberId: String? = null, val createdAt: String? = null)
 @Serializable data class PushBody(val ops: List<OpDto>, val pendingOps: Int? = null)
-@Serializable data class OpResultDto(val opId: String, val status: String, val code: String? = null, val rev: Long? = null)
+/** `detail`: datos para explicar un rechazo (límite y saldo, id de la copia de una venta en conflicto…). */
+@Serializable data class OpResultDto(val opId: String, val status: String, val code: String? = null, val rev: Long? = null, val detail: kotlinx.serialization.json.JsonObject? = null)
 @Serializable data class PushResponse(val results: List<OpResultDto>)
 
 @Serializable data class ChangeDto(val type: String, val rev: Long, val data: JsonElement)
@@ -103,11 +159,13 @@ data class SalePaymentInputDto(
 
 @Serializable data class ConfigDto(
     val minAppVersion: String? = null,
-    val donationUrl: String? = null,
-    val donationMode: String? = null,
     val supportEmail: String? = null,
+    /** WhatsApp de contacto y apoyo (solo dígitos con código de país). */
+    val supportWhatsapp: String? = null,
     val recommendedAppVersion: String? = null,
     val announcement: AnnouncementDto? = null,
+    /** El panel web (la consola de la plataforma está en `panelUrl/console`). */
+    val panelUrl: String? = null,
 )
 
 /** Anuncio de la plataforma: `deepLink` solo se abre si es `cuadra://…`. */
@@ -198,7 +256,44 @@ data class ShiftDto(
 @Serializable
 data class CloseShiftInputDto(val countedMinor: Long, val denominations: String? = null, val note: String? = null, val closedAt: String? = null, val force: Boolean = false, val forcedReason: String? = null)
 
-@Serializable data class UpdateBusinessBody(val modules: Map<String, Boolean>? = null, val shiftRequired: Boolean? = null, val shiftNoteThresholdMinor: Long? = null)
+/**
+ * Actualización parcial del negocio (`PUT /b/{id}`): un campo ausente = sin cambio (`explicitNulls = false` no envía los nulos). Los dos campos que se pueden dejar
+ * sin valor (días de vencimiento por defecto y umbral de nota del turno) se limpian con su bandera explícita.
+ */
+@Serializable
+data class UpdateBusinessBody(
+    val modules: Map<String, Boolean>? = null, val shiftRequired: Boolean? = null, val shiftNoteThresholdMinor: Long? = null,
+    val name: String? = null, val type: String? = null, val timezone: String? = null, val dayCutoff: String? = null, val posViews: List<String>? = null,
+    val creditRequiresCustomer: Boolean? = null, val creditDefaultDueDays: Int? = null, val creditOverdueDays: Int? = null, val creditLimitEnforced: Boolean? = null,
+    val clearCreditDefaultDueDays: Boolean? = null,
+    /** Solo antes de la primera venta (el servidor responde CURRENCY_LOCKED después). */
+    val currency: String? = null, val country: String? = null,
+) {
+    /** ¿No cambia nada? (para no llamar al servidor con un cuerpo vacío). */
+    val isEmpty: Boolean get() = this == UpdateBusinessBody()
+}
+
+// ---------- Plan, actividad y ayuda (solo en línea) ----------
+
+@Serializable data class PlanLimitsDto(val members: Int = 0, val devices: Int = 0, val schedules: Int = 0, val reportHistoryDays: Int = 0, val export: Boolean = false, val multipleBusinesses: Boolean = false, val webSections: List<String> = emptyList())
+@Serializable data class PlanUsageDto(val members: Int = 0, val devices: Int = 0, val schedules: Int = 0)
+@Serializable
+data class PlanDto(
+    val plan: String, val status: String? = null, val trialEndsAt: String? = null, val currentPeriodEnd: String? = null, val trialing: Boolean = false,
+    val trialDaysLeft: Int = 0, val limits: PlanLimitsDto? = null, val usage: PlanUsageDto? = null,
+)
+
+@Serializable data class ActivityEntryDto(val id: Long, val action: String, val entity: String? = null, val detail: String? = null, val actorName: String? = null, val byPlatform: Boolean = false, val at: String)
+
+@Serializable
+data class TicketBody(
+    val category: String, val message: String, val replyToEmail: String? = null, val replyToPhone: String? = null, val diagnostics: String? = null,
+    val locale: String? = null, val businessId: String? = null,
+)
+@Serializable data class TicketCreatedDto(val id: String, val reference: String)
+
+/** Cuerpo de `PUT message-templates/{kind}/{locale}`. */
+@Serializable data class TemplateTextBody(val body: String)
 
 // ---------- Fase 5: inventario, proveedores y compras ----------
 
@@ -278,3 +373,41 @@ data class ScheduleDto(
 
 @Serializable
 data class NotificationSettingsDto(val quietStart: String, val quietEnd: String, val summaryEnabled: Boolean, val summaryTime: String, val shiftReminderTime: String? = null, val staleHours: Int)
+
+/** Un cambio de un campo en el historial de un producto: los valores pueden ser texto, número, booleano o nulo. */
+@Serializable data class FieldChangeDto(val from: kotlinx.serialization.json.JsonElement? = null, val to: kotlinx.serialization.json.JsonElement? = null)
+
+@Serializable
+data class ProductHistoryEntryDto(
+    val id: Long, val action: String, val actorMemberId: String? = null, val actorName: String? = null, val actorRole: String? = null,
+    val at: String, val changes: Map<String, FieldChangeDto> = emptyMap(), val name: String? = null,
+)
+
+// ---------- Ventas y cierre del día (solo en línea: dueño y admins) ----------
+
+@Serializable data class PageDto<T>(val items: List<T>, val page: Int, val size: Int, val total: Long, val last: Boolean)
+@Serializable data class MethodAmountDto(val method: String, val amountMinor: Long)
+@Serializable data class SalesTotalsDto(
+    val count: Long, val totalMinor: Long, val discountMinor: Long = 0, val averageTicketMinor: Long = 0, val cancelledCount: Long = 0,
+    val returnsCount: Long = 0, val returnsMinor: Long = 0, val priorCancelledCount: Long = 0, val priorCancelledMinor: Long = 0, val netMinor: Long? = null,
+)
+@Serializable data class SalesReportDto(val sales: SalesTotalsDto, val byMethod: List<MethodAmountDto> = emptyList())
+
+@Serializable
+data class DayCloseDto(
+    val date: String, val startsAt: String, val endsAt: String, val salesCount: Long, val salesMinor: Long,
+    val byMethod: List<MethodAmountDto> = emptyList(), val creditCollected: List<MethodAmountDto> = emptyList(),
+    val drawerExpensesMinor: Long = 0, val otherExpensesMinor: Long = 0, val withdrawalsMinor: Long = 0, val depositsMinor: Long = 0,
+    val expectedCashMinor: Long = 0, val cancelledCount: Long = 0, val cancelledMinor: Long = 0,
+    /** Devoluciones hechas en esta jornada y lo que salió del cajón por ellas. */
+    val returnsCount: Long = 0, val returnsMinor: Long = 0, val cashRefundsMinor: Long = 0,
+    /** Ventas de jornadas anteriores anuladas en esta (siguen en su día; aquí restan). */
+    val priorCancelledCount: Long = 0, val priorCancelledMinor: Long = 0, val priorCancelledCashMinor: Long = 0,
+    val netSalesMinor: Long? = null,
+    /** Gastos, abonos, retiros y entradas de días anteriores anulados en esta jornada. */
+    val laterVoids: List<LaterVoidDto> = emptyList(),
+)
+@Serializable data class LaterVoidDto(val kind: String, val count: Long, val amountMinor: Long, val cashEffectMinor: Long)
+/** Un teléfono del negocio con operaciones sin enviar o sin sincronizar hace más de una hora. */
+@Serializable data class DeviceSyncDto(val deviceId: String, val name: String, val pendingOps: Int = 0, val lastSyncAt: String? = null, val stale: Boolean = false)
+@Serializable data class DailyCloseDto(val days: List<DayCloseDto> = emptyList(), val syncWarnings: List<DeviceSyncDto> = emptyList())

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Entrada del equipo (código del negocio + usuario + PIN, ADR 0012) y código del negocio en Equipo. -->
+<resources>
+    <string name="login_owner_title">Soy el dueño</string>
+    <string name="login_team_title">Soy del equipo</string>
+    <string name="login_team_hint">El dueño te dio el código del negocio, tu usuario y tu PIN.</string>
+    <string name="login_enter_with_code">Entrar con el código del negocio</string>
+    <string name="login_code_title">Entrar al negocio</string>
+    <string name="login_code_hint">El dueño te dio el código del negocio, tu usuario y tu PIN.</string>
+    <string name="login_code_label">Código del negocio</string>
+    <string name="login_code_help">5 números</string>
+    <string name="login_user_label">Usuario</string>
+    <string name="login_user_help">Tu nombre, como te dio de alta el dueño</string>
+    <string name="login_pin_label">Tu PIN (5 números)</string>
+    <string name="login_err_INVALID_CREDENTIALS">Código, usuario o PIN incorrectos</string>
+    <string name="login_err_LOCKED">Demasiados intentos. Espera 15 minutos o pide al dueño que te restablezca el PIN</string>
+    <string name="login_err_OWNER_USES_GOOGLE">El dueño entra con Google</string>
+    <string name="login_err_PLAN_LIMIT_DEVICES">Se alcanzó el máximo de teléfonos del negocio; avisa al dueño</string>
+    <string name="login_err_RATE_LIMITED">Demasiados intentos seguidos. Espera un minuto e inténtalo otra vez</string>
+    <string name="login_err_offline">Necesitas internet para entrar la primera vez</string>
+    <string name="newpin_title">Elige tu PIN nuevo</string>
+    <string name="newpin_hint">El dueño te puso un PIN provisional. Elige uno propio de 5 números; lo usarás siempre.</string>
+    <string name="newpin_first">Escribe tu PIN nuevo</string>
+    <string name="newpin_repeat">Repite tu PIN nuevo</string>
+    <string name="newpin_mismatch">Los dos PIN no son iguales. Empieza de nuevo.</string>
+    <string name="share_copy">Copiar</string>
+    <string name="share_copied">Copiado</string>
+    <string name="share_share">Compartir</string>
+    <string name="code_title">Código del negocio</string>
+    <string name="code_hint">Cada persona entra en su teléfono con este código, su usuario y su PIN.</string>
+    <string name="code_unknown">· · · · ·</string>
+    <string name="code_unknown_note">El código aparece cuando hay conexión.</string>
+    <string name="code_share_message">Para entrar a %1$s en la app Cuentiva: código %2$s, tu usuario y tu PIN.</string>
+    <string name="code_renew">Renovar código</string>
+    <string name="code_renew_do">Renovar</string>
+    <string name="code_renew_body">El código de ahora dejará de servir para entradas NUEVAS. Los teléfonos que ya entraron siguen funcionando. Después, dale el código nuevo a quien vaya a entrar.</string>
+    <string name="code_choose">Elegir mi propio código</string>
+    <string name="code_choose_body">Escribe un código que recuerdes fácil. Cualquiera que lo sepa puede intentar entrar con un usuario y un PIN, así que no uses uno obvio.</string>
+    <string name="code_choose_label">Código nuevo</string>
+    <string name="code_choose_help">5 números, sin empezar con 0</string>
+    <string name="cred_title">Datos para entrar</string>
+    <string name="cred_business">Negocio: %1$s</string>
+    <string name="cred_code">Código del negocio</string>
+    <string name="cred_user">Usuario</string>
+    <string name="cred_pin">PIN</string>
+    <string name="cred_pin_once">El PIN no se vuelve a mostrar. Cópialo o compártelo ahora.</string>
+    <string name="cred_share_message">Para entrar a %1$s en la app Cuentiva: código %2$s, usuario %3$s, PIN %4$s.</string>
+    <string name="cred_done">Listo</string>
+</resources>

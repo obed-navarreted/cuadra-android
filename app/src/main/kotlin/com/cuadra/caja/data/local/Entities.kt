@@ -13,6 +13,13 @@ data class ProductEntity(
     val trackStock: Boolean, val stockMilli: Long, val minStockMilli: Long?, val active: Boolean, val rev: Long,
 )
 
+/** Una fila de «Más vendidos» (consulta, no tabla). */
+data class BestSellerRow(val productId: String, val sales: Int, val quantityMilli: Long)
+
+/** Categoría de productos (opcional). Vive en el servidor y se baja con la sincronización; el teléfono también puede crearlas (CATEGORY_UPSERT). */
+@Entity(tableName = "product_categories", indices = [Index("name")])
+data class CategoryEntity(@PrimaryKey val id: String, val name: String, val active: Boolean, val rev: Long)
+
 @Entity(tableName = "sales", indices = [Index("status"), Index("completedAt")])
 data class SaleEntity(
     @PrimaryKey val id: String,
@@ -25,12 +32,35 @@ data class SaleEntity(
     val lockedByDeviceId: String?, val createdAt: Long, val updatedAt: Long,
     /** 0 mientras el servidor no la ha confirmado. */
     val rev: Long,
+    val editedAt: Long? = null, val cancelledAt: Long? = null,
+    /** Para revisar: LATE_AFTER_DISABLE (llegó después de la baja de quien la hizo) o CLOCK_ADJUSTED (el teléfono tenía la hora imposible). */
+    val reviewFlag: String? = null,
+    /** Venta guardada aparte porque chocó con otra (`conflictOfSaleId`): «Conflicto: revisar». */
+    val conflictOfSaleId: String? = null,
+    /** Lo devuelto de esta venta (suma de sus devoluciones, confirmadas y pendientes). */
+    @androidx.room.ColumnInfo(defaultValue = "0") val returnedMinor: Long = 0,
+    /** Quién la cobró (para «Anular mi última venta»: solo la propia). */
+    val completedByMemberId: String? = null,
 )
 
 @Entity(tableName = "sale_items", primaryKeys = ["saleId", "id"], indices = [Index("saleId")])
 data class SaleItemEntity(
     val saleId: String, val id: String, val productId: String?, val barcode: String?, val name: String, val variant: String?,
     val unitPriceMinor: Long, val unitCostMinor: Long?, val quantityMilli: Long, val discountMinor: Long, val position: Int,
+    /** Cuánto de esta línea ya se devolvió (se recalcula con las devoluciones de la venta). */
+    @androidx.room.ColumnInfo(defaultValue = "0") val returnedMilli: Long = 0,
+)
+
+/**
+ * Una devolución de una venta cobrada (docs/adr/0013). `rev = 0` mientras el servidor no la confirma (se hizo sin conexión y va en la cola como
+ * SALE_RETURN). Las líneas y el reembolso se guardan como JSON (`[{saleItemId, name, quantityMilli, amountMinor}]`, `[{method, amountMinor}]`).
+ */
+@Entity(tableName = "sale_returns", indices = [Index("saleId"), Index("occurredAt")])
+data class SaleReturnEntity(
+    @PrimaryKey val id: String, val saleId: String, val reason: String,
+    /** CASH | SAME | CREDIT_NOTE */
+    val refundMethod: String,
+    val totalMinor: Long, val createdByName: String?, val occurredAt: Long, val itemsJson: String, val refundsJson: String, val rev: Long,
 )
 
 @Entity(tableName = "sale_payments", primaryKeys = ["saleId", "id"], indices = [Index("saleId")])
@@ -50,14 +80,43 @@ data class OutboxEntity(
     @PrimaryKey(autoGenerate = true) val seq: Long = 0,
     val opId: String, val kind: String, val entityId: String, val payload: String,
     val createdAt: Long, val attempts: Int = 0, val nextAttemptAt: Long = 0,
-    /** PENDING (se enviará) | FAILED (el servidor la rechazó: requiere atención) */
+    /** PENDING (se enviará) | FAILED (el servidor la rechazó: requiere atención) | REVIEW (se aplicó, pero alguien debe revisarla: p. ej. venta guardada aparte) */
     val state: String = STATE_PENDING, val lastCode: String? = null,
+    /** Quién la hizo (la persona activa AL HACERLA, no al enviarla): el servidor la aplica con esa persona. Nulo en filas viejas: se usa la activa. */
+    val memberId: String? = null,
+    /** De qué negocio es: solo se envía al negocio al que pertenece (un teléfono que cambia de negocio no la manda al otro). */
+    val businessId: String? = null,
+    /** Datos del rechazo que da el servidor (JSON: límite y saldo, id de la copia…), para explicarlo en «Requiere atención». */
+    val lastDetail: String? = null,
 ) {
     companion object {
         const val STATE_PENDING = "PENDING"
         const val STATE_FAILED = "FAILED"
+        const val STATE_REVIEW = "REVIEW"
     }
 }
+
+/**
+ * Quién y en qué negocio se está trabajando AHORA, para sellar cada operación de la cola al encolarla (`OutboxDao.insert`). Lo actualiza `SessionStore`
+ * en cada cambio de sesión; las pruebas lo dejan vacío (y entonces la fila sale sin sello, como una vieja).
+ */
+object OutboxStamp {
+    @Volatile var memberId: String? = null
+    @Volatile var businessId: String? = null
+
+    fun apply(op: OutboxEntity): OutboxEntity = op.copy(memberId = op.memberId ?: memberId, businessId = op.businessId ?: businessId)
+}
+
+/**
+ * Lo que alguien DESCARTÓ de «Requiere atención»: la operación sale de la cola, pero queda esta línea (qué era, quién la hizo, por qué la rechazó el
+ * servidor, quién la descartó y cuándo) para poder explicarlo después.
+ */
+@Entity(tableName = "outbox_discarded", indices = [Index("discardedAt")])
+data class DiscardedOpEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val opId: String, val kind: String, val entityId: String, val payload: String, val createdAt: Long, val memberId: String?, val businessId: String?,
+    val code: String?, val discardedAt: Long, val discardedById: String?, val discardedByName: String?,
+)
 
 @Entity(tableName = "members")
 data class MemberEntity(
@@ -76,13 +135,28 @@ data class BusinessEntity(
     @androidx.room.ColumnInfo(defaultValue = "0") val shiftRequired: Boolean = false,
     /** Diferencia de cierre por encima de la cual se exige una nota (nulo = nunca). */
     val shiftNoteThresholdMinor: Long? = null,
+    /** JSON `[{from, timezone, dayCutoff}]`: historial de zona y corte (ADR 0011). Vacío = una sola regla, la de `timezone`/`dayCutoff`. */
+    @androidx.room.ColumnInfo(defaultValue = "'[]'") val dayRulesJson: String = "[]",
+    /** Jornada desde la que rige una regla pendiente (nulo = ninguna). */
+    val dayRuleEffectiveFrom: String? = null,
+    /** Tipo de negocio (texto libre, opcional). */
+    val type: String? = null,
+    /** Reglas de fiado (Ajustes del negocio): días para que un fiado nuevo venza (nulo = sin fecha), desde cuántos días se considera «vencido» y si el límite de crédito bloquea. */
+    val creditDefaultDueDays: Int? = null,
+    @androidx.room.ColumnInfo(defaultValue = "30") val creditOverdueDays: Int = 30,
+    @androidx.room.ColumnInfo(defaultValue = "0") val creditLimitEnforced: Boolean = false,
+    /** Código del negocio de 5 dígitos (solo lo recibe quien administra). */
+    val accessCode: String? = null,
+    /** La moneda ya no se puede cambiar (hay actividad registrada en ella). */
+    @androidx.room.ColumnInfo(defaultValue = "0") val currencyLocked: Boolean = false,
 )
 
 @Entity(tableName = "cash_registers")
 data class CashRegisterEntity(@PrimaryKey val id: String, val name: String, val active: Boolean)
 
+/** Cursor de la sincronización y el negocio al que pertenece: el cursor de un negocio nunca se usa para otro. */
 @Entity(tableName = "sync_state")
-data class SyncStateEntity(@PrimaryKey val id: Int = 1, val cursor: Long)
+data class SyncStateEntity(@PrimaryKey val id: Int = 1, val cursor: Long, val businessId: String? = null)
 
 @Entity(tableName = "customers", indices = [Index("name")])
 data class CustomerEntity(

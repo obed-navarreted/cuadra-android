@@ -14,7 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import com.cuadra.caja.ui.common.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.cuadra.caja.R
 import com.cuadra.caja.data.local.MemberEntity
+import com.cuadra.caja.domain.PinRules
 import com.cuadra.caja.ui.PinUi
 import com.cuadra.caja.ui.common.Avatar
 import com.cuadra.caja.ui.common.ButtonKind
@@ -77,20 +78,9 @@ fun PinScreen(
                 ui.lockedMillis?.let { Text(stringResource(R.string.pin_locked, ((it + 999) / 1000).toInt()), color = CuadraColors.Red, fontWeight = FontWeight.Bold) }
                 ErrorText(ui.errorRes)
                 Keypad(onDigit, onBackspace, Modifier.fillMaxWidth())
-                CuadraButton(
-                    stringResource(if (ui.creating) R.string.save else R.string.pin_submit), onSubmit, Modifier.fillMaxWidth(), kind = ButtonKind.DARK,
-                    enabled = ui.pin.length >= 4 && !ui.busy,
-                )
+                // Entrar: al escribir el 5.º número se entra solo. Crear el PIN sí pide guardar (para revisar lo escrito antes).
+                if (ui.creating) CuadraButton(stringResource(R.string.save), onSubmit, Modifier.fillMaxWidth(), kind = ButtonKind.DARK, enabled = ui.pin.length == PinRules.LENGTH && !ui.busy)
             }
-        }
-    }
-}
-
-@Composable
-private fun PinDots(filled: Int) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-        repeat(6) { i ->
-            Box(Modifier.padding(horizontal = 6.dp).size(16.dp).background(if (i < filled) CuadraColors.Ink else CuadraColors.Line, CircleShape))
         }
     }
 }

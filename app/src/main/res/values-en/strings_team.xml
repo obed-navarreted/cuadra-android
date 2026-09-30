@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- More -->
+    <string name="module_team">Team</string>
+
+    <!-- Team: tabs and people -->
+    <string name="team_title">Team</string>
+    <string name="team_tab_people">People</string>
+    <string name="team_tab_devices">Phones</string>
+    <string name="team_dismiss">Got it</string>
+    <string name="team_hint">Tap a person to see what you can do with their account. The owner manages everyone; an admin manages cashiers and other admins, but not the owner.</string>
+    <string name="team_offline_note">No connection: showing the last list saved on this phone. You need internet to change anything.</string>
+    <string name="team_empty">There is nobody here yet.</string>
+    <string name="team_add">Add person</string>
+    <string name="team_you">you</string>
+    <string name="team_status_disabled">Disabled</string>
+    <string name="team_pin_set">PIN set</string>
+    <string name="team_no_pin">No PIN</string>
+    <string name="team_google">Signs in with Google</string>
+    <string name="team_owner_locked">Only the owner can change this account</string>
+    <string name="team_no_actions">You cannot change this account.</string>
+    <string name="team_edit">Edit name and color</string>
+    <string name="team_make_admin">Make admin</string>
+    <string name="team_make_cashier">Make cashier</string>
+    <string name="team_disable">Disable</string>
+    <string name="team_enable">Enable</string>
+    <string name="team_change_my_pin">Change my PIN</string>
+    <string name="team_reset_pin">Reset PIN</string>
+    <string name="team_edit_title">Edit person</string>
+    <string name="team_name_label">Name (it is their username)</string>
+    <string name="team_color">Color</string>
+    <string name="team_role_label">Role</string>
+    <string name="team_confirm_do">Confirm</string>
+    <string name="team_confirm_make_admin">%1$s will be able to manage cashiers and phones, and see the business reports.</string>
+    <string name="team_confirm_make_cashier">%1$s will stop managing and will only be able to sell and change their own PIN.</string>
+    <string name="team_confirm_disable">%1$s will no longer be able to use the register. Their history is kept and you can enable them again.</string>
+    <string name="team_confirm_enable">%1$s will be able to use the register again.</string>
+    <string name="team_new_hint">Create someone who will sign in with the business code, their name (username) and their PIN, without a Google account.</string>
+    <string name="team_create">Create person</string>
+    <string name="team_pin_title">New PIN for %1$s</string>
+    <string name="team_pin_save">Save PIN</string>
+    <string name="team_pin_new">New PIN</string>
+    <string name="team_pin_repeat">Repeat the PIN</string>
+    <string name="team_pin_hint">5-digit PIN.</string>
+    <string name="team_pin_mismatch">The two PINs do not match.</string>
+    <string name="team_must_change">Must change it on first sign-in</string>
+    <string name="team_must_change_help">On first sign-in they will have to choose their own PIN.</string>
+    <string name="team_saved">Changes saved.</string>
+    <string name="team_pin_saved">PIN for %1$s saved. Tell them now: for security it cannot be seen again.</string>
+    <string name="team_created">%1$s can now sign in with the business code, their username and their PIN.</string>
+
+    <!-- Team: server errors -->
+    <string name="team_err_CANNOT_MODIFY_OWNER">Only the owner can change this account.</string>
+    <string name="team_err_CANNOT_MODIFY_SELF">You cannot change your own role or disable yourself.</string>
+    <string name="team_err_USE_OWNER_TRANSFER">The owner can only change through the ownership transfer, from the web panel.</string>
+    <string name="team_err_INVALID_ROLE">That role cannot be assigned. Choose cashier or admin.</string>
+    <string name="team_err_INVALID_PIN">The PIN must be exactly 5 digits.</string>
+    <string name="team_err_INVALID_STATUS">That status is not valid.</string>
+    <string name="team_err_MEMBER_NOT_FOUND">That person is no longer on the team.</string>
+    <string name="team_err_DEVICE_NOT_FOUND">That phone is no longer linked.</string>
+    <string name="team_err_INVALID_CASH_REGISTER">That register does not exist.</string>
+    <string name="team_err_FORBIDDEN">Your role does not allow this action.</string>
+    <string name="account_err_unverifiable">We could not check your current PIN on this phone. Sign in again with your PIN and try again.</string>
+
+    <!-- Invitations -->
+
+    <!-- Phones -->
+    <string name="dev_empty">No phones are linked yet.</string>
+    <string name="dev_revoke">Revoke</string>
+    <string name="dev_revoked">\"%1$s\" was revoked.</string>
+    <string name="dev_revoked_tag">Revoked</string>
+    <string name="dev_revoke_title">Revoke phone</string>
+    <string name="dev_revoke_body">\"%1$s\" will stop syncing and will have to be linked again.</string>
+    <plurals name="dev_revoke_pending">
+        <item quantity="one">It has %1$d unsent operation; it stays on the phone but will not reach here until it is linked again.</item>
+        <item quantity="other">It has %1$d unsent operations; they stay on the phone but will not reach here until it is linked again.</item>
+    </plurals>
+    <plurals name="dev_pending">
+        <item quantity="one">%1$d unsent operation</item>
+        <item quantity="other">%1$d unsent operations</item>
+    </plurals>
+    <string name="dev_version">version %1$s</string>
+    <string name="dev_register">Register: %1$s</string>
+    <string name="dev_last_sync">Last sync: %1$s</string>
+    <string name="dev_never">never</string>
+    <string name="dev_this">This phone</string>
+
+    <!-- My account -->
+    <string name="account_title">My account</string>
+    <string name="account_name_section">My name</string>
+    <string name="account_pin_section">My PIN</string>
+    <string name="account_pin_hint">Enter your current PIN and the new one twice. You will use it to sign in to the register.</string>
+    <string name="account_pin_hint_none">You do not have a PIN yet. Create one to sign in quickly on this phone.</string>
+    <string name="account_pin_current">Current PIN</string>
+    <string name="account_saved">Done: your changes were saved.</string>
+    <string name="team_name_help">They sign in with this name; it can\'t be repeated.</string>
+    <string name="team_err_NAME_TAKEN">Someone else in this business already has that name. Pick another (it is the username they sign in with).</string>
+    <string name="team_err_ACCESS_CODE_TAKEN">Another business already uses that code. Pick another.</string>
+    <string name="team_err_INVALID_ACCESS_CODE">The code must be 5 digits and not start with 0.</string>
+    <string name="team_created_title">Person created</string>
+    <string name="dev_hint">Everyone who signs in with the business code appears here.</string>
+    <string name="team_code_saved">Done: the business code changed.</string>
+    <string name="team_code_renewed">Done: the business code is new.</string>
+</resources>

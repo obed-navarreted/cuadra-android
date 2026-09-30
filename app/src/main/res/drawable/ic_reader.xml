@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <!-- Lector listo: código de barras atravesado por la línea del láser. -->
+    <path android:fillColor="#FF1A1916" android:pathData="M4,5h2v14H4V5zM8,5h1v14H8V5zM11,5h2v14h-2V5zM15,5h1v14h-1V5zM18,5h2v14h-2V5zM2,11h20v2H2v-2z" />
+</vector>

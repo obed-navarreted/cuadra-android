@@ -12,7 +12,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import com.cuadra.caja.ui.common.Text
+import com.cuadra.caja.ui.common.money
+import com.cuadra.caja.ui.common.ChipGrid
+import com.cuadra.caja.ui.common.Sheet
+import com.cuadra.caja.ui.common.ButtonRow
+import com.cuadra.caja.ui.common.ChipFlow
+import com.cuadra.caja.ui.common.SplitRow
+import com.cuadra.caja.ui.common.MoneyText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -58,6 +65,7 @@ private data class Resolved(val content: ShareContent, val phone: String?, val c
 private fun labels(ctx: Context) = CardLabels(
     ctx.getString(R.string.card_reminder), ctx.getString(R.string.card_statement), ctx.getString(R.string.card_credit), ctx.getString(R.string.card_payment),
     ctx.getString(R.string.card_paid_off), ctx.getString(R.string.card_balance), ctx.getString(R.string.card_total), ctx.getString(R.string.card_open_for),
+    ctx.getString(R.string.card_ticket),
 )
 
 private suspend fun resolve(c: AppContainer, ctx: Context, request: ShareRequest, money: MoneyFormat, locale: Locale): Resolved? {
@@ -91,6 +99,10 @@ private suspend fun resolve(c: AppContainer, ctx: Context, request: ShareRequest
             ShareBuilders.creditNew(business.name, request.debtor, date(now), money.format(request.creditedMinor), request.items.map { it.first to money.format(it.second) },
                 request.paidNowMinor?.let { money.format(it) }, l, ctx.getString(R.string.card_paid_now)),
             request.phone, request.creditId, request.customerId, request.debtor, "CREDIT_OPENED",
+        )
+        is ShareRequest.Ticket -> Resolved(
+            ShareBuilders.ticket(business.name, date(now), request.items.map { it.first to money.format(it.second) }, money.format(request.totalMinor), l),
+            null, null, null, "", "TICKET_OPENED",
         )
         is ShareRequest.Payment -> {
             val r = request.receipt
@@ -130,69 +142,89 @@ fun ShareDialog(container: AppContainer, request: ShareRequest, onDismiss: () ->
         }
     }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(shape = RoundedCornerShape(24.dp), color = CuadraColors.Bg) {
-            Column(Modifier.padding(20.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                val r = resolved
-                if (r == null) {
-                    Text(stringResource(R.string.pin_loading), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    return@Column
-                }
-                Text(
-                    stringResource(when (r.content.kind) {
-                        MessageKind.REMINDER -> R.string.share_title_reminder
-                        MessageKind.STATEMENT -> R.string.share_title_statement
-                        MessageKind.CREDIT_NEW -> R.string.share_title_credit
-                        else -> R.string.share_title_payment
-                    }),
-                    style = MaterialTheme.typography.headlineMedium,
-                )
-                Text(
-                    if (r.phone != null) stringResource(R.string.share_to, r.recipient, "+" + r.phone) else stringResource(R.string.share_no_phone),
-                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CuadraChip(stringResource(R.string.share_tab_text), !imageTab, { imageTab = false }, Modifier.weight(1f))
-                    CuadraChip(stringResource(R.string.share_tab_image), imageTab, { imageTab = true }, Modifier.weight(1f))
-                }
-                if (!imageTab) {
-                    VoiceTextField(text, { text = it }, Modifier.fillMaxWidth(), minLines = 5, maxLines = 10)
-                    Text(stringResource(R.string.share_edit_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val r = resolved
+    ShareSheet(
+        ShareUi(
+            loading = r == null,
+            titleRes = when (r?.content?.kind) {
+                MessageKind.REMINDER -> R.string.share_title_reminder
+                MessageKind.STATEMENT -> R.string.share_title_statement
+                MessageKind.CREDIT_NEW -> R.string.share_title_credit
+                MessageKind.TICKET -> R.string.share_title_ticket
+                else -> R.string.share_title_payment
+            },
+            recipient = r?.recipient.orEmpty(), phone = r?.phone, imageTab = imageTab, text = text, card = r?.content?.card,
+            needsChoice = needsChoice, choices = installed, failed = failed,
+        ),
+        onDismiss = onDismiss, onImageTab = { imageTab = it }, onText = { text = it },
+        onPick = { p -> WhatsAppSender.rememberChoice(context, p); pkg = p },
+        onOpen = {
+            val res = r ?: return@ShareSheet
+            scope.launch {
+                val sent = if (imageTab) {
+                    val file = ShareCardRenderer.render(context, res.content.card)
+                    WhatsAppSender.sendImage(context, res.phone, null, file, pkg)
                 } else {
-                    CardPreview(r.content.card)
+                    WhatsAppSender.sendText(context, res.phone, text, pkg)
                 }
-                if (needsChoice) {
-                    Text(stringResource(R.string.share_which), style = MaterialTheme.typography.labelLarge)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        installed.forEach { p ->
-                            CuadraChip(stringResource(if (p == WhatsAppSender.BUSINESS) R.string.share_wa_business else R.string.share_wa_personal), false, { WhatsAppSender.rememberChoice(context, p); pkg = p })
-                        }
-                    }
+                if (sent) {
+                    container.credits.recordEvent(res.creditId, res.customerId, res.eventKind, if (imageTab) "IMAGE" else "TEXT")
+                    onDismiss()
+                } else {
+                    failed = true
                 }
-                if (failed) Text(stringResource(R.string.share_failed), color = CuadraColors.Red, fontWeight = FontWeight.Bold)
-                CuadraButton(
-                    stringResource(R.string.share_open), {
-                        scope.launch {
-                            val sent = if (imageTab) {
-                                val file = ShareCardRenderer.render(context, r.content.card)
-                                WhatsAppSender.sendImage(context, r.phone, null, file, pkg)
-                            } else {
-                                WhatsAppSender.sendText(context, r.phone, text, pkg)
-                            }
-                            if (sent) {
-                                container.credits.recordEvent(r.creditId, r.customerId, r.eventKind, if (imageTab) "IMAGE" else "TEXT")
-                                onDismiss()
-                            } else {
-                                failed = true
-                            }
-                        }
-                    },
-                    Modifier.fillMaxWidth(), kind = ButtonKind.WHATSAPP, enabled = !needsChoice,
-                )
-                Text(stringResource(R.string.share_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                CuadraButton(stringResource(R.string.share_not_now), onDismiss, Modifier.fillMaxWidth())
+            }
+        },
+    )
+}
+
+/** Lo que muestra la hoja de WhatsApp. */
+data class ShareUi(
+    val loading: Boolean, val titleRes: Int, val recipient: String, val phone: String?, val imageTab: Boolean, val text: String,
+    val card: com.cuadra.caja.domain.ShareCard?, val needsChoice: Boolean, val choices: List<String>, val failed: Boolean,
+)
+
+/** La hoja de «Enviar por WhatsApp» sin lógica de envío (recibe todo por parámetros): es lo que dibuja la guardia de diseño. */
+@Composable
+fun ShareSheet(
+    ui: ShareUi, onDismiss: () -> Unit, onImageTab: (Boolean) -> Unit, onText: (String) -> Unit, onPick: (String) -> Unit, onOpen: () -> Unit,
+) {
+    Sheet(onDismiss, actions = {
+        if (!ui.loading) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            ButtonRow {
+                CuadraButton(stringResource(R.string.share_open), onOpen, Modifier.share(1.4f), kind = ButtonKind.WHATSAPP, enabled = !ui.needsChoice)
+                CuadraButton(stringResource(R.string.share_not_now), onDismiss, Modifier.share(1f))
+            }
+            // Una línea, bajo el botón: WhatsApp nunca envía solo; se abre con el mensaje listo y la persona toca «Enviar».
+            Text(stringResource(R.string.share_hint), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Normal, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else CuadraButton(stringResource(R.string.share_not_now), onDismiss, Modifier.fillMaxWidth())
+    }) {
+        if (ui.loading || ui.card == null) {
+            Text(stringResource(R.string.pin_loading), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            return@Sheet
+        }
+        Text(stringResource(ui.titleRes), style = MaterialTheme.typography.headlineMedium)
+        Text(
+            if (ui.phone != null) stringResource(R.string.share_to, ui.recipient, "+" + ui.phone) else stringResource(R.string.share_no_phone),
+            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        ChipGrid {
+            CuadraChip(stringResource(R.string.share_tab_text), !ui.imageTab, { onImageTab(false) })
+            CuadraChip(stringResource(R.string.share_tab_image), ui.imageTab, { onImageTab(true) })
+        }
+        if (!ui.imageTab) {
+            VoiceTextField(ui.text, onText, Modifier.fillMaxWidth(), minLines = 5, maxLines = 10)
+            Text(stringResource(R.string.share_edit_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            CardPreview(ui.card)
+        }
+        if (ui.needsChoice) {
+            Text(stringResource(R.string.share_which), style = MaterialTheme.typography.labelLarge)
+            ChipFlow {
+                ui.choices.forEach { p -> CuadraChip(stringResource(if (p == WhatsAppSender.BUSINESS) R.string.share_wa_business else R.string.share_wa_personal), false, { onPick(p) }) }
             }
         }
+        if (ui.failed) Text(stringResource(R.string.share_failed), color = CuadraColors.Red, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -208,14 +240,12 @@ private fun CardPreview(card: com.cuadra.caja.domain.ShareCard) {
         }
         card.subtitle?.let { Text(it, fontWeight = FontWeight.ExtraBold) }
         card.lines.forEach { l ->
-            Row(Modifier.fillMaxWidth()) {
-                Text(l.left, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(l.right, fontWeight = if (l.emphasis) FontWeight.ExtraBold else FontWeight.Bold)
+            SplitRow(end = { MoneyText(l.right, fontWeight = if (l.emphasis) FontWeight.ExtraBold else FontWeight.Bold) }) {
+                Text(l.left, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        Row(Modifier.fillMaxWidth()) {
-            Text(card.totalLabel, Modifier.weight(1f), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(card.totalValue, style = MaterialTheme.typography.headlineMedium, color = CuadraColors.Orange)
+        SplitRow(end = { MoneyText(card.totalValue, style = MaterialTheme.typography.headlineMedium, color = CuadraColors.Orange) }) {
+            Text(card.totalLabel, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

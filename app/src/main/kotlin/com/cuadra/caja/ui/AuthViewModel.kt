@@ -4,11 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cuadra.caja.AppContainer
 import com.cuadra.caja.data.local.MemberEntity
-import com.cuadra.caja.data.remote.LinkRequestCreatedDto
 import com.cuadra.caja.data.remote.MeDto
 import com.cuadra.caja.data.repo.UnlockResult
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import com.cuadra.caja.domain.AccessCode
+import com.cuadra.caja.domain.MemberLoginForm
+import com.cuadra.caja.domain.NewPinEntry
+import com.cuadra.caja.domain.PinRules
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -21,48 +22,34 @@ data class AuthUi(
     val busy: Boolean = false,
     val errorRes: ErrorMessage? = null,
     val me: MeDto? = null,
-    /** Código de vinculación en pantalla y si ya venció. */
-    val link: LinkRequestCreatedDto? = null,
-    val linkExpired: Boolean = false,
+    /** Países para elegir al crear el negocio (del servidor; sin conexión, la lista de la app). */
+    val countries: List<com.cuadra.caja.domain.CountryOption> = com.cuadra.caja.domain.CountryChoice.FALLBACK,
 )
 
-/** Entrada con Google, negocio nuevo o existente, y vinculación de teléfono por código. */
+/** Entrada con Google (el dueño): negocio nuevo o existente para este teléfono. */
 class AuthViewModel(private val c: AppContainer) : ViewModel() {
     private val _ui = MutableStateFlow(AuthUi())
     val ui: StateFlow<AuthUi> = _ui.asStateFlow()
-    private var polling: Job? = null
 
     fun googleSignedIn(idToken: String) = run {
         c.auth.signInWithGoogle(idToken).fold({ me -> _ui.update { it.copy(me = me) } }, { e -> fail(e) })
     }
 
-    fun loadMe() = run { c.auth.me().fold({ me -> _ui.update { it.copy(me = me) } }, { e -> fail(e) }) }
+    fun loadMe() = run {
+        c.auth.me().fold({ me -> _ui.update { it.copy(me = me) } }, { e -> fail(e) })
+        val list = c.auth.countries()
+        _ui.update { it.copy(countries = list) }
+    }
 
-    fun createBusiness(name: String) = run { c.auth.createBusiness(name).fold({ }, { e -> fail(e) }) }
+    fun createBusiness(name: String, origin: com.cuadra.caja.domain.BusinessOrigin) = run {
+        c.auth.createBusiness(name, origin.timezone, origin.country, origin.currency).fold({ }, { e -> fail(e) })
+    }
 
     fun useBusiness(businessId: String) = run { c.auth.linkThisPhone(businessId).fold({ }, { e -> fail(e) }) }
 
     fun showError(res: Int) = _ui.update { it.copy(errorRes = ErrorMessage(res), busy = false) }
 
-    fun startLinkCode() {
-        polling?.cancel()
-        _ui.update { it.copy(busy = true, errorRes = null, link = null, linkExpired = false) }
-        polling = viewModelScope.launch {
-            val created = c.auth.requestLinkCode().getOrElse { e -> fail(e); return@launch }
-            _ui.update { it.copy(busy = false, link = created) }
-            val expires = java.time.Instant.parse(created.expiresAt).toEpochMilli()
-            while (System.currentTimeMillis() < expires) {
-                delay(3_000)
-                val linked = c.auth.pollLink(created.code, created.pollSecret).getOrDefault(false)
-                if (linked) return@launch    // la sesión cambia y la pantalla raíz avanza sola
-            }
-            _ui.update { it.copy(linkExpired = true) }
-        }
-    }
-
-    fun stopPolling() {
-        polling?.cancel()
-    }
+    fun showError(message: ErrorMessage) = _ui.update { it.copy(errorRes = message, busy = false) }
 
     private fun run(block: suspend () -> Unit) {
         _ui.update { it.copy(busy = true, errorRes = null) }
@@ -73,10 +60,6 @@ class AuthViewModel(private val c: AppContainer) : ViewModel() {
     }
 
     private fun fail(e: Throwable) = _ui.update { it.copy(errorRes = e.errorMessage(), busy = false) }
-
-    override fun onCleared() {
-        polling?.cancel()
-    }
 }
 
 data class PinUi(
@@ -109,13 +92,17 @@ class PinViewModel(private val c: AppContainer) : ViewModel() {
         _ui.value = PinUi()
     }
 
-    fun digit(d: Char) = _ui.update { if (it.pin.length < 6) it.copy(pin = it.pin + d, wrong = false) else it }
+    /** Al escribir el 5.º número se entra solo (sin botón). */
+    fun digit(d: Char) {
+        _ui.update { if (it.pin.length < PinRules.LENGTH && !it.busy) it.copy(pin = it.pin + d, wrong = false) else it }
+        if (_ui.value.pin.length == PinRules.LENGTH && !_ui.value.creating) submit()
+    }
     fun backspace() = _ui.update { it.copy(pin = it.pin.dropLast(1), wrong = false) }
 
     fun submit() {
         val state = _ui.value
         val member = state.selected ?: return
-        if (state.pin.length < 4 || state.busy) return
+        if (!PinRules.isValid(state.pin) || state.busy) return
         _ui.update { it.copy(busy = true, errorRes = null) }
         viewModelScope.launch {
             if (state.creating) {
@@ -134,6 +121,96 @@ class PinViewModel(private val c: AppContainer) : ViewModel() {
         UnlockResult.WrongPin -> _ui.update { it.copy(busy = false, pin = "", wrong = true, lockedMillis = null) }
         is UnlockResult.Locked -> _ui.update { it.copy(busy = false, pin = "", wrong = false, lockedMillis = r.waitMillis) }
         UnlockResult.NoPin -> _ui.update { it.copy(busy = false, pin = "", noPin = true) }
+    }
+
+    fun signOut() {
+        viewModelScope.launch { c.auth.signOut() }
+    }
+}
+
+/** Lo que la pantalla «Entrar con el código del negocio» le pide al ViewModel. Cuerpos vacíos por omisión: la guardia usa `object : MemberLoginActions {}`. */
+interface MemberLoginActions {
+    fun setCode(raw: String) {}
+    fun setUsername(raw: String) {}
+    fun digit(d: Char) {}
+    fun backspace() {}
+    fun submit() {}
+}
+
+data class MemberLoginUi(val form: MemberLoginForm = MemberLoginForm(), val busy: Boolean = false, val error: ErrorMessage? = null)
+
+/**
+ * Entrada del equipo (ADR 0012): código del negocio + usuario + PIN. Al lograrlo la sesión cambia (teléfono vinculado y persona activa) y la pantalla
+ * raíz avanza sola: a la caja, o a «Elige tu PIN nuevo» si el dueño puso un PIN que debe cambiarse.
+ */
+class MemberLoginViewModel(private val c: AppContainer) : ViewModel(), MemberLoginActions {
+    private val _ui = MutableStateFlow(MemberLoginUi())
+    val ui: StateFlow<MemberLoginUi> = _ui.asStateFlow()
+
+    init {
+        // Se acuerda del último código usado en este teléfono.
+        viewModelScope.launch {
+            val last = c.sessionStore.lastBusinessCode()?.let(AccessCode::sanitize).orEmpty()
+            if (last.isNotEmpty()) _ui.update { if (it.form.code.isEmpty()) it.copy(form = it.form.withCode(last)) else it }
+        }
+    }
+
+    private fun edit(f: (MemberLoginForm) -> MemberLoginForm) = _ui.update { if (it.busy) it else it.copy(form = f(it.form), error = null) }
+
+    override fun setCode(raw: String) = edit { it.withCode(raw) }
+    override fun setUsername(raw: String) = edit { it.withUsername(raw) }
+    override fun backspace() = edit { it.backspace() }
+
+    override fun digit(d: Char) {
+        val before = _ui.value.form
+        edit { it.digit(d) }
+        if (!_ui.value.busy && before.autoSubmits(_ui.value.form)) submit()
+    }
+
+    override fun submit() {
+        val s = _ui.value
+        if (s.busy || !s.form.ready) return
+        _ui.update { it.copy(busy = true, error = null) }
+        viewModelScope.launch {
+            c.auth.memberLogin(s.form.code, s.form.cleanUsername, s.form.pin).fold(
+                // La sesión cambia y la pantalla raíz avanza sola.
+                onSuccess = { _ui.update { it.copy(busy = false, form = it.form.copy(pin = "")) } },
+                onFailure = { e -> _ui.update { it.copy(busy = false, form = it.form.copy(pin = ""), error = e.loginError()) } },
+            )
+        }
+    }
+}
+
+interface ChangePinActions {
+    fun digit(d: Char) {}
+    fun backspace() {}
+    fun submit() {}
+}
+
+data class ChangePinUi(val entry: NewPinEntry = NewPinEntry(), val busy: Boolean = false, val error: ErrorMessage? = null)
+
+/** «Elige tu PIN nuevo»: quien entró con un PIN puesto por el dueño elige el suyo (5 números, dos veces) antes de usar la caja. */
+class ChangePinViewModel(private val c: AppContainer) : ViewModel(), ChangePinActions {
+    private val _ui = MutableStateFlow(ChangePinUi())
+    val ui: StateFlow<ChangePinUi> = _ui.asStateFlow()
+
+    override fun digit(d: Char) {
+        _ui.update { if (it.busy) it else it.copy(entry = it.entry.digit(d), error = null) }
+        if (_ui.value.entry.done) submit()
+    }
+
+    override fun backspace() = _ui.update { if (it.busy) it else it.copy(entry = it.entry.backspace(), error = null) }
+
+    override fun submit() {
+        val s = _ui.value
+        if (s.busy || !s.entry.done) return
+        _ui.update { it.copy(busy = true, error = null) }
+        viewModelScope.launch {
+            c.auth.finishPinChange(s.entry.first).fold(
+                onSuccess = { _ui.update { ChangePinUi() } },    // la sesión cambia y la pantalla raíz avanza sola
+                onFailure = { e -> _ui.update { it.copy(busy = false, entry = NewPinEntry(), error = e.teamError()) } },
+            )
+        }
     }
 
     fun signOut() {

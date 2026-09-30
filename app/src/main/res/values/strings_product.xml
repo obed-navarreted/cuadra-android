@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="product_barcode_taken">Ya lo tiene %1$s</string>
+    <string name="product_short_code">Código corto (opcional)</string>
+    <string name="product_variant">Variante (opcional)</string>
+    <string name="product_category">Categoría</string>
+    <string name="product_category_none">Sin categoría</string>
+    <string name="product_category_new">+ Nueva categoría</string>
+    <string name="product_category_name">Nombre de la categoría</string>
+    <string name="product_category_add">Agregar categoría</string>
+    <string name="product_pricing_title">Cómo se cobra</string>
+    <string name="pricing_OPEN">Precio abierto</string>
+    <string name="pricing_OPEN_option">Precio abierto — se pregunta al vender</string>
+    <string name="pricing_FIXED_hint">Siempre se vende al mismo precio.</string>
+    <string name="pricing_BY_WEIGHT_hint">Se pesa al vender; el precio es por unidad de peso.</string>
+    <string name="pricing_OPEN_hint">El precio se escribe en cada venta.</string>
+    <string name="product_price_per">Precio por %1$s</string>
+    <string name="product_price_suggested">Precio sugerido (opcional)</string>
+    <string name="product_cost_optional">Costo (opcional)</string>
+    <string name="product_error_name">Escribe el nombre.</string>
+    <string name="product_error_price">Escribe el precio.</string>
+    <string name="product_error_amount">Escribe un monto válido.</string>
+    <string name="product_price_hint_optional">Precio abierto: se pregunta al vender.</string>
+    <string name="open_price_title">Precio de %1$s</string>
+    <string name="open_price_label">Precio</string>
+    <string name="open_price_hint">Escribe cuánto cuesta esta vez.</string>
+    <string name="open_price_add">Agregar</string>
+    <string name="open_price_suggested">Sugerido %1$s</string>
+    <string name="inventory_price_suggested">Precio sugerido</string>
+    <string name="product_price_by_weight">Precio por libra</string>
+</resources>

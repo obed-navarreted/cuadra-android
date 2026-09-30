@@ -22,16 +22,19 @@ import org.junit.Test
 private class FakeStore(ops: List<OutboxEntity> = emptyList(), var cursorValue: Long = 0) : SyncStore {
     val outbox = ops.toMutableList()
     val failed = mutableMapOf<Long, String>()
+    val details = mutableMapOf<Long, String?>()
+    val review = mutableMapOf<Long, String>()
     val pages = mutableListOf<Pair<Int, Long>>()
     var failApply = false
 
-    override suspend fun dueOps(limit: Int, now: Long) = outbox.filter { it.state == "PENDING" && it.nextAttemptAt <= now && it.seq !in failed }.sortedBy { it.seq }.take(limit)
+    override suspend fun dueOps(limit: Int, now: Long) = outbox.filter { it.state == "PENDING" && it.nextAttemptAt <= now && it.seq !in failed && it.seq !in review }.sortedBy { it.seq }.take(limit)
     override suspend fun acknowledge(seqs: List<Long>) { outbox.removeAll { it.seq in seqs } }
-    override suspend fun markFailed(seq: Long, code: String) { failed[seq] = code }
+    override suspend fun markFailed(seq: Long, code: String, detail: String?) { failed[seq] = code; details[seq] = detail }
+    override suspend fun markReview(seq: Long, code: String, detail: String?) { review[seq] = code; details[seq] = detail }
     override suspend fun retryLater(seqs: List<Long>, next: Long, code: String?) {
         outbox.replaceAll { if (it.seq in seqs) it.copy(nextAttemptAt = next, attempts = it.attempts + 1, lastCode = code) else it }
     }
-    override suspend fun pendingCount() = outbox.count { it.seq !in failed }
+    override suspend fun pendingCount() = outbox.count { it.seq !in failed && it.seq !in review }
     override suspend fun cursor() = cursorValue
     override suspend fun applyPage(changes: List<ChangeDto>, cursor: Long) {
         if (failApply) error("disco lleno")
@@ -50,6 +53,11 @@ private class FakeRemote(
     override suspend fun pull(since: Long, limit: Int): Result<PullResponse> {
         pullSince += since
         return Result.success(pullPages.removeAt(0))
+    }
+    val pullPending = mutableListOf<Int?>()
+    override suspend fun pull(since: Long, limit: Int, pendingOps: Int?): Result<PullResponse> {
+        pullPending += pendingOps
+        return pull(since, limit)
     }
 }
 
@@ -193,13 +201,80 @@ class SyncEngineTest {
         assertEquals(1, store.outbox.size)
     }
 
+    /** Después de subir, la bajada informa lo que quedó sin enviar (el cierre del día del dueño avisa con ese número); solo en la primera página. */
+    @Test fun thePullReportsWhatIsStillPendingAfterPushing() = runTest {
+        val store = FakeStore(listOf(op(1), op(2)))
+        val remote = FakeRemote(
+            onPush = { b -> Result.success(PushResponse(b.ops.map { if (it.opId == "op1") OpResultDto(it.opId, "APPLIED", null, 1) else OpResultDto(it.opId, "REJECTED", "SALE_LOCKED") })) },
+            pullPages = mutableListOf(PullResponse(emptyList(), 5, true), PullResponse(emptyList(), 6, false)),
+        )
+        SyncEngine(remote, store, now).run()
+        assertEquals(listOf<Int?>(1, null), remote.pullPending)
+    }
+
     @Test fun suspendedPullFailureAlsoLeavesTheOutboxAlone() = runTest {
         val store = FakeStore(listOf(op(1)))
         val remote = FakeRemote(onPush = { Result.success(PushResponse(listOf(OpResultDto("op1", "APPLIED", null, 1)))) })
         remote.pullPages.clear()
         val failing = object : SyncRemote by remote {
             override suspend fun pull(since: Long, limit: Int): Result<PullResponse> = Result.failure(ApiFailure.Http(403, "BUSINESS_SUSPENDED", "x"))
+            override suspend fun pull(since: Long, limit: Int, pendingOps: Int?): Result<PullResponse> = pull(since, limit)
         }
         assertEquals(SyncResult.Failed("BUSINESS_SUSPENDED"), SyncEngine(failing, store, now).run())
+    }
+
+    // ---------- quién hizo cada operación, y lo que requiere atención ----------
+
+    @Test fun eachOperationTravelsWithWhoDidItAndWhenNotWithWhoIsActiveNow() = runTest {
+        val kevin = op(1).copy(memberId = "kevin", createdAt = 1_700_000_000_000)
+        val lucia = op(2).copy(memberId = "lucia", createdAt = 1_700_000_060_000)
+        val store = FakeStore(listOf(kevin, lucia))
+        val remote = FakeRemote()
+        SyncEngine(remote, store, now).run()
+        val sent = remote.pushes.single().ops
+        assertEquals(listOf("kevin", "lucia"), sent.map { it.memberId })
+        assertEquals("2023-11-14T22:13:20Z", sent[0].createdAt)
+    }
+
+    @Test fun aSaleSavedAsAConflictCopyIsKeptForReviewNotDroppedNorFailed() = runTest {
+        val store = FakeStore(listOf(op(1), op(2)))
+        val detail = kotlinx.serialization.json.buildJsonObject { put("copySaleId", kotlinx.serialization.json.JsonPrimitive("s-copy")) }
+        val remote = FakeRemote(onPush = { Result.success(PushResponse(listOf(OpResultDto("op1", "APPLIED", "SALE_CONFLICT_COPY", 5, detail), OpResultDto("op2", "DUPLICATE", "SALE_CONFLICT_COPY")))) })
+        val result = SyncEngine(remote, store, now).run() as SyncResult.Done
+        assertEquals(mapOf(1L to "SALE_CONFLICT_COPY", 2L to "SALE_CONFLICT_COPY"), store.review)
+        assertTrue(store.failed.isEmpty())
+        assertEquals("""{"copySaleId":"s-copy"}""", store.details[1])
+        assertEquals(2, store.outbox.size)          // siguen visibles en «Requiere atención»
+        assertEquals(2, result.rejected)            // y el estado dice «requiere atención»
+        assertEquals(SyncStatus.NEEDS_ATTENTION, syncStatusOf(result))
+    }
+
+    @Test fun aChargedSaleThatTheServerCallsStaleIsNotSilentlyDeleted() = runTest {
+        val charged = op(1).copy(payload = """{"status":"COMPLETED","items":[]}""")
+        val parked = op(2).copy(payload = """{"status":"PARKED","items":[]}""")
+        val store = FakeStore(listOf(charged, parked))
+        val remote = FakeRemote(onPush = { Result.success(PushResponse(listOf(OpResultDto("op1", "STALE"), OpResultDto("op2", "STALE")))) })
+        SyncEngine(remote, store, now).run()
+        assertEquals(mapOf(1L to "SALE_STALE"), store.review)
+        assertEquals(listOf(1L), store.outbox.map { it.seq })   // la apartada vieja sí se da por hecha
+    }
+
+    @Test fun aRejectionKeepsTheServerDetailsToExplainIt() = runTest {
+        val store = FakeStore(listOf(op(1)))
+        val detail = kotlinx.serialization.json.buildJsonObject { put("limitMinor", kotlinx.serialization.json.JsonPrimitive(50000)); put("balanceMinor", kotlinx.serialization.json.JsonPrimitive(60000)) }
+        val remote = FakeRemote(onPush = { Result.success(PushResponse(listOf(OpResultDto("op1", "REJECTED", "CREDIT_LIMIT_EXCEEDED", null, detail)))) })
+        SyncEngine(remote, store, now).run()
+        assertEquals("CREDIT_LIMIT_EXCEEDED", store.failed[1])
+        assertEquals("""{"limitMinor":50000,"balanceMinor":60000}""", store.details[1])
+    }
+
+    @Test fun aDisabledMemberOrPhoneIsAnAccessProblemAndTheQueueIsKept() = runTest {
+        for (failure in listOf(ApiFailure.Http(403, "MEMBER_NOT_ACTIVE", "x"), ApiFailure.Http(401, "ACCESS_DISABLED", "x"))) {
+            val store = FakeStore(listOf(op(1)))
+            val remote = FakeRemote(onPush = { Result.failure(failure) })
+            assertEquals(SyncResult.AuthProblem(failure.code), SyncEngine(remote, store, now).run())
+            assertEquals(0, store.outbox.single().attempts)
+            assertTrue(store.failed.isEmpty())
+        }
     }
 }

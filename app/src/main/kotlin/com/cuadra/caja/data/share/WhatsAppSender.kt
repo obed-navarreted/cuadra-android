@@ -6,7 +6,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.core.content.FileProvider
+import com.cuadra.caja.domain.ShareRoute
 import com.cuadra.caja.domain.WhatsAppLinks
+import com.cuadra.caja.domain.WhatsAppRoutes
 import java.io.File
 
 /**
@@ -43,13 +45,18 @@ object WhatsAppSender {
     fun rememberChoice(context: Context, pkg: String) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_PACKAGE, pkg).apply()
 
     /**
-     * Texto: con número abre directo el chat del cliente (`wa.me`); sin número abre el selector de contactos de WhatsApp.
+     * Texto (ver `WhatsAppRoutes`): con número abre directo el chat del cliente (`wa.me`, número internacional); sin número abre el selector de contactos
+     * de WhatsApp; sin WhatsApp instalado, la hoja de compartir del sistema. Nunca se envía solo.
      * @return false si no hay nada que pueda abrirlo.
      */
     fun sendText(context: Context, phoneDigits: String?, text: String, pkg: String?): Boolean {
-        val intent = if (phoneDigits != null) Intent(Intent.ACTION_VIEW, Uri.parse(WhatsAppLinks.chat(phoneDigits, text)))
-        else Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
-        return launch(context, intent, pkg)
+        val route = WhatsAppRoutes.forText(phoneDigits, installed(context).isNotEmpty())
+        val intent = when (route) {
+            ShareRoute.WHATSAPP_CHAT -> Intent(Intent.ACTION_VIEW, Uri.parse(WhatsAppLinks.chat(phoneDigits!!, text)))
+            ShareRoute.WHATSAPP_PICKER, ShareRoute.SYSTEM_SHARE -> Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
+        }
+        // Sin WhatsApp no se fuerza ningún paquete: el usuario elige en la hoja del sistema.
+        return launch(context, intent, if (route == ShareRoute.SYSTEM_SHARE) null else pkg, chooser = route == ShareRoute.SYSTEM_SHARE)
     }
 
     /**
@@ -64,8 +71,8 @@ object WhatsAppSender {
         return launch(context, intent, pkg)
     }
 
-    private fun launch(context: Context, base: Intent, pkg: String?): Boolean {
-        val intent = if (pkg != null) base.setPackage(pkg) else Intent.createChooser(base, null)
+    private fun launch(context: Context, base: Intent, pkg: String?, chooser: Boolean = false): Boolean {
+        val intent = if (pkg != null && !chooser) base.setPackage(pkg) else Intent.createChooser(base, null)
         if (context !is android.app.Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         return try {
             context.startActivity(intent)

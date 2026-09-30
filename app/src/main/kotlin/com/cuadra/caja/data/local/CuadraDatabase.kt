@@ -16,9 +16,9 @@ import androidx.room.RoomDatabase
         CustomerEntity::class, CreditEntity::class, CreditPaymentEntity::class, TemplateEntity::class,
         ExpenseCategoryEntity::class, ExpenseEntity::class, CashMovementEntity::class, ShiftEntity::class,
         StockMovementEntity::class, SupplierEntity::class, PurchaseEntity::class, PurchaseItemEntity::class, SupplierPaymentEntity::class,
-        NotificationEntity::class,
+        NotificationEntity::class, CategoryEntity::class, DiscardedOpEntity::class, SaleReturnEntity::class,
     ],
-    version = 5,
+    version = 11,
     exportSchema = true,
 )
 abstract class CuadraDatabase : RoomDatabase() {  // MIGRATION_1_2 vive en Migrations.kt
@@ -36,6 +36,6 @@ abstract class CuadraDatabase : RoomDatabase() {  // MIGRATION_1_2 vive en Migra
 
     companion object {
         fun create(context: Context): CuadraDatabase =
-            Room.databaseBuilder(context.applicationContext, CuadraDatabase::class.java, "cuadra.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build()
+            Room.databaseBuilder(context.applicationContext, CuadraDatabase::class.java, "cuadra.db").addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11).build()
     }
 }

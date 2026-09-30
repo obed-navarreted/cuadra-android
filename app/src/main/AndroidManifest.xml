@@ -7,13 +7,39 @@
     <!-- Android 13+: se pide en contexto (en la bandeja), no al abrir la app. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Cámara: solo para leer códigos de barras; se pide al tocar «Escanear». La app se instala también en teléfonos sin cámara. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+
+    <!-- Micrófono: solo para dictar por voz dentro de la app; se pide al tocar el micrófono de un campo (con su motivo). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+    <!-- Impresora térmica (opcional, apagada por omisión). Bluetooth: Android 12+ pide BLUETOOTH_CONNECT en contexto (Más › Avanzado › Impresora); hasta Android 11 bastan
+         BLUETOOTH y BLUETOOTH_ADMIN (permisos normales). Solo se usan impresoras YA emparejadas: no se busca nada, así que NO se pide ubicación. USB: por cable (host/OTG) con el
+         permiso de Android por dispositivo. La app se instala también en teléfonos sin Bluetooth o sin USB host. -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
+    <uses-feature android:name="android.hardware.usb.host" android:required="false" />
+
+    <!-- Vibración corta al leer un código (permiso normal, sin pedirlo). -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <!-- Para saber si WhatsApp / WhatsApp Business están instalados (Android 11+ oculta las demás apps). -->
     <queries>
         <package android:name="com.whatsapp" />
         <package android:name="com.whatsapp.w4b" />
+        <!-- Zebra DataWedge (lector láser de los Zebra TC): para saber si está instalado (Android 11+). -->
+        <package android:name="com.symbol.datawedge" />
         <!-- Dictado por voz (Android 11+ oculta los servicios que la app no declara). -->
         <intent>
             <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
         </intent>
     </queries>
 
@@ -38,7 +64,7 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Enlaces de las notificaciones: cuadra://caja, cuadra://cierre/{id}, cuadra://fiados, cuadra://inventario, cuadra://gastos, cuadra://notificaciones. -->
+            <!-- Enlaces de las notificaciones: cuadra://caja, cuadra://cierre/{id}, cuadra://fiados, cuadra://inventario, cuadra://gastos, cuadra://notificaciones, cuadra://impresora. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

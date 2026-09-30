@@ -58,7 +58,7 @@ data class PurchasesUi(
     @StringRes val messageRes: Int? = null,
 )
 
-class PurchasesViewModel(private val c: AppContainer) : ViewModel() {
+class PurchasesViewModel(private val c: AppContainer) : ViewModel(), PurchasesActions {
     private val _ui = MutableStateFlow(PurchasesUi())
     val ui: StateFlow<PurchasesUi> = _ui.asStateFlow()
 
@@ -79,31 +79,31 @@ class PurchasesViewModel(private val c: AppContainer) : ViewModel() {
     @OptIn(ExperimentalCoroutinesApi::class)
     val pickResults: StateFlow<List<ProductEntity>> = _ui.map { it.draft?.pickQuery.orEmpty() }.flatMapLatest { c.products.search(it) }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    fun setTab(t: PurchasesTab) = _ui.update { it.copy(tab = t, supplierFilter = if (t == PurchasesTab.SUPPLIERS) null else it.supplierFilter) }
-    fun setOnlyOwed(v: Boolean) = _ui.update { it.copy(onlyOwed = v) }
-    fun filterSupplier(id: String?) = _ui.update { it.copy(supplierFilter = id, tab = PurchasesTab.PURCHASES) }
-    fun openDetail(id: String?) = _ui.update { it.copy(detailId = id) }
-    fun dismissMessage() = _ui.update { it.copy(messageRes = null) }
+    override fun setTab(t: PurchasesTab) = _ui.update { it.copy(tab = t, supplierFilter = if (t == PurchasesTab.SUPPLIERS) null else it.supplierFilter) }
+    override fun setOnlyOwed(v: Boolean) = _ui.update { it.copy(onlyOwed = v) }
+    override fun filterSupplier(id: String?) = _ui.update { it.copy(supplierFilter = id, tab = PurchasesTab.PURCHASES) }
+    override fun openDetail(id: String?) = _ui.update { it.copy(detailId = id) }
+    override fun dismissMessage() = _ui.update { it.copy(messageRes = null) }
 
     // ---------- nueva compra ----------
-    fun newPurchase(supplierId: String? = null) = _ui.update { it.copy(draft = PurchaseDraft(supplierId = supplierId)) }
-    fun closeDraft() = _ui.update { it.copy(draft = null) }
-    fun updateDraft(d: PurchaseDraft) = _ui.update { it.copy(draft = d.copy(error = false)) }
-    fun removeLine(id: String) = _ui.value.draft?.let { d -> updateDraft(d.copy(lines = d.lines.filterNot { it.id == id })) }
+    override fun newPurchase(supplierId: String?) = _ui.update { it.copy(draft = PurchaseDraft(supplierId = supplierId)) }
+    override fun closeDraft() = _ui.update { it.copy(draft = null) }
+    override fun updateDraft(d: PurchaseDraft) = _ui.update { it.copy(draft = d.copy(error = false)) }
+    override fun removeLine(id: String) { _ui.value.draft?.let { d -> updateDraft(d.copy(lines = d.lines.filterNot { it.id == id })) } }
 
-    fun pickProduct(p: ProductEntity) = _ui.value.draft?.let { d ->
+    override fun pickProduct(p: ProductEntity) { _ui.value.draft?.let { d ->
         updateDraft(d.copy(picking = false, pickQuery = "", lineEditor = LineDraft(p.id, p.name + (p.variant?.let { v -> " · $v" } ?: ""), "", p.costMinor?.let { plain(it) }.orEmpty())))
-    }
+    } }
 
-    fun pickFree() = _ui.value.draft?.let { d -> updateDraft(d.copy(picking = false, lineEditor = LineDraft())) }
-    fun updateLine(l: LineDraft) = _ui.value.draft?.let { d -> updateDraft(d.copy(lineEditor = l)) }
-    fun closeLine() = _ui.value.draft?.let { d -> updateDraft(d.copy(lineEditor = null)) }
+    override fun pickFree() { _ui.value.draft?.let { d -> updateDraft(d.copy(picking = false, lineEditor = LineDraft())) } }
+    override fun updateLine(l: LineDraft) { _ui.value.draft?.let { d -> updateDraft(d.copy(lineEditor = l)) } }
+    override fun closeLine() { _ui.value.draft?.let { d -> updateDraft(d.copy(lineEditor = null)) } }
 
-    fun editLine(line: PurchaseLine) = _ui.value.draft?.let { d ->
+    override fun editLine(line: PurchaseLine) { _ui.value.draft?.let { d ->
         updateDraft(d.copy(lineEditor = LineDraft(line.productId, line.name, java.math.BigDecimal.valueOf(line.quantityMilli, 3).stripTrailingZeros().toPlainString(), plain(line.unitCostMinor), line.id)))
-    }
+    } }
 
-    fun saveLine() {
+    override fun saveLine() {
         val d = _ui.value.draft ?: return
         val l = d.lineEditor ?: return
         val qty = Money3.parse(l.quantity, 3)?.takeIf { it > 0 }
@@ -116,7 +116,7 @@ class PurchasesViewModel(private val c: AppContainer) : ViewModel() {
 
     fun totalOf(d: PurchaseDraft) = d.lines.sumOf { it.totalMinor }
 
-    fun savePurchase() {
+    override fun savePurchase() {
         val d = _ui.value.draft ?: return
         val total = totalOf(d)
         if (d.lines.isEmpty()) { updateDraft(d.copy(error = true)); return }
@@ -129,19 +129,19 @@ class PurchasesViewModel(private val c: AppContainer) : ViewModel() {
     }
 
     // ---------- pagos ----------
-    fun askPayPurchase(row: PurchaseRow) {
+    override fun askPayPurchase(row: PurchaseRow) {
         val owed = (row.purchase.totalMinor - row.paidMinor).coerceAtLeast(0)
         if (owed > 0) _ui.update { it.copy(pay = PayDraft(row.purchase.id, null, row.purchase.supplierName.orEmpty(), owed, plain(owed))) }
     }
 
-    fun askPaySupplier(s: SupplierEntity, owed: Long) {
+    override fun askPaySupplier(s: SupplierEntity, owed: Long) {
         if (owed > 0) _ui.update { it.copy(pay = PayDraft(null, s.id, s.name, owed, plain(owed))) }
     }
 
-    fun updatePay(d: PayDraft) = _ui.update { it.copy(pay = d) }
-    fun closePay() = _ui.update { it.copy(pay = null) }
+    override fun updatePay(d: PayDraft) = _ui.update { it.copy(pay = d) }
+    override fun closePay() = _ui.update { it.copy(pay = null) }
 
-    fun confirmPay() {
+    override fun confirmPay() {
         val d = _ui.value.pay ?: return
         val amount = Money.parse(d.amount, decimals())?.minor?.takeIf { it > 0 } ?: return
         viewModelScope.launch {
@@ -152,12 +152,12 @@ class PurchasesViewModel(private val c: AppContainer) : ViewModel() {
     }
 
     // ---------- anular ----------
-    fun askVoidPurchase(id: String) = _ui.update { it.copy(void = VoidDraft(id, null)) }
-    fun askVoidPayment(id: String) = _ui.update { it.copy(void = VoidDraft(null, id)) }
-    fun updateVoid(reason: String) = _ui.update { s -> s.copy(void = s.void?.copy(reason = reason)) }
-    fun closeVoid() = _ui.update { it.copy(void = null) }
+    override fun askVoidPurchase(id: String) = _ui.update { it.copy(void = VoidDraft(id, null)) }
+    override fun askVoidPayment(id: String) = _ui.update { it.copy(void = VoidDraft(null, id)) }
+    override fun updateVoid(reason: String) = _ui.update { s -> s.copy(void = s.void?.copy(reason = reason)) }
+    override fun closeVoid() = _ui.update { it.copy(void = null) }
 
-    fun confirmVoid() {
+    override fun confirmVoid() {
         val v = _ui.value.void ?: return
         viewModelScope.launch {
             if (v.purchaseId != null) c.purchases.voidPurchase(v.purchaseId, v.reason) else if (v.paymentId != null) c.purchases.voidPayment(v.paymentId, v.reason)
@@ -166,12 +166,12 @@ class PurchasesViewModel(private val c: AppContainer) : ViewModel() {
     }
 
     // ---------- proveedores ----------
-    fun newSupplier() = _ui.update { it.copy(supplierEditor = SupplierDraft()) }
-    fun editSupplier(s: SupplierEntity) = _ui.update { it.copy(supplierEditor = SupplierDraft(s.id, s.name, s.phone.orEmpty(), s.notes.orEmpty())) }
-    fun updateSupplier(d: SupplierDraft) = _ui.update { it.copy(supplierEditor = d.copy(error = false)) }
-    fun closeSupplier() = _ui.update { it.copy(supplierEditor = null) }
+    override fun newSupplier() = _ui.update { it.copy(supplierEditor = SupplierDraft()) }
+    override fun editSupplier(s: SupplierEntity) = _ui.update { it.copy(supplierEditor = SupplierDraft(s.id, s.name, s.phone.orEmpty(), s.notes.orEmpty())) }
+    override fun updateSupplier(d: SupplierDraft) = _ui.update { it.copy(supplierEditor = d.copy(error = false)) }
+    override fun closeSupplier() = _ui.update { it.copy(supplierEditor = null) }
 
-    fun saveSupplier() {
+    override fun saveSupplier() {
         val d = _ui.value.supplierEditor ?: return
         viewModelScope.launch {
             val saved = c.purchases.saveSupplier(d.id, d.name, d.phone, d.notes)

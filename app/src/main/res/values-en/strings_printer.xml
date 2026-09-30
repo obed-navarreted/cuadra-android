@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- More › Advanced -->
+    <string name="more_group_advanced">Advanced</string>
+    <string name="more_advanced_hint">Thermal printer and barcode reader. None of this is needed to sell.</string>
+    <string name="more_advanced_hide">Hide advanced</string>
+    <string name="more_optional">Optional</string>
+
+    <!-- Printer: settings -->
+    <string name="printer_title">Printer</string>
+    <string name="printer_switch">Print receipts on a thermal printer</string>
+    <string name="printer_switch_help">Optional. Prints a 58 mm sales receipt when you charge. It is a simple receipt, not a tax invoice.</string>
+    <string name="printer_nofiscal">Sales receipt — not a tax invoice</string>
+    <string name="printer_status_title">Status</string>
+    <string name="printer_status_connected">Connected</string>
+    <string name="printer_status_connecting">Connecting…</string>
+    <string name="printer_status_disconnected">Not connected</string>
+    <string name="printer_status_error">Could not connect</string>
+    <string name="printer_reconnect">Reconnect</string>
+    <string name="printer_auto_hint">The app connects and reconnects by itself while it is open.</string>
+    <string name="printer_issue_no_device">Choose the printer below.</string>
+    <string name="printer_issue_bt_off">Bluetooth is off. Turn it on in Android settings.</string>
+    <string name="printer_issue_permission">The Bluetooth permission is missing (below).</string>
+    <string name="printer_issue_usb_permission">Android asked for permission to use the USB cable. Accept it and tap “Reconnect”.</string>
+    <string name="printer_issue_not_found">The printer was not found. Check that it is on and close by, or that the cable is plugged in.</string>
+    <string name="printer_issue_failed">Could not connect. Check that it is on and close by; the app keeps trying by itself.</string>
+    <string name="printer_conn_title">Connection</string>
+    <string name="printer_link_bt">Bluetooth</string>
+    <string name="printer_link_usb">USB cable</string>
+    <string name="printer_pick">Choose the printer</string>
+    <string name="printer_chosen">Chosen printer: %1$s</string>
+    <string name="printer_none_bt">There are no paired Bluetooth devices. Pair the printer in Android settings (Bluetooth) and come back.</string>
+    <string name="printer_open_bt_settings">Open Bluetooth settings</string>
+    <string name="printer_none_usb">No printer is detected on the cable. Plug it in with a USB (OTG) cable and turn it on.</string>
+    <string name="printer_usb_auto">If you choose none, the first USB printer detected is used.</string>
+    <string name="printer_usb_unsupported">This phone does not support printers on a USB cable.</string>
+    <string name="printer_bt_unsupported">This phone has no Bluetooth.</string>
+    <string name="printer_device_printer">Printer</string>
+    <string name="printer_perm_title">Bluetooth permission</string>
+    <string name="printer_perm_why">To talk to your printer, Android asks for the “Nearby devices” permission. The app only uses printers you already paired: it does not scan for devices or use your location.</string>
+    <string name="printer_perm_grant">Allow Bluetooth</string>
+    <string name="printer_perm_settings">Open app settings</string>
+    <string name="printer_paper_title">Paper and receipt</string>
+    <string name="printer_width">Paper width</string>
+    <string name="printer_width_58">58 mm</string>
+    <string name="printer_width_80">80 mm</string>
+    <string name="printer_auto">Print automatically when you charge</string>
+    <string name="printer_copies">Copies</string>
+    <string name="printer_charset">Character set</string>
+    <string name="printer_charset_pc858">With accents</string>
+    <string name="printer_charset_ascii">No accents</string>
+    <string name="printer_charset_hint">If accents or the ñ look wrong on paper, choose “No accents”.</string>
+    <string name="printer_header_title">Header and footer</string>
+    <string name="printer_address">Address (optional)</string>
+    <string name="printer_phone">Phone (optional)</string>
+    <string name="printer_tax">Tax ID (optional)</string>
+    <string name="printer_footer">Receipt footer</string>
+    <string name="printer_footer_hint">If you leave it empty it says “Thank you for your purchase”.</string>
+    <string name="printer_preview_title">Preview</string>
+    <string name="printer_preview_hint">This is a sample receipt with these settings.</string>
+    <string name="printer_test">Print a test</string>
+    <string name="printer_test_hint">Prints accents, ñ, a 20-line receipt and cuts the paper.</string>
+    <string name="printer_badge_connected">Printer connected. Tap to open its settings.</string>
+    <string name="printer_badge_connecting">Printer connecting. Tap to open its settings.</string>
+    <string name="printer_badge_disconnected">Printer not connected. Tap to open its settings.</string>
+
+    <!-- End of sale and detail -->
+    <string name="print_ok">Printed</string>
+    <string name="print_none">No printer connected</string>
+    <string name="print_failed">Could not print</string>
+    <string name="print_retry">Retry</string>
+    <string name="print_later">Later</string>
+    <string name="print_receipt">Print receipt</string>
+    <string name="print_again">Print again</string>
+
+    <!-- Zebra: one-time notice -->
+    <string name="zebra_detected">Zebra detected: device scanner turned on</string>
+    <string name="zebra_detected_ok">Got it</string>
+    <string name="more_group_phone">Preferences for this phone</string>
+    <string name="more_offer_whatsapp">Offer to send the receipt by WhatsApp when a sale ends</string>
+    <string name="more_offer_whatsapp_help">Only on this phone. Off: the sale ends with no WhatsApp button or window.</string>
+    <string name="more_ask_description">Ask for a description when adding</string>
+    <string name="more_ask_description_help">Only on this phone. Off: the keypad has no description field; you can add one later by tapping the line in the receipt.</string>
+</resources>

@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Requiere atención (operaciones rechazadas o para revisar) -->
+    <string name="att_title">Requiere atención</string>
+    <string name="att_hint">Esto no llegó al servidor o hay que revisarlo. Nada se borra solo: decide tú. Reintentar la vuelve a enviar; Descartar la quita de este teléfono y deja anotado quién lo hizo.</string>
+    <string name="att_empty">Todo está al día: no hay nada que revisar.</string>
+    <string name="att_retry">Reintentar</string>
+    <string name="att_discard">Descartar</string>
+    <string name="att_dismiss_review">Quitar de la lista</string>
+    <string name="att_tag_review">Para revisar</string>
+    <string name="att_tag_rejected">Rechazada</string>
+    <string name="att_meta">%1$s · por %2$s</string>
+    <string name="att_what_sale">Venta de %1$s</string>
+    <string name="att_what_sale_plain">Venta</string>
+    <string name="att_what_sale_cancel">Descartar o eliminar una venta</string>
+    <string name="att_what_credit_payment">Abono de %1$s</string>
+    <string name="att_what_credit">Fiado de %1$s</string>
+    <string name="att_what_expense">Gasto de %1$s</string>
+    <string name="att_what_withdrawal">Retiro de %1$s</string>
+    <string name="att_what_deposit">Entrada de %1$s</string>
+    <string name="att_what_product">Producto «%1$s»</string>
+    <string name="att_what_product_plain">Cambio de un producto</string>
+    <string name="att_what_customer">Cliente «%1$s»</string>
+    <string name="att_what_other">Un cambio sin enviar</string>
+    <string name="att_reason_CONFLICT_COPY">Esta cuenta ya fue cobrada o descartada en otro teléfono. Se guardó como una venta aparte para que no se pierda el dinero: revisa en Ventas si es un duplicado.</string>
+    <string name="att_reason_ALREADY_CLOSED">Esta cuenta ya fue cobrada o descartada en otro teléfono: revisa antes de descartar.</string>
+    <string name="att_reason_CREDIT_LIMIT">Pasa el límite de crédito de %1$s: límite %2$s, ya debía %3$s. Sube el límite o cobra una parte, y reintenta.</string>
+    <string name="att_reason_CREDIT_LIMIT_plain">Pasa el límite de crédito del cliente. Sube el límite o cobra una parte, y reintenta.</string>
+    <string name="att_reason_CREDIT_CLOSED">Ese fiado ya estaba cerrado (condonado o anulado en otro teléfono) y el cliente no tiene otras deudas: el abono no se guardó. Devuelve el dinero o anótalo de otra forma.</string>
+    <string name="att_reason_NO_OPEN_CREDITS">El cliente ya no debía nada: el abono no se guardó. Devuelve el dinero o anótalo de otra forma.</string>
+    <string name="att_reason_MEMBER_DISABLED">Quien la hizo fue dado de baja antes de que se enviara.</string>
+    <string name="att_reason_DEVICE_NOT_TRUSTED">Este teléfono no puede actuar con el rol de quien la hizo. Pídele al dueño que la haga desde su teléfono o desde la web.</string>
+    <string name="att_reason_FORBIDDEN">Quien la hizo no tiene permiso para esto.</string>
+    <string name="att_reason_PAYMENT_MISMATCH">Los pagos no cuadran con el total de la venta.</string>
+    <string name="att_reason_CUSTOMER_REQUIRED">El negocio exige un cliente de la lista en cada fiado.</string>
+    <string name="att_reason_CREDIT_HAS_PAYMENTS">El fiado ya tiene abonos: anúlalos primero.</string>
+    <string name="att_reason_NOT_FOUND">Lo que se cambiaba ya no existe en el servidor.</string>
+    <string name="att_reason_CODE_IN_USE">El código ya lo usa otro producto.</string>
+    <string name="att_reason_OTHER">El servidor la rechazó (código %1$s).</string>
+    <string name="att_discard_title">¿Descartar esto?</string>
+    <string name="att_discard_body">«%1$s» sale de la lista y este teléfono deja de contarlo. Queda anotado quién lo descartó y cuándo. Si era dinero recibido, anótalo de otra forma para que la caja cuadre.</string>
+    <string name="att_discard_review_body">«%1$s» ya está guardado en el servidor: solo se quita de esta lista.</string>
+    <plurals name="more_attention_open">
+        <item quantity="one">Ver %d cosa que requiere atención</item>
+        <item quantity="other">Ver %d cosas que requieren atención</item>
+    </plurals>
+
+    <!-- Acceso desactivado -->
+    <string name="disabled_title">Tu acceso fue desactivado</string>
+    <string name="disabled_body">El dueño de %1$s te dio de baja. Este teléfono ya no puede vender ni ver los datos del negocio.</string>
+    <string name="disabled_body_plain">El dueño del negocio te dio de baja. Este teléfono ya no puede vender ni ver los datos del negocio.</string>
+    <string name="disabled_all_sent">Todo lo que hiciste antes de la baja ya se envió.</string>
+    <plurals name="disabled_pending">
+        <item quantity="one">Queda %d operación sin enviar. Mantén el teléfono con internet para que llegue al negocio.</item>
+        <item quantity="other">Quedan %d operaciones sin enviar. Mantén el teléfono con internet para que lleguen al negocio.</item>
+    </plurals>
+    <plurals name="disabled_failed">
+        <item quantity="one">%d operación no se aceptó porque se hizo después de la baja.</item>
+        <item quantity="other">%d operaciones no se aceptaron porque se hicieron después de la baja.</item>
+    </plurals>
+    <string name="disabled_help">Lo que cobraste antes de la baja sí llega al negocio. Si crees que es un error, habla con el dueño.</string>
+    <string name="disabled_retry">Enviar ahora</string>
+    <string name="disabled_exit">Salir de este negocio</string>
+    <string name="disabled_exit_title">¿Salir con operaciones sin enviar?</string>
+    <plurals name="disabled_exit_body">
+        <item quantity="one">Si sales ahora, %d operación que falta por enviar se borra de este teléfono y no llega al negocio.</item>
+        <item quantity="other">Si sales ahora, %d operaciones que faltan por enviar se borran de este teléfono y no llegan al negocio.</item>
+    </plurals>
+    <string name="disabled_exit_anyway">Salir igual</string>
+    <string name="disabled_member_notice">%1$s fue dado de baja y ya no puede entrar en este teléfono. Lo que hizo antes de la baja se envía igual.</string>
+    <string name="disabled_ok">Entendido</string>
+
+    <!-- Cambio de negocio bloqueado -->
+    <string name="error_business_switch_blocked">Quedan operaciones sin enviar de %2$s (%1$d). Vuelve a entrar a ese negocio con internet para enviarlas antes de cambiar.</string>
+    <string name="error_business_switch_blocked_unnamed">Quedan operaciones sin enviar del negocio anterior (%1$d). Vuelve a entrar a ese negocio con internet para enviarlas antes de cambiar.</string>
+
+    <!-- Cuentas apartadas -->
+    <string name="parked_discard_title">¿Descartar esta cuenta?</string>
+    <string name="parked_discard_body">«%1$s» de %2$s se quita de las cuentas apartadas en todos los teléfonos. No se cobró nada.</string>
+    <string name="att_what_sale_return">Devolución de productos</string>
+    <string name="att_reason_UNDO_NOT_ALLOWED">Ya no se podía anular: pasaron los 5 minutos o no era tu última venta. La venta sigue cobrada; pide al dueño o a un admin que la elimine.</string>
+    <string name="att_reason_RETURN_REJECTED">La devolución no se aplicó: se pidió devolver más de lo que quedaba, el fiado ya no alcanzaba o no había permiso.</string>
+    <string name="att_reason_LATE_OP_REJECTED">La hizo alguien dado de baja y no es creíble que sea de antes de la baja (muy vieja, anterior a vincular el teléfono o ya se había enviado todo).</string>
+</resources>

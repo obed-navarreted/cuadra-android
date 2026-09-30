@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Barcode reader: hardware reader (Zebra / keyboard), camera and test. -->
+    <string name="reader_ready">Reader ready</string>
+    <string name="reader_title">Barcode reader</string>
+    <string name="reader_device_title">This device</string>
+    <string name="reader_datawedge">Zebra DataWedge</string>
+    <string name="reader_detected">Detected</string>
+    <string name="reader_not_detected">Not detected</string>
+    <string name="reader_camera">Camera</string>
+    <string name="reader_keyboard">Keyboard or connected reader</string>
+    <string name="reader_yes">Yes</string>
+    <string name="reader_no">No</string>
+    <string name="reader_use_reader">Use the device reader (Zebra/keyboard)</string>
+    <string name="reader_use_reader_hint">Receives what the device laser reads (the physical trigger), or a Bluetooth/USB reader that types the code and presses Enter. It turns on by itself on a Zebra (like the TC77); on any other phone it starts off: turn it on if you plug in a reader. The camera always keeps working.</string>
+    <string name="reader_use_camera">Use the camera</string>
+    <string name="reader_beep">Sound on read</string>
+    <string name="reader_setup_button">Set up Zebra reader</string>
+    <string name="reader_setup_hint">Creates the \"Cuentiva\" profile in DataWedge for this app: it sends each code to Cuentiva as a broadcast and does not type it.</string>
+    <string name="reader_setup_absent">This device has no DataWedge (it is not a Zebra). Nothing to set up: a reader that types works on its own.</string>
+    <string name="reader_setup_running">Setting up…</string>
+    <string name="reader_setup_ok">Done: the \"Cuentiva\" profile is set up.</string>
+    <string name="reader_setup_failed">DataWedge answered with an error.</string>
+    <string name="reader_setup_failed_detail">DataWedge answered with an error: %1$s</string>
+    <string name="reader_setup_no_answer">DataWedge did not answer. It may be disabled: turn it on in the DataWedge app or set the profile up by hand.</string>
+    <string name="reader_test_title">Scan a test code</string>
+    <string name="reader_test_hint">Read any code with the reader or the camera: you will see here what arrived. It is not added to any sale.</string>
+    <string name="reader_test_empty">Nothing has been read yet.</string>
+    <string name="reader_test_code">Code</string>
+    <string name="reader_test_source">Source</string>
+    <string name="reader_test_format">Format</string>
+    <string name="reader_test_check">Check digit</string>
+    <string name="reader_source_camera">Camera</string>
+    <string name="reader_source_wedge">Keyboard (the reader types the code)</string>
+    <string name="reader_source_datawedge">Zebra DataWedge</string>
+    <string name="reader_format_unknown">Unknown</string>
+    <string name="reader_check_valid">Valid</string>
+    <string name="reader_check_invalid">Not valid (doubtful read)</string>
+    <string name="reader_check_na">Not applicable</string>
+    <string name="reader_test_count">Reads: %1$d</string>
+    <string name="reader_test_camera">Test the camera</string>
+    <string name="reader_test_clear">Clear</string>
+
+    <!-- Camera -->
+    <string name="scan_camera_off">The camera is off in More › Barcode reader. Use the device reader or type the code below.</string>
+    <string name="scan_busy">Another app is using the camera. Close it and try again, or type the code below.</string>
+    <string name="scan_done">Scanned</string>
+    <string name="scan_hint_focus">Move closer or farther until it focuses</string>
+    <string name="scan_hint_light">Low light: turn on the torch</string>
+    <string name="scan_hint_light_no_torch">Low light: find a brighter spot</string>
+    <string name="scan_zoom">Zoom</string>
+</resources>

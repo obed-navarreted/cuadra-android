@@ -48,4 +48,18 @@ class CartTest {
             .addProduct("q", null, "Queso seco", null, 9000, null, quantityMilli = 750, newId = id)
         assertEquals(17750L, cart.totalMinor)
     }
+
+    @Test fun openPriceLinesKeepTheirTypedPriceWhenTheQuantityChanges() {
+        var n = 0
+        val id = { "l${++n}" }
+        val cart = Cart()
+            .addProduct("o", null, "Reparación", null, 4500, null, newId = id)
+            .addProduct("o", null, "Reparación", null, 7000, null, newId = id)   // otro precio: otra línea
+            .addProduct("o", null, "Reparación", null, 4500, null, newId = id)   // mismo precio: suma una unidad
+        assertEquals(2, cart.lines.size)
+        assertEquals(2000L, cart.lines[0].quantityMilli)
+        val more = cart.changeQuantity("l1", 1000)
+        assertEquals(4500L, more.lines[0].unitPriceMinor)
+        assertEquals(13500L + 7000L, more.totalMinor)
+    }
 }

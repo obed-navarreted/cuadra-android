@@ -26,4 +26,12 @@
     <string name="summary_empty">Todavía no hay ventas en este periodo.</string>
     <string name="summary_scope_note">Con lo que este teléfono ha sincronizado.</string>
     <string name="more_summary">Resumen del negocio</string>
+    <string name="summary_custom">Rango</string>
+    <string name="summary_range_title">Elige las fechas</string>
+    <string name="summary_range_apply">Aplicar</string>
+    <string name="summary_range_hint">Toca el día inicial y el final (un solo toque = un solo día).</string>
+    <string name="summary_range_reversed">La fecha inicial debe ser anterior o igual a la final.</string>
+    <string name="summary_range_too_long">El rango es de %1$d días; el máximo es %2$d.</string>
+    <string name="summary_range_future">Esas fechas todavía no llegan.</string>
+    <string name="summary_range_label">%1$s – %2$s</string>
 </resources>

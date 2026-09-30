@@ -17,6 +17,8 @@ data class CardLabels(
     val reminder: String, val statement: String, val credit: String, val payment: String, val paidOff: String, val balance: String, val total: String,
     /** "desde hace 16 días" / "open for 16 days": lleva `%d`. Solo se usa si el fiado tiene 1 día o más. */
     val openFor: String = "%d",
+    /** Título de la tarjeta del comprobante de una venta. */
+    val ticket: String = "Ticket",
 )
 
 
@@ -43,11 +45,20 @@ object ShareBuilders {
 
     /** Fiado nuevo (al cobrar una venta): el detalle de la compra, lo fiado y, si hubo, lo que pagó en el momento. */
     fun creditNew(business: String, debtor: String, date: String, credited: String, items: List<Pair<String, String>>, paidNow: String?, labels: CardLabels, paidLinePrefix: String): ShareContent {
-        val detail = items.take(MAX).joinToString("\n") { "· ${it.first}" }
+        val detail = items.take(MAX).joinToString("\n") { "· ${it.first} — ${it.second}" }
         val paidLine = paidNow?.let { "$paidLinePrefix $it. " }.orEmpty()
         return ShareContent(
             MessageKind.CREDIT_NEW, vars(business, debtor, date = date, amount = credited, detail = detail, paidLine = paidLine),
             ShareCard(business, labels.credit, debtor, items.take(MAX).map { CardLine(it.first, it.second) }, labels.total, credited),
+        )
+    }
+
+    /** Comprobante de una venta: cada línea con su monto y el total (plantilla «Comprobante de venta»). */
+    fun ticket(business: String, date: String, items: List<Pair<String, String>>, total: String, labels: CardLabels): ShareContent {
+        val detail = items.take(TICKET_MAX).joinToString("\n") { "· ${it.first} — ${it.second}" }
+        return ShareContent(
+            MessageKind.TICKET, vars(business, "", date = date, amount = total, detail = detail),
+            ShareCard(business, labels.ticket, null, items.take(TICKET_MAX).map { CardLine(it.first, it.second) }, labels.total, total),
         )
     }
 
@@ -58,4 +69,19 @@ object ShareBuilders {
     )
 
     private const val MAX = 8
+
+    /** Un comprobante lleva TODAS las líneas de la venta (hasta este tope), no solo las primeras. */
+    private const val TICKET_MAX = 40
+}
+
+/**
+ * «Ofrecer enviar el comprobante por WhatsApp al terminar la venta» (preferencia de ESTE teléfono, apagada por omisión). Decide qué queda en la pantalla
+ * «Venta cobrada» y si algo se abre solo. Genérico para poder probarlo sin la interfaz.
+ */
+object WhatsAppOffer {
+    /** Lo que se ofrece con el botón «Enviar detalle por WhatsApp»: nada si la preferencia está apagada. */
+    fun <T : Any> doneShare(offer: Boolean, credit: T?, ticket: T): T? = if (offer) credit ?: ticket else null
+
+    /** Lo que se abre SOLO al terminar: únicamente el detalle del fiado, y solo con la preferencia encendida y la casilla marcada. */
+    fun <T : Any> autoShare(offer: Boolean, checked: Boolean, credit: T?): T? = if (offer && checked) credit else null
 }

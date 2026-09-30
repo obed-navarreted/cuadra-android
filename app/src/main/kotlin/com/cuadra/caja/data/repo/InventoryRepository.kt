@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-enum class StockFilter { ALL, TRACKED, REVIEW, UNTRACKED }
+enum class StockFilter { ALL, TRACKED, REVIEW, UNTRACKED, INACTIVE }
 
 /**
  * Existencias en el teléfono. El stock es la suma de movimientos que solo se agregan: contar, dar de baja o devolver agrega un movimiento

@@ -4,11 +4,13 @@ import android.os.Build
 import at.favre.lib.crypto.bcrypt.BCrypt
 import com.cuadra.caja.BuildConfig
 import com.cuadra.caja.data.local.CuadraDatabase
+import com.cuadra.caja.data.local.mergeMembers
 import com.cuadra.caja.data.remote.CreateBusinessBody
 import com.cuadra.caja.data.remote.CuadraApi
 import com.cuadra.caja.data.remote.GoogleLoginBody
 import com.cuadra.caja.data.remote.LinkInfoBody
-import com.cuadra.caja.data.remote.LinkRequestCreatedDto
+import com.cuadra.caja.data.remote.MemberLoginBody
+import com.cuadra.caja.data.remote.MemberLoginResult
 import com.cuadra.caja.data.remote.MeDto
 import com.cuadra.caja.data.remote.MembershipDto
 import com.cuadra.caja.data.remote.PinBody
@@ -31,6 +33,7 @@ class AuthRepository(
     private val api: CuadraApi,
     private val session: SessionStore,
     private val guard: PinGuard = PinGuard(),
+    private val local: LocalBusinessData = LocalBusinessData(db),
 ) {
     private fun deviceInfo() = LinkInfoBody(
         deviceName = listOfNotNull(Build.MANUFACTURER, Build.MODEL).joinToString(" ").take(80).ifBlank { "Android" },
@@ -39,39 +42,88 @@ class AuthRepository(
 
     suspend fun signInWithGoogle(idToken: String): Result<MeDto> = apiCall { api.google(GoogleLoginBody(idToken)) }.mapCatching {
         session.setUserToken(it.token)
-        api.me()
+        api.me().also { me -> session.setPlatformAdmin(me.platformAdmin) }
     }
 
-    suspend fun me(): Result<MeDto> = apiCall { api.me() }
+    suspend fun me(): Result<MeDto> {
+        val token = session.current().userToken
+        return apiCall { if (token != null) api.meAs("Bearer $token") else api.me() }.onSuccess { session.setPlatformAdmin(it.platformAdmin) }
+    }
+
+    /**
+     * «Eliminar mi cuenta» (Google Play lo exige). El servidor la rechaza con OWNS_BUSINESSES si todavía es dueño de un negocio activo (la pantalla ya lo
+     * explica antes). Con éxito, la sesión queda sin valor: quien llama cierra sesión en el teléfono.
+     */
+    suspend fun deleteAccount(): Result<Unit> {
+        val token = session.current().userToken ?: return Result.failure(IllegalStateException("no Google session"))
+        return apiCall { api.deleteMe("Bearer $token") }
+    }
+
+    /** Países con su moneda y zona sugeridas (del servidor; sin conexión, la lista de la app). */
+    suspend fun countries(): List<com.cuadra.caja.domain.CountryOption> = apiCall { api.countries() }.getOrNull()
+        ?.map { com.cuadra.caja.domain.CountryOption(it.code, it.currency, it.timezone, it.locale) }?.takeIf { it.isNotEmpty() } ?: com.cuadra.caja.domain.CountryChoice.FALLBACK
 
     /** Un negocio nuevo con solo el nombre (PLAN.md 5.0) y este teléfono ya vinculado. */
-    suspend fun createBusiness(name: String): Result<String> = apiCall { api.createBusiness(CreateBusinessBody(name = name.trim())) }.mapCatching {
-        linkThisPhone(it.id)
-        it.id
+    suspend fun createBusiness(name: String, timezone: String? = phoneTimeZone(), country: String? = null, currency: String? = null): Result<String> {
+        // Un negocio nuevo es otro negocio: si el anterior tiene algo sin enviar, se bloquea ANTES de crearlo.
+        local.blockerForAnyOther()?.let { return Result.failure(it) }
+        return apiCall { api.createBusiness(CreateBusinessBody(name = name.trim(), timezone = timezone, country = country, currency = currency)) }.mapCatching {
+            linkThisPhone(it.id).getOrThrow()
+            it.id
+        }
     }
 
-    /** Vincula este teléfono al negocio (dueño/admin con Google). */
-    suspend fun linkThisPhone(businessId: String): Result<Unit> = apiCall { api.selfLink(businessId, deviceInfo()) }.map {
-        session.link(it.deviceToken, it.deviceId, businessId)
+    /** Vincula este teléfono al negocio (dueño/admin con Google). Si los datos del teléfono son de otro negocio, primero se vacían (o se bloquea). */
+    suspend fun linkThisPhone(businessId: String): Result<Unit> {
+        local.prepareFor(businessId)?.let { return Result.failure(it) }
+        return apiCall { api.selfLink(businessId, deviceInfo()) }.map {
+            session.link(it.deviceToken, it.deviceId, businessId)
+        }
     }
 
-    suspend fun requestLinkCode(): Result<LinkRequestCreatedDto> = apiCall { api.createLinkRequest(deviceInfo()) }
+    /**
+     * Entrada del equipo (ADR 0012): código del negocio + usuario + PIN. Si el servidor acepta, este teléfono queda vinculado y la persona activa
+     * (acaba de demostrar quién es), y el directorio se trae COMO TELÉFONO (con los hashes de PIN que este teléfono puede usar sin conexión) ANTES de
+     * cambiar la sesión, para que la pantalla no pase por «¿Quién atiende?». Necesita conexión.
+     */
+    suspend fun memberLogin(code: String, username: String, pin: String): Result<MemberLoginResult> {
+        val info = deviceInfo()
+        val body = MemberLoginBody(code, username.trim(), pin, info.deviceName, info.model, info.osVersion, info.appVersion)
+        return apiCall { api.memberLogin(body) }.mapCatching { r ->
+            // El código es de OTRO negocio que el de los datos del teléfono: se vacían (o se bloquea si el anterior tiene algo sin enviar). Se decide
+            // después de entrar porque solo el servidor sabe de qué negocio es el código.
+            local.prepareFor(r.businessId)?.let { throw it }
+            // Si el directorio no llega ahora (red caída justo después), la primera sincronización lo trae; entrar no depende de eso.
+            fetchDirectory(r.businessId, "Device ${r.deviceToken}")
+            session.setLastBusinessCode(code)
+            session.linkMember(r.deviceToken, r.deviceId, r.businessId, r.memberId, r.memberName, r.role, r.pinMustChange)
+            r
+        }
+    }
 
-    /** Devuelve true cuando un dueño/admin ya reclamó el código y este teléfono quedó vinculado. */
-    suspend fun pollLink(code: String, secret: String): Result<Boolean> = apiCall { api.pollLink(code, secret) }.map { s ->
-        if (s.status == "CLAIMED" && s.deviceToken != null && s.deviceId != null && s.businessId != null) {
-            session.link(s.deviceToken, s.deviceId, s.businessId)
-            true
-        } else {
-            false
+    /** Termina el «Elige tu PIN nuevo» de quien entró con un PIN puesto por el dueño: lo guarda, refresca su hash y le deja usar la caja. */
+    suspend fun finishPinChange(pin: String): Result<Unit> {
+        val s = session.current()
+        val businessId = s.businessId ?: return Result.failure(IllegalStateException("sin negocio"))
+        val memberId = s.memberId ?: return Result.failure(IllegalStateException("sin persona"))
+        return apiCall { api.setPin(businessId, memberId, PinBody(pin, mustChangePin = false)) }.map {
+            loadDirectory()
+            session.setPinChangePending(false)
         }
     }
 
     /** Trae miembros y negocio para poder elegir persona y validar PIN aunque la primera sincronización aún no termine. */
     suspend fun loadDirectory(): Result<Unit> {
-        val businessId = session.current().businessId ?: return Result.failure(IllegalStateException("sin negocio"))
-        return apiCall { api.members(businessId) }.map { members -> db.directory().upsertMembers(members.map { it.toEntity() }) }
+        val s = session.current()
+        val businessId = s.businessId ?: return Result.failure(IllegalStateException("sin negocio"))
+        // Con el teléfono ya vinculado y la sesión de Google aún puesta (el dueño acaba de crear el negocio), el listado se pide como TELÉFONO:
+        // solo así el servidor entrega el hash de cada PIN, y sin él este teléfono no puede validar el PIN que el dueño acaba de crear.
+        val asDevice = s.deviceToken != null && s.memberId == null
+        return fetchDirectory(businessId, if (asDevice) "Device ${s.deviceToken}" else null)
     }
+
+    private suspend fun fetchDirectory(businessId: String, authorization: String?): Result<Unit> =
+        apiCall { if (authorization != null) api.membersAs(businessId, authorization) else api.members(businessId) }.map { members -> db.directory().mergeMembers(members.map { it.toEntity() }) }
 
     /** El dueño (que entró con Google y no tiene PIN) crea el suyo para poder entrar rápido en este teléfono. */
     suspend fun setOwnPin(pin: String, memberId: String): Result<Unit> {
@@ -83,8 +135,22 @@ class AuthRepository(
 
     /** Valida el PIN contra el hash guardado en el teléfono: funciona sin conexión. 5 fallos bloquean con espera creciente. */
     suspend fun unlock(memberId: String, pin: String): UnlockResult {
+        val member = db.directory().member(memberId)
+        return when (val r = checkPin(member, pin)) {
+            is UnlockResult.Ok -> { session.setActiveMember(r.memberId, r.name, r.role); r }
+            else -> r
+        }
+    }
+
+    /**
+     * Comprueba el PIN ACTUAL de una persona sin cambiar de cajero (para cambiar el propio PIN). Usa el mismo bloqueo por intentos que la
+     * pantalla de PIN: quien adivina el PIN desde «Mi cuenta» se topa con la misma espera.
+     */
+    suspend fun verifyPin(memberId: String, pin: String): UnlockResult = checkPin(db.directory().member(memberId), pin)
+
+    private fun checkPin(member: com.cuadra.caja.data.local.MemberEntity?, pin: String): UnlockResult {
         if (guard.isLocked()) return UnlockResult.Locked(guard.waitMillis())
-        val member = db.directory().member(memberId) ?: return UnlockResult.NoPin
+        member ?: return UnlockResult.NoPin
         val hash = member.pinHash ?: return UnlockResult.NoPin
         val ok = runCatching { BCrypt.verifyer().verify(pin.toCharArray(), hash.toCharArray()).verified }.getOrDefault(false)
         if (!ok) {
@@ -92,7 +158,6 @@ class AuthRepository(
             return if (guard.isLocked()) UnlockResult.Locked(guard.waitMillis()) else UnlockResult.WrongPin
         }
         guard.recordSuccess()
-        session.setActiveMember(member.id, member.displayName, member.role)
         return UnlockResult.Ok(member.id, member.displayName, member.role)
     }
 
@@ -109,3 +174,9 @@ class AuthRepository(
         return apiCall { api.updateBusiness(businessId, UpdateBusinessBody(modules = mapOf(key to on))) }.mapCatching { db.directory().upsertBusiness(it.toEntity()) }
     }
 }
+
+/**
+ * La zona horaria del teléfono, SOLO para proponerla al crear el negocio (ADR 0011): desde ahí la zona y el corte son del negocio y ninguna
+ * pantalla vuelve a usar la del teléfono para decidir a qué día pertenece algo. Un identificador que Java no reconoce (p. ej. "GMT+05:30") no se envía.
+ */
+internal fun phoneTimeZone(id: String = java.util.TimeZone.getDefault().id): String? = id.takeIf { runCatching { java.time.ZoneId.of(it) }.isSuccess && it.contains('/') || it == "UTC" }

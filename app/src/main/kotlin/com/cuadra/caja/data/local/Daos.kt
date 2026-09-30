@@ -8,8 +8,9 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ProductDao {
-    @Query("SELECT * FROM products WHERE active = 1 AND isQuick = 1 ORDER BY quickPosition IS NULL, quickPosition, name COLLATE NOCASE")
-    fun quick(): Flow<List<ProductEntity>>
+    /** Todo el catálogo activo: la caja busca en memoria (sin tildes ni mayúsculas, ver `ProductSearch`). */
+    @Query("SELECT * FROM products WHERE active = 1")
+    fun active(): Flow<List<ProductEntity>>
 
     @Query(
         """SELECT * FROM products WHERE active = 1 AND (name LIKE '%' || :q || '%' OR variant LIKE '%' || :q || '%' OR barcode = :q OR shortCode = :q)
@@ -22,6 +23,19 @@ interface ProductDao {
 
     @Query("SELECT * FROM products WHERE active = 1 AND barcode IN (:forms) LIMIT 1")
     suspend fun byBarcodeForms(forms: List<String>): ProductEntity?
+
+    /** Otro producto activo con este código (o su forma UPC/EAN equivalente): el servidor no admite dos. */
+    @Query("SELECT * FROM products WHERE active = 1 AND barcode IN (:forms) AND id <> :exceptId LIMIT 1")
+    suspend fun otherWithBarcode(forms: List<String>, exceptId: String): ProductEntity?
+
+    @Query("SELECT * FROM product_categories WHERE active = 1 ORDER BY name COLLATE NOCASE")
+    fun categories(): Flow<List<CategoryEntity>>
+
+    @Query("SELECT * FROM product_categories WHERE id = :id")
+    suspend fun category(id: String): CategoryEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertCategory(category: CategoryEntity)
 
     @Query("SELECT * FROM products WHERE id = :id")
     suspend fun get(id: String): ProductEntity?
@@ -47,6 +61,15 @@ interface SaleDao {
     @Query("SELECT * FROM sales WHERE id = :id")
     suspend fun get(id: String): SaleEntity?
 
+    /** Productos más vendidos desde `since` (ventas cobradas en este teléfono): en cuántas ventas salió y, a igual número, la cantidad. */
+    @Query(
+        """SELECT i.productId AS productId, COUNT(DISTINCT i.saleId) AS sales, SUM(i.quantityMilli) AS quantityMilli
+           FROM sale_items i JOIN sales s ON s.id = i.saleId
+           WHERE s.status = 'COMPLETED' AND s.completedAt >= :since AND i.productId IS NOT NULL
+           GROUP BY i.productId ORDER BY sales DESC, quantityMilli DESC LIMIT :limit""",
+    )
+    fun bestSellers(since: Long, limit: Int): Flow<List<BestSellerRow>>
+
     @Query("SELECT * FROM sale_items WHERE saleId = :saleId ORDER BY position")
     suspend fun items(saleId: String): List<SaleItemEntity>
 
@@ -71,6 +94,10 @@ interface SaleDao {
     @Query("DELETE FROM sale_payments WHERE saleId = :saleId")
     suspend fun deletePayments(saleId: String)
 
+    /** Una venta que el servidor nunca aceptó (`rev = 0`) y alguien descartó en «Requiere atención»: se quita del teléfono. */
+    @Query("DELETE FROM sales WHERE id = :id AND rev = 0")
+    suspend fun deleteUnconfirmed(id: String): Int
+
     /** Total y cantidad de ventas cobradas en un rango (jornada) según lo que este teléfono conoce. */
     @Query("SELECT COUNT(*) AS count, COALESCE(SUM(totalMinor), 0) AS total FROM sales WHERE status = 'COMPLETED' AND completedAt >= :from AND completedAt < :to")
     fun dayTotals(from: Long, to: Long): Flow<DayTotals>
@@ -80,48 +107,127 @@ interface SaleDao {
            WHERE s.status = 'COMPLETED' AND s.completedAt >= :from AND s.completedAt < :to GROUP BY p.method""",
     )
     fun dayByMethod(from: Long, to: Long): Flow<List<MethodTotal>>
+
+    // ---------- devoluciones ----------
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertReturn(r: SaleReturnEntity)
+
+    @Query("SELECT * FROM sale_returns WHERE saleId = :saleId ORDER BY occurredAt, id")
+    suspend fun returnsFor(saleId: String): List<SaleReturnEntity>
+
+    /** Las devoluciones confirmadas de una venta se reemplazan con las que trae el servidor; las pendientes (`rev = 0`) se quedan hasta que lleguen. */
+    @Query("DELETE FROM sale_returns WHERE saleId = :saleId AND rev > 0")
+    suspend fun deleteConfirmedReturns(saleId: String)
+
+    @Query("DELETE FROM sale_returns WHERE id = :id AND rev = 0")
+    suspend fun deleteUnconfirmedReturn(id: String): Int
+
+    @Query("UPDATE sale_items SET returnedMilli = :milli WHERE saleId = :saleId AND id = :itemId")
+    suspend fun setReturned(saleId: String, itemId: String, milli: Long)
+
+    @Query("UPDATE sales SET returnedMinor = :minor WHERE id = :saleId")
+    suspend fun setSaleReturned(saleId: String, minor: Long)
+
+    /** Lo devuelto en un rango (jornada) según lo que este teléfono conoce: resta en el Resumen del día en que se devolvió. */
+    @Query("SELECT COALESCE(SUM(totalMinor), 0) FROM sale_returns WHERE occurredAt >= :from AND occurredAt < :to")
+    fun returnedBetween(from: Long, to: Long): Flow<Long>
+
+    /** La última venta cobrada por esa persona en este teléfono (para «Anular mi última venta»). */
+    @Query("SELECT * FROM sales WHERE status = 'COMPLETED' AND COALESCE(completedByMemberId, createdByMemberId) = :memberId ORDER BY completedAt DESC, createdAt DESC LIMIT 1")
+    suspend fun lastCompletedBy(memberId: String): SaleEntity?
 }
 
 data class DayTotals(val count: Int, val total: Long)
 data class MethodTotal(val method: String, val total: Long)
 
 @Dao
-interface OutboxDao {
+abstract class OutboxDao {
     @Insert
-    suspend fun insert(op: OutboxEntity): Long
+    abstract suspend fun insertRow(op: OutboxEntity): Long
 
-    @Query("SELECT * FROM outbox WHERE state = 'PENDING' AND nextAttemptAt <= :now ORDER BY seq LIMIT :limit")
-    suspend fun due(limit: Int, now: Long): List<OutboxEntity>
+    /** Encola una operación sellada con quien la hace y el negocio actual (`OutboxStamp`). Siempre por aquí, nunca `insertRow`. */
+    open suspend fun insert(op: OutboxEntity): Long = insertRow(OutboxStamp.apply(op))
+
+    /**
+     * Lo que toca enviar AL negocio actual. Las filas sin negocio son de antes de separar por negocio: son del único que había en el teléfono.
+     * Sin persona activa (`hasMember` falso) solo salen las que dicen quién las hizo: una fila vieja sin autor espera a que alguien entre.
+     */
+    @Query("SELECT * FROM outbox WHERE state = 'PENDING' AND nextAttemptAt <= :now AND (businessId IS NULL OR businessId = :businessId) AND (:hasMember OR memberId IS NOT NULL) ORDER BY seq LIMIT :limit")
+    abstract suspend fun due(limit: Int, now: Long, businessId: String?, hasMember: Boolean = true): List<OutboxEntity>
 
     @Query("DELETE FROM outbox WHERE seq IN (:seqs)")
-    suspend fun delete(seqs: List<Long>)
+    abstract suspend fun delete(seqs: List<Long>)
 
-    @Query("UPDATE outbox SET state = 'FAILED', lastCode = :code, attempts = attempts + 1 WHERE seq = :seq")
-    suspend fun markFailed(seq: Long, code: String)
+    @Query("UPDATE outbox SET state = 'FAILED', lastCode = :code, lastDetail = :detail, attempts = attempts + 1 WHERE seq = :seq")
+    abstract suspend fun markFailed(seq: Long, code: String, detail: String?)
+
+    /** Se aplicó, pero hay algo que revisar (la venta se guardó aparte, o ya estaba descartada): deja de estar pendiente y aparece en «Requiere atención». */
+    @Query("UPDATE outbox SET state = 'REVIEW', lastCode = :code, lastDetail = :detail WHERE seq = :seq")
+    abstract suspend fun markReview(seq: Long, code: String, detail: String?)
 
     @Query("UPDATE outbox SET attempts = attempts + 1, nextAttemptAt = :next, lastCode = :code WHERE seq IN (:seqs)")
-    suspend fun retryLater(seqs: List<Long>, next: Long, code: String?)
+    abstract suspend fun retryLater(seqs: List<Long>, next: Long, code: String?)
 
     @Query("SELECT COUNT(*) FROM outbox WHERE state = 'PENDING'")
-    fun pendingCount(): Flow<Int>
+    abstract fun pendingCount(): Flow<Int>
 
     @Query("SELECT COUNT(*) FROM outbox WHERE state = 'PENDING'")
-    suspend fun pendingCountNow(): Int
+    abstract suspend fun pendingCountNow(): Int
 
-    @Query("SELECT COUNT(*) FROM outbox WHERE state = 'FAILED'")
-    fun failedCount(): Flow<Int>
+    /** Lo que requiere atención: rechazadas y aplicadas con algo que revisar. */
+    @Query("SELECT COUNT(*) FROM outbox WHERE state IN ('FAILED', 'REVIEW')")
+    abstract fun failedCount(): Flow<Int>
 
-    @Query("SELECT * FROM outbox WHERE state = 'FAILED' ORDER BY seq")
-    fun failed(): Flow<List<OutboxEntity>>
+    @Query("SELECT * FROM outbox WHERE state IN ('FAILED', 'REVIEW') ORDER BY seq")
+    abstract fun failed(): Flow<List<OutboxEntity>>
 
-    @Query("SELECT COUNT(*) FROM outbox WHERE entityId = :entityId")
-    suspend fun countFor(entityId: String): Int
+    @Query("SELECT * FROM outbox WHERE seq = :seq")
+    abstract suspend fun get(seq: Long): OutboxEntity?
+
+    /**
+     * Operaciones SIN ENVIAR sobre un registro: mientras haya una, gana lo del teléfono y la bajada no lo pisa. Solo cuentan las pendientes: una
+     * rechazada (FAILED) o ya aplicada (REVIEW) no debe congelar el registro, así el teléfono vuelve a aceptar la versión del servidor.
+     */
+    @Query("SELECT COUNT(*) FROM outbox WHERE entityId = :entityId AND state = 'PENDING'")
+    abstract suspend fun countFor(entityId: String): Int
+
+    /** Cuántas operaciones (pendientes o para revisar) hay de un negocio que NO es `businessId`: impiden cambiar de negocio. */
+    @Query("SELECT COUNT(*) FROM outbox WHERE state IN ('PENDING', 'FAILED') AND (businessId IS NULL OR businessId <> :businessId)")
+    abstract suspend fun unsentOutside(businessId: String): Int
+
+    @Query("SELECT COUNT(*) FROM outbox WHERE state IN ('PENDING', 'FAILED')")
+    abstract suspend fun unsentCount(): Int
+
+    /** «Reintentar»: vuelve a la cola con un id de operación NUEVO (el servidor recuerda el rechazo del viejo). Seguro: una rechazada nunca se aplicó. */
+    @Query("UPDATE outbox SET state = 'PENDING', opId = :newOpId, attempts = 0, nextAttemptAt = 0, lastCode = NULL, lastDetail = NULL WHERE seq = :seq AND state = 'FAILED'")
+    abstract suspend fun requeue(seq: Long, newOpId: String): Int
+
+    @Insert
+    abstract suspend fun insertDiscarded(line: DiscardedOpEntity): Long
+
+    @Query("SELECT * FROM outbox_discarded ORDER BY discardedAt DESC LIMIT 200")
+    abstract fun discarded(): Flow<List<DiscardedOpEntity>>
+
+    /** «Descartar»: sale de la cola y queda una línea local de quién, cuándo y qué era. */
+    @androidx.room.Transaction
+    open suspend fun discard(seq: Long, at: Long, byId: String?, byName: String?): Boolean {
+        val op = get(seq) ?: return false
+        insertDiscarded(DiscardedOpEntity(opId = op.opId, kind = op.kind, entityId = op.entityId, payload = op.payload, createdAt = op.createdAt, memberId = op.memberId,
+            businessId = op.businessId, code = op.lastCode, discardedAt = at, discardedById = byId, discardedByName = byName))
+        delete(listOf(seq))
+        return true
+    }
 }
 
 @Dao
 interface DirectoryDao {
     @Query("SELECT * FROM members WHERE status = 'ACTIVE' ORDER BY (role = 'OWNER') DESC, (role = 'ADMIN') DESC, displayName COLLATE NOCASE")
     fun activeMembers(): Flow<List<MemberEntity>>
+
+    /** Todas las personas (también las deshabilitadas): la lista de gestión del equipo. */
+    @Query("SELECT * FROM members ORDER BY (role = 'OWNER') DESC, (role = 'ADMIN') DESC, displayName COLLATE NOCASE")
+    fun allMembers(): Flow<List<MemberEntity>>
 
     @Query("SELECT * FROM members WHERE id = :id")
     suspend fun member(id: String): MemberEntity?
@@ -138,6 +244,9 @@ interface DirectoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertBusiness(business: BusinessEntity)
 
+    @Query("UPDATE business SET accessCode = :code WHERE id = :id")
+    suspend fun setAccessCode(id: String, code: String)
+
     @Query("SELECT * FROM cash_registers WHERE active = 1 ORDER BY name LIMIT 1")
     suspend fun defaultRegister(): CashRegisterEntity?
 
@@ -146,6 +255,9 @@ interface DirectoryDao {
 
     @Query("SELECT cursor FROM sync_state WHERE id = 1")
     suspend fun cursor(): Long?
+
+    @Query("SELECT * FROM sync_state WHERE id = 1")
+    suspend fun syncState(): SyncStateEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun setCursor(state: SyncStateEntity)
@@ -263,6 +375,24 @@ interface CreditDao {
     @Query("SELECT * FROM credit_payments WHERE customerId = :customerId ORDER BY occurredAt")
     fun paymentsForCustomer(customerId: String): Flow<List<CreditPaymentEntity>>
 
+    @Query("SELECT DISTINCT customerId FROM credits WHERE (id = :id OR saleId = :id) AND customerId IS NOT NULL")
+    suspend fun customersOfCredit(id: String): List<String>
+
+    @Query("DELETE FROM credits WHERE (id = :id OR saleId = :id) AND rev = 0")
+    suspend fun deleteUnconfirmedCredits(id: String)
+
+    @Query("SELECT DISTINCT creditId FROM credit_payments WHERE (id = :id OR groupId = :id) AND rev = 0")
+    suspend fun unconfirmedPaymentCredits(id: String): List<String>
+
+    @Query("DELETE FROM credit_payments WHERE (id = :id OR groupId = :id) AND rev = 0")
+    suspend fun deleteUnconfirmedPayments(id: String)
+
+    @Query("SELECT creditId FROM credit_payments WHERE id = :id AND rev = 0")
+    suspend fun unconfirmedPaymentCredit(id: String): String?
+
+    @Query("DELETE FROM credit_payments WHERE id = :id AND rev = 0")
+    suspend fun deleteUnconfirmedPaymentRow(id: String)
+
     @Query("SELECT * FROM credit_payments WHERE id = :id OR groupId = :id")
     suspend fun paymentsByIdOrGroup(id: String): List<CreditPaymentEntity>
 
@@ -286,6 +416,9 @@ interface TemplateDao {
 
     @Query("DELETE FROM message_templates WHERE kind = :kind AND locale = :locale")
     suspend fun delete(kind: String, locale: String)
+
+    @Query("SELECT * FROM message_templates")
+    suspend fun allNow(): List<TemplateEntity>
 }
 
 /** Todo lo que movió una caja en una ventana de tiempo. Una sola fila para que la pantalla se refresque sola al cambiar cualquiera de las tablas. */
@@ -298,9 +431,19 @@ data class ExpenseTotals(val cashDrawer: Long, val other: Long, val count: Int)
 
 @Dao
 interface CashDao {
+    @Query("DELETE FROM expenses WHERE id = :id AND rev = 0")
+    suspend fun deleteUnconfirmedExpense(id: String)
+
+    @Query("DELETE FROM cash_movements WHERE id = :id AND rev = 0")
+    suspend fun deleteUnconfirmedMovement(id: String)
+
     // ---------- categorías ----------
     @Query("SELECT * FROM expense_categories WHERE active = 1 ORDER BY COALESCE(name, key) COLLATE NOCASE")
     fun categories(): Flow<List<ExpenseCategoryEntity>>
+
+    /** También las archivadas: los gastos viejos siguen mostrando el nombre de su categoría. */
+    @Query("SELECT * FROM expense_categories")
+    fun allCategories(): Flow<List<ExpenseCategoryEntity>>
 
     @Query("SELECT * FROM expense_categories WHERE key = :key LIMIT 1")
     suspend fun categoryByKey(key: String): ExpenseCategoryEntity?
@@ -402,7 +545,7 @@ interface InventoryDao {
                 + COALESCE((SELECT SUM(m.quantityMilli) FROM stock_movements m WHERE m.productId = p.id AND m.rev = 0), 0)
                 - CASE WHEN p.trackStock = 1 THEN COALESCE((SELECT SUM(i.quantityMilli) FROM sale_items i JOIN sales s ON s.id = i.saleId
                        WHERE i.productId = p.id AND s.status = 'COMPLETED' AND s.rev = 0), 0) ELSE 0 END AS stockNowMilli
-               FROM products p WHERE p.active = 1 AND (:q = '' OR p.name LIKE '%' || :q || '%' OR p.variant LIKE '%' || :q || '%' OR p.barcode = :q OR p.shortCode = :q)
+               FROM products p WHERE p.active = CASE :filter WHEN 'INACTIVE' THEN 0 ELSE 1 END AND (:q = '' OR p.name LIKE '%' || :q || '%' OR p.variant LIKE '%' || :q || '%' OR p.barcode = :q OR p.shortCode = :q)
            ) WHERE
              CASE :filter
                WHEN 'TRACKED' THEN trackStock = 1
@@ -607,3 +750,12 @@ interface ReportDao {
     @Query("SELECT COALESCE(SUM(balanceMinor), 0) FROM credits WHERE status = 'OPEN'")
     fun receivable(): Flow<Long>
 }
+
+/** Guarda personas sin perder el hash del PIN que ya tenemos cuando el dato nuevo llega sin él (ver `mergePinHashes`). */
+suspend fun DirectoryDao.mergeMembers(incoming: List<MemberEntity>) {
+    val existing = incoming.associate { it.id to member(it.id)?.pinHash }
+    upsertMembers(com.cuadra.caja.domain.mergePinHashes(incoming, existing))
+}
+
+/** Quita la fila local sin confirmar con ese id (si la hay) y devuelve su fiado, para recalcular su saldo. Se llama dentro de la transacción de la bajada. */
+suspend fun CreditDao.deleteUnconfirmedPayment(id: String): String? = unconfirmedPaymentCredit(id)?.also { deleteUnconfirmedPaymentRow(id) }

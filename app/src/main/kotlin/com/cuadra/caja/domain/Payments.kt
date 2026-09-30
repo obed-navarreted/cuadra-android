@@ -42,6 +42,15 @@ class PaymentPlan(val totalMinor: Long, val entries: List<PaymentEntry> = emptyL
 
     val paidMinor: Long get() = entries.sumOf { it.amountMinor }
     val remainingMinor: Long get() = totalMinor - paidMinor
+
+    /** Lo que aún no cubre ningún pago (0 si ya está cubierto o pasado). */
+    val missingMinor: Long get() = remainingMinor.coerceAtLeast(0)
+
+    /** Cuánto se pasan los pagos del total (0 si no se pasan). El efectivo cubre el exceso con «Recibido» (vuelto), no con el monto. */
+    val excessMinor: Long get() = (-remainingMinor).coerceAtLeast(0)
+
+    /** ¿Se puede pulsar «Cobrar»? Cubre exactamente el total, sin datos que falten. */
+    val canConfirm: Boolean get() = isValid
     val changeMinor: Long get() = entries.sumOf { it.changeMinor }
 
     /** Efectivo entregado en total menos vuelto = lo que realmente entra a la caja. */
@@ -80,9 +89,23 @@ class PaymentPlan(val totalMinor: Long, val entries: List<PaymentEntry> = emptyL
         return PaymentPlan(totalMinor, if (left.size == 1) listOf(left[0].copy(amountMinor = totalMinor, tenderedMinor = left[0].tenderedMinor?.takeIf { it >= totalMinor })) else left)
     }
 
-    /** Cambia el monto de un método y reparte la diferencia en el último otro método, para que siga sumando el total. */
+    /**
+     * «Completar con X»: lo que falta entra como monto de ese método (línea nueva, o suma a la que ya existe). Si no falta nada no cambia nada.
+     * En efectivo lo «Recibido» vuelve a «exacto» (el monto cambió).
+     */
+    fun completeWith(method: PayMethod): PaymentPlan {
+        val missing = missingMinor
+        if (missing <= 0) return this
+        if (entries.none { it.method == method }) return PaymentPlan(totalMinor, entries + PaymentEntry(method, missing))
+        return PaymentPlan(totalMinor, entries.map { if (it.method == method) it.copy(amountMinor = it.amountMinor + missing, tenderedMinor = null) else it })
+    }
+
+    /**
+     * Cambia el monto de un método. Con más de un método, la diferencia va al último otro para que siga sumando el total; con uno solo, lo que
+     * no cubre queda como «falta» (pago parcial) y lo que se pasa como «se pasa por» (no se recorta: la persona ve el error).
+     */
     fun withAmount(method: PayMethod, amountMinor: Long): PaymentPlan {
-        val amount = amountMinor.coerceIn(0, totalMinor)
+        val amount = amountMinor.coerceAtLeast(0)
         val edited = entries.map { if (it.method == method) it.copy(amountMinor = amount, tenderedMinor = it.tenderedMinor?.takeIf { t -> t >= amount }) else it }
         val others = edited.filter { it.method != method }
         if (others.isEmpty()) return PaymentPlan(totalMinor, edited)
@@ -109,6 +132,14 @@ class PaymentPlan(val totalMinor: Long, val entries: List<PaymentEntry> = emptyL
     }
 }
 
+/** Qué métodos de pago se ofrecen en el cobro según los módulos del negocio: sin el módulo Fiado no hay «Fiado» (solo se oculta; el servidor no lo impone, para que las ventas viejas en cola sincronicen). */
+object PaymentMethods {
+    fun available(modules: Map<String, Boolean>): List<PayMethod> = PayMethod.entries.filter { it != PayMethod.CREDIT || SettingsModules.isOn(modules, "credit") }
+
+    /** Métodos con botón «Completar con…» (no «Otro»: pide un nombre). */
+    fun completions(available: List<PayMethod>): List<PayMethod> = available.filter { it != PayMethod.OTHER }
+}
+
 /** Billetes sugeridos para "paga con", según la moneda del negocio. */
 object CashSuggestions {
     private val DEFAULT = listOf(10L, 20L, 50L, 100L, 200L, 500L, 1000L)
@@ -122,6 +153,9 @@ object CashSuggestions {
         "COP" to listOf(2000L, 5000L, 10000L, 20000L, 50000L, 100000L),
         "PEN" to listOf(10L, 20L, 50L, 100L, 200L),
         "EUR" to listOf(5L, 10L, 20L, 50L, 100L, 200L),
+        "CLP" to listOf(1000L, 2000L, 5000L, 10000L, 20000L),
+        "PYG" to listOf(10000L, 20000L, 50000L, 100000L, 200000L),
+        "DOP" to listOf(50L, 100L, 200L, 500L, 1000L, 2000L),
     )
 
     /**

@@ -8,6 +8,11 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+base {
+    // Nombre de los archivos que salen: cuentiva-0.1.0-release.apk / .aab
+    archivesName.set("cuentiva-0.1.0")
+}
+
 android {
     namespace = "com.cuadra.caja"
     compileSdk = 36
@@ -47,6 +52,8 @@ android {
         release {
             // La versión de producción habla con la API pública por https (se puede cambiar con -PCUADRA_API_URL=…).
             buildConfigField("String", "API_URL", "\"${providers.gradleProperty("CUADRA_API_URL").getOrElse("https://cuadra-backend-production.up.railway.app")}\"")
+            // El lector de códigos (ML Kit) trae librerías nativas por arquitectura: en producción solo teléfonos (ARM); x86 queda para depuración/emulador.
+            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -73,6 +80,11 @@ android {
 
     // Las pruebas de migración leen los esquemas exportados de Room.
     sourceSets { getByName("androidTest").assets.srcDir("$projectDir/schemas") }
+
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+        unitTests.all { it.maxHeapSize = "2g"; it.maxParallelForks = 4 }
+    }
 
     packaging {
         resources.excludes += setOf("META-INF/*.kotlin_module", "META-INF/LICENSE*", "META-INF/NOTICE*")
@@ -117,6 +129,12 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.bcrypt)
+    // Lector de códigos de barras: CameraX + ML Kit con el modelo incluido en la app (funciona sin conexión).
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+    implementation(libs.mlkit.barcode.scanning)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     androidTestImplementation(libs.androidx.room.testing)
@@ -126,4 +144,9 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    // Guardia de diseño (ui/guard): renderiza las pantallas en la JVM con Robolectric y revisa recortes según letra/ancho/idioma.
+    testImplementation(libs.robolectric)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.androidx.compose.ui.test.manifest)
 }

@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /** Pantalla que corresponde según el acceso del teléfono. */
-enum class Gate { LOADING, SIGNED_OUT, ONBOARDING, PICK_MEMBER, READY }
+enum class Gate { LOADING, SIGNED_OUT, ONBOARDING, PICK_MEMBER, CHANGE_PIN, READY, ACCESS_DISABLED }
 
 class RootViewModel(private val c: AppContainer) : ViewModel() {
     val session: StateFlow<Session?> = c.sessionStore.flow.stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -23,7 +23,9 @@ class RootViewModel(private val c: AppContainer) : ViewModel() {
 
     fun gate(s: Session?): Gate = when {
         s == null -> Gate.LOADING
-        s.deviceToken != null && s.businessId != null -> if (s.memberId != null) Gate.READY else Gate.PICK_MEMBER
+        // Teléfono personal de alguien dado de baja: solo esta pantalla (sigue enviando lo de antes de la baja).
+        s.accessDisabled && s.deviceToken != null -> Gate.ACCESS_DISABLED
+        s.deviceToken != null && s.businessId != null -> if (s.memberId == null) Gate.PICK_MEMBER else if (s.pinChangePending) Gate.CHANGE_PIN else Gate.READY
         s.userToken != null -> Gate.ONBOARDING
         else -> Gate.SIGNED_OUT
     }
@@ -38,5 +40,14 @@ class RootViewModel(private val c: AppContainer) : ViewModel() {
 
     fun signOut() {
         viewModelScope.launch { c.auth.signOut() }
+    }
+
+    /** Salir de un negocio donde el acceso fue desactivado: se olvida el acceso y se borran sus datos del teléfono (ya no son de esta persona). */
+    fun leaveDisabledAccess() {
+        viewModelScope.launch { c.settings.wipeLocal() }
+    }
+
+    fun dismissDisabledNotice() {
+        viewModelScope.launch { c.sessionStore.dismissDisabledNotice() }
     }
 }

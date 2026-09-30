@@ -10,3 +10,7 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '21', cache: gradle }
       - run: ./gradlew --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+      # La guardia de diseño (letra/ancho/idioma) corre dentro de testDebugUnitTest; el reporte queda como artefacto.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: layout-guard, path: app/build/reports/layout-guard, if-no-files-found: ignore }

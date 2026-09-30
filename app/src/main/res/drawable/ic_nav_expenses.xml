@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <!-- Gastos: recibo. Monocromo: el color lo pone la barra según esté seleccionada. -->
+    <path android:fillColor="#FF1A1916" android:fillType="evenOdd" android:pathData="M5,2h14v20l-2.33,-2l-2.34,2l-2.33,-2l-2.33,2l-2.34,-2l-2.33,2zM8,7v2h8V7zM8,11v2h8v-2zM8,15v2h5v-2z" />
+</vector>

@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -41,7 +42,7 @@ sealed interface LedgerRow {
 /** A quién se abona: a un fiado concreto o a un cliente (se reparte del más viejo al más nuevo). */
 data class PayTarget(val creditId: String?, val customerId: String?, val title: String, val balanceMinor: Long, val phone: String?, val settleAll: Boolean = false)
 
-data class CustomerDraft(val id: String? = null, val name: String = "", val phone: String = "", val notes: String = "", val limit: String = "")
+data class CustomerDraft(val id: String? = null, val name: String = "", val phone: String = "", val notes: String = "", val limit: String = "", val balanceMinor: Long = 0)
 
 data class ManualDraft(val debtor: String = "", val phone: String = "", val amount: String = "", val note: String = "", val customerId: String? = null)
 
@@ -54,6 +55,8 @@ sealed interface ShareRequest {
         val items: List<Pair<String, Long>>,
     ) : ShareRequest
     data class Payment(val receipt: PaymentReceipt) : ShareRequest
+    /** Comprobante de una venta cobrada (sin cliente: el chat se elige en WhatsApp). `items`: nombre y monto de cada línea. */
+    data class Ticket(val items: List<Pair<String, Long>>, val totalMinor: Long) : ShareRequest
 }
 
 data class MovementUi(
@@ -73,11 +76,16 @@ data class CreditsUi(
     val openCustomerId: String? = null,
     val linkingCreditId: String? = null,
     val writeOffCreditId: String? = null,
+    /** Abono que se va a anular (la hoja pide el motivo) y cliente que se va a archivar (la hoja pide confirmar). */
+    val voidPaymentId: String? = null,
+    val archiveCustomerId: String? = null,
     val share: ShareRequest? = null,
     val messageRes: Int? = null,
+    /** Desde cuántos días un fiado se considera «vencido»: el ajuste del negocio (`creditOverdueDays`). */
+    val overdueDays: Int = 30,
 )
 
-class CreditsViewModel(private val c: AppContainer) : ViewModel() {
+class CreditsViewModel(private val c: AppContainer) : ViewModel(), CreditsActions {
     private val _ui = MutableStateFlow(CreditsUi())
     val ui: StateFlow<CreditsUi> = _ui.asStateFlow()
 
@@ -88,15 +96,23 @@ class CreditsViewModel(private val c: AppContainer) : ViewModel() {
     /** Quién puede condonar deudas y anular abonos (el servidor lo exige igual). */
     val canManage: StateFlow<Boolean> = session.map { it?.memberRole == "OWNER" || it?.memberRole == "ADMIN" }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
-    val totals: StateFlow<CreditTotals> = c.credits.totals(OVERDUE_DAYS).stateIn(viewModelScope, SharingStarted.Eagerly, CreditTotals(0, 0, 0, 0))
+    /** Días para considerar vencido un fiado: lo que el dueño configuró en Ajustes del negocio (30 mientras no se sepa). */
+    private val overdueDays: StateFlow<Int> = business.map { it?.creditOverdueDays ?: DEFAULT_OVERDUE_DAYS }.stateIn(viewModelScope, SharingStarted.Eagerly, DEFAULT_OVERDUE_DAYS)
+
+    init {
+        viewModelScope.launch { overdueDays.collect { d -> _ui.update { it.copy(overdueDays = d) } } }
+    }
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    private val items: Flow<List<CreditItem>> = _ui.map { it.filter to it.query }.flatMapLatest { (filter, q) ->
+    val totals: StateFlow<CreditTotals> = overdueDays.flatMapLatest { c.credits.totals(it) }.stateIn(viewModelScope, SharingStarted.Eagerly, CreditTotals(0, 0, 0, 0))
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val items: Flow<List<CreditItem>> = combine(_ui.map { it.filter to it.query }.distinctUntilChanged(), overdueDays) { fq, days -> Triple(fq.first, fq.second, days) }.flatMapLatest { (filter, q, days) ->
         when (filter) {
             CreditFilter.OPEN -> c.credits.list("OPEN", "ALL", null, q)
             CreditFilter.WITH -> c.credits.list("OPEN", "WITH", null, q)
             CreditFilter.WITHOUT -> c.credits.list("OPEN", "WITHOUT", null, q)
-            CreditFilter.OLD -> c.credits.list("OPEN", "ALL", OVERDUE_DAYS, q)
+            CreditFilter.OLD -> c.credits.list("OPEN", "ALL", days, q)
             CreditFilter.PAID -> c.credits.list("PAID", "ALL", null, q)
         }
     }
@@ -135,17 +151,17 @@ class CreditsViewModel(private val c: AppContainer) : ViewModel() {
     }
 
     // ---------- navegación de la pantalla ----------
-    fun setMode(mode: LedgerMode) = _ui.update { it.copy(mode = mode) }
-    fun setFilter(f: CreditFilter) = _ui.update { it.copy(filter = f) }
-    fun setQuery(q: String) = _ui.update { it.copy(query = q) }
-    fun openCustomer(id: String?) = _ui.update { it.copy(openCustomerId = id) }
-    fun dismissMessage() = _ui.update { it.copy(messageRes = null) }
+    override fun setMode(mode: LedgerMode) = _ui.update { it.copy(mode = mode) }
+    override fun setFilter(f: CreditFilter) = _ui.update { it.copy(filter = f) }
+    override fun setQuery(q: String) = _ui.update { it.copy(query = q) }
+    override fun openCustomer(id: String?) = _ui.update { it.copy(openCustomerId = id) }
+    override fun dismissMessage() = _ui.update { it.copy(messageRes = null) }
 
     // ---------- abonar ----------
-    fun askPay(target: PayTarget) = _ui.update { it.copy(pay = target) }
-    fun closePay() = _ui.update { it.copy(pay = null) }
+    override fun askPay(target: PayTarget) = _ui.update { it.copy(pay = target) }
+    override fun closePay() = _ui.update { it.copy(pay = null) }
 
-    fun confirmPay(amountText: String, method: String, reference: String, sendReceipt: Boolean) {
+    override fun confirmPay(amountText: String, method: String, reference: String, sendReceipt: Boolean) {
         val target = _ui.value.pay ?: return
         val amount = Money.parse(amountText, currencyDecimals())?.minor ?: return
         if (amount <= 0) return
@@ -159,11 +175,11 @@ class CreditsViewModel(private val c: AppContainer) : ViewModel() {
     }
 
     // ---------- fiado sin venta ----------
-    fun openManual() = _ui.update { it.copy(manual = ManualDraft()) }
-    fun updateManual(d: ManualDraft) = _ui.update { it.copy(manual = d) }
-    fun closeManual() = _ui.update { it.copy(manual = null) }
+    override fun openManual() = _ui.update { it.copy(manual = ManualDraft()) }
+    override fun updateManual(d: ManualDraft) = _ui.update { it.copy(manual = d) }
+    override fun closeManual() = _ui.update { it.copy(manual = null) }
 
-    fun saveManual() {
+    override fun saveManual() {
         val d = _ui.value.manual ?: return
         val amount = Money.parse(d.amount, currencyDecimals())?.minor ?: 0
         if (amount <= 0 || (d.debtor.isBlank() && d.customerId == null)) return _ui.update { it.copy(messageRes = R.string.manual_debtor_required) }
@@ -177,13 +193,13 @@ class CreditsViewModel(private val c: AppContainer) : ViewModel() {
     }
 
     // ---------- clientes ----------
-    fun openCustomerEditor(draft: CustomerDraft = CustomerDraft()) = _ui.update { it.copy(customerEditor = draft) }
-    fun updateCustomerEditor(d: CustomerDraft) = _ui.update { it.copy(customerEditor = d) }
-    fun closeCustomerEditor() = _ui.update { it.copy(customerEditor = null) }
+    override fun openCustomerEditor(draft: CustomerDraft) = _ui.update { it.copy(customerEditor = draft) }
+    override fun updateCustomerEditor(d: CustomerDraft) = _ui.update { it.copy(customerEditor = d) }
+    override fun closeCustomerEditor() = _ui.update { it.copy(customerEditor = null) }
 
-    fun saveCustomer() {
+    override fun saveCustomer() {
         val d = _ui.value.customerEditor ?: return
-        val limit = d.limit.takeIf { it.isNotBlank() }?.let { Money.parse(it, currencyDecimals())?.minor }
+        val limit = com.cuadra.caja.domain.CreditLimitField.parse(d.limit, currencyDecimals())
         viewModelScope.launch {
             when (c.customers.save(d.id, d.name, d.phone, d.notes, limit, country)) {
                 is SaveCustomer.Saved -> _ui.update { it.copy(customerEditor = null) }
@@ -193,8 +209,8 @@ class CreditsViewModel(private val c: AppContainer) : ViewModel() {
         }
     }
 
-    fun askLink(creditId: String?) = _ui.update { it.copy(linkingCreditId = creditId) }
-    fun link(customerId: String) {
+    override fun askLink(creditId: String?) = _ui.update { it.copy(linkingCreditId = creditId) }
+    override fun link(customerId: String) {
         val id = _ui.value.linkingCreditId ?: return
         viewModelScope.launch {
             c.credits.link(id, customerId)
@@ -203,8 +219,8 @@ class CreditsViewModel(private val c: AppContainer) : ViewModel() {
     }
 
     // ---------- condonar / anular ----------
-    fun askWriteOff(creditId: String?) = _ui.update { it.copy(writeOffCreditId = creditId) }
-    fun writeOff(reason: String) {
+    override fun askWriteOff(creditId: String?) = _ui.update { it.copy(writeOffCreditId = creditId) }
+    override fun writeOff(reason: String) {
         val id = _ui.value.writeOffCreditId ?: return
         if (reason.isBlank()) return
         viewModelScope.launch {
@@ -213,17 +229,37 @@ class CreditsViewModel(private val c: AppContainer) : ViewModel() {
         }
     }
 
-    fun voidPayment(paymentId: String) {
-        viewModelScope.launch { c.credits.voidPayment(paymentId, null) }
+    override fun askVoidPayment(paymentId: String?) = _ui.update { it.copy(voidPaymentId = paymentId) }
+    override fun voidPayment(reason: String) {
+        val id = _ui.value.voidPaymentId ?: return
+        viewModelScope.launch {
+            c.credits.voidPayment(id, reason.trim().ifEmpty { null })
+            _ui.update { it.copy(voidPaymentId = null) }
+        }
+    }
+
+    override fun askArchiveCustomer(id: String?) = _ui.update { it.copy(archiveCustomerId = id) }
+    override fun archiveCustomer() {
+        val id = _ui.value.archiveCustomerId ?: return
+        viewModelScope.launch {
+            val e = c.customers.get(id)
+            // Con saldo pendiente no se archiva: la deuda se seguiría cobrando a alguien que ya no aparece en ninguna lista.
+            if (e != null && e.balanceMinor <= 0) {
+                c.customers.save(id, e.name, e.phone, e.notes, e.creditLimitMinor, country, archived = true)
+                _ui.update { it.copy(archiveCustomerId = null, customerEditor = null, openCustomerId = null) }
+            } else {
+                _ui.update { it.copy(archiveCustomerId = null, messageRes = R.string.customer_archive_needs_zero) }
+            }
+        }
     }
 
     // ---------- compartir ----------
-    fun share(request: ShareRequest?) = _ui.update { it.copy(share = request) }
+    override fun share(request: ShareRequest?) = _ui.update { it.copy(share = request) }
 
     private fun currencyDecimals(): Int = business.value?.let { com.cuadra.caja.core.model.Currency.of(it.currency).decimals } ?: 2
 
     companion object {
-        /** Umbral de "vencido": los fiados con más días que esto se cuentan aparte. El negocio podrá cambiarlo (ajuste `credit_overdue_days`). */
-        const val OVERDUE_DAYS = 30
+        /** Umbral de «vencido» mientras no se sepa el del negocio (`creditOverdueDays`, que el dueño cambia en Ajustes del negocio). */
+        const val DEFAULT_OVERDUE_DAYS = 30
     }
 }

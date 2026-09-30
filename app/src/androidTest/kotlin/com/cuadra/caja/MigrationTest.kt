@@ -8,6 +8,11 @@ import com.cuadra.caja.data.local.MIGRATION_1_2
 import com.cuadra.caja.data.local.MIGRATION_2_3
 import com.cuadra.caja.data.local.MIGRATION_3_4
 import com.cuadra.caja.data.local.MIGRATION_4_5
+import com.cuadra.caja.data.local.MIGRATION_5_6
+import com.cuadra.caja.data.local.MIGRATION_6_7
+import com.cuadra.caja.data.local.MIGRATION_7_8
+import com.cuadra.caja.data.local.MIGRATION_8_9
+import com.cuadra.caja.data.local.MIGRATION_9_10
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -100,7 +105,99 @@ class MigrationTest {
         db.query("SELECT shown FROM notifications WHERE id = 'n1'").use { c -> c.moveToFirst(); assertEquals(0, c.getInt(0)) }
     }
 
+    @Test
+    fun migration5To6KeepsPendingOperationsAddsProductCategoriesAndResetsTheSyncCursor() {
+        helper.createDatabase(DB5, 5).apply {
+            execSQL("INSERT INTO outbox (opId, kind, entityId, payload, createdAt, attempts, nextAttemptAt, state, lastCode) VALUES ('op9', 'PRODUCT_UPSERT', 'p1', '{}', 5, 0, 0, 'PENDING', NULL)")
+            execSQL("INSERT INTO sync_state (id, cursor) VALUES (1, 4242)")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(DB5, 6, true, MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+        db.query("SELECT state FROM outbox WHERE opId = 'op9'").use { c -> c.moveToFirst(); assertEquals("PENDING", c.getString(0)) }
+        // Las categorías que ya existían en el servidor nunca se bajaron: el cursor vuelve a 0 una vez para traerlas.
+        db.query("SELECT cursor FROM sync_state WHERE id = 1").use { c -> c.moveToFirst(); assertEquals(0L, c.getLong(0)) }
+        db.execSQL("INSERT INTO product_categories (id, name, active, rev) VALUES ('c1', 'Bebidas', 1, 1)")
+        db.query("SELECT name FROM product_categories WHERE id = 'c1'").use { c -> c.moveToFirst(); assertEquals("Bebidas", c.getString(0)) }
+    }
+
+    @Test
+    fun migration6To7KeepsBusinessesSalesAndPendingOperationsAndAddsTheDayRules() {
+        helper.createDatabase(DB6, 6).apply {
+            execSQL("INSERT INTO business (id, name, country, currency, timezone, defaultLocale, dayCutoff, inventoryMode, modulesJson, posViewsJson, creditRequiresCustomer, shiftRequired) VALUES ('b1', 'Tienda', 'NI', 'NIO', 'America/Managua', 'es', '02:00', 'OFF', '{}', '[]', 0, 0)")
+            execSQL("INSERT INTO sales (id, status, subtotalMinor, discountMinor, totalMinor, createdAt, updatedAt, rev) VALUES ('s1', 'CANCELLED', 1000, 0, 1000, 1, 1, 5)")
+            execSQL("INSERT INTO outbox (opId, kind, entityId, payload, createdAt, attempts, nextAttemptAt, state, lastCode) VALUES ('op10', 'SALE_CANCEL', 's1', '{\"reason\":\"cobrada dos veces\"}', 5, 0, 0, 'PENDING', NULL)")
+            execSQL("INSERT INTO sync_state (id, cursor) VALUES (1, 999)")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(DB6, 7, true, MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+        // Nada se pierde: el negocio sigue igual y sin reglas guardadas (el teléfono usa su zona/corte de siempre hasta bajarlas).
+        db.query("SELECT timezone, dayCutoff, dayRulesJson, dayRuleEffectiveFrom FROM business WHERE id = 'b1'").use { c ->
+            c.moveToFirst(); assertEquals("America/Managua", c.getString(0)); assertEquals("02:00", c.getString(1)); assertEquals("[]", c.getString(2)); assertEquals(true, c.isNull(3))
+        }
+        db.query("SELECT status, totalMinor, editedAt, cancelledAt FROM sales WHERE id = 's1'").use { c ->
+            c.moveToFirst(); assertEquals("CANCELLED", c.getString(0)); assertEquals(1000L, c.getLong(1)); assertEquals(true, c.isNull(2)); assertEquals(true, c.isNull(3))
+        }
+        db.query("SELECT state, kind FROM outbox WHERE opId = 'op10'").use { c -> c.moveToFirst(); assertEquals("PENDING", c.getString(0)); assertEquals("SALE_CANCEL", c.getString(1)) }
+        // El cursor vuelve a 0 una vez para bajar el negocio con sus reglas de jornada.
+        db.query("SELECT cursor FROM sync_state WHERE id = 1").use { c -> c.moveToFirst(); assertEquals(0L, c.getLong(0)) }
+        db.execSQL("UPDATE business SET dayRulesJson = '[{\"from\":\"1970-01-01\",\"timezone\":\"America/Managua\",\"dayCutoff\":\"02:00\"}]', dayRuleEffectiveFrom = '2026-10-10' WHERE id = 'b1'")
+        db.execSQL("UPDATE sales SET cancelledAt = 12345, editedAt = 999 WHERE id = 's1'")
+        db.query("SELECT cancelledAt FROM sales WHERE id = 's1'").use { c -> c.moveToFirst(); assertEquals(12345L, c.getLong(0)) }
+    }
+
+    @Test
+    fun migration7To8KeepsTheBusinessAndAddsTheCreditRulesWithTheirDefaults() {
+        helper.createDatabase(DB7, 7).apply {
+            execSQL("INSERT INTO business (id, name, country, currency, timezone, defaultLocale, dayCutoff, inventoryMode, modulesJson, posViewsJson, creditRequiresCustomer, shiftRequired, dayRulesJson) VALUES ('b1', 'Tienda', 'NI', 'NIO', 'America/Managua', 'es', '02:00', 'OFF', '{}', '[]', 1, 0, '[]')")
+            execSQL("INSERT INTO sync_state (id, cursor) VALUES (1, 777)")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(DB7, 8, true, MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+        db.query("SELECT name, creditRequiresCustomer, type, creditDefaultDueDays, creditOverdueDays, creditLimitEnforced FROM business WHERE id = 'b1'").use { c ->
+            c.moveToFirst(); assertEquals("Tienda", c.getString(0)); assertEquals(1, c.getInt(1)); assertEquals(true, c.isNull(2)); assertEquals(true, c.isNull(3)); assertEquals(30, c.getInt(4)); assertEquals(0, c.getInt(5))
+        }
+        db.query("SELECT cursor FROM sync_state WHERE id = 1").use { c -> c.moveToFirst(); assertEquals(0L, c.getLong(0)) }
+    }
+
+    @Test
+    fun migration8To9KeepsTheBusinessAndAddsTheAccessCode() {
+        helper.createDatabase(DB8, 8).apply {
+            execSQL("INSERT INTO business (id, name, country, currency, timezone, defaultLocale, dayCutoff, inventoryMode, modulesJson, posViewsJson, creditRequiresCustomer, shiftRequired, dayRulesJson, creditOverdueDays, creditLimitEnforced) VALUES ('b1', 'Tienda', 'NI', 'NIO', 'America/Managua', 'es', '02:00', 'OFF', '{}', '[]', 1, 0, '[]', 30, 0)")
+            execSQL("INSERT INTO sync_state (id, cursor) VALUES (1, 777)")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(DB8, 9, true, MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+        db.query("SELECT name, accessCode FROM business WHERE id = 'b1'").use { c -> c.moveToFirst(); assertEquals("Tienda", c.getString(0)); assertEquals(true, c.isNull(1)) }
+        db.query("SELECT cursor FROM sync_state WHERE id = 1").use { c -> c.moveToFirst(); assertEquals(0L, c.getLong(0)) }
+    }
+
+    @Test
+    fun migration9To10KeepsThePendingQueueAndStampsItWithItsBusiness() {
+        helper.createDatabase(DB9, 9).apply {
+            execSQL("INSERT INTO business (id, name, country, currency, timezone, defaultLocale, dayCutoff, inventoryMode, modulesJson, posViewsJson, creditRequiresCustomer, shiftRequired, dayRulesJson, creditOverdueDays, creditLimitEnforced, accessCode) VALUES ('b1', 'Tienda', 'NI', 'NIO', 'America/Managua', 'es', '02:00', 'OFF', '{}', '[]', 1, 0, '[]', 30, 0, '13085')")
+            execSQL("INSERT INTO sync_state (id, cursor) VALUES (1, 777)")
+            execSQL("INSERT INTO outbox (opId, kind, entityId, payload, createdAt, attempts, nextAttemptAt, state, lastCode) VALUES ('op1', 'SALE_UPSERT', 's1', '{}', 1000, 0, 0, 'PENDING', NULL)")
+            execSQL("INSERT INTO outbox (opId, kind, entityId, payload, createdAt, attempts, nextAttemptAt, state, lastCode) VALUES ('op2', 'CREDIT_PAYMENT', 'p1', '{}', 1001, 1, 0, 'FAILED', 'CREDIT_CLOSED')")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(DB9, 10, true, MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+        // Lo que estaba en la cola sigue ahí (dinero), marcado con el único negocio que había; quién lo hizo no se sabe (nulo = la persona activa).
+        db.query("SELECT opId, state, businessId, memberId, lastDetail FROM outbox ORDER BY seq").use { c ->
+            c.moveToFirst(); assertEquals("op1", c.getString(0)); assertEquals("PENDING", c.getString(1)); assertEquals("b1", c.getString(2)); assertEquals(true, c.isNull(3)); assertEquals(true, c.isNull(4))
+            c.moveToNext(); assertEquals("op2", c.getString(0)); assertEquals("FAILED", c.getString(1)); assertEquals("b1", c.getString(2))
+        }
+        // El cursor NO se reinicia: queda con su negocio.
+        db.query("SELECT cursor, businessId FROM sync_state WHERE id = 1").use { c -> c.moveToFirst(); assertEquals(777L, c.getLong(0)); assertEquals("b1", c.getString(1)) }
+        db.execSQL("INSERT INTO outbox_discarded (opId, kind, entityId, payload, createdAt, discardedAt) VALUES ('op3', 'SALE_UPSERT', 's3', '{}', 1, 2)")
+        db.query("SELECT COUNT(*) FROM outbox_discarded").use { c -> c.moveToFirst(); assertEquals(1, c.getInt(0)) }
+    }
+
     private companion object {
+        const val DB9 = "migration-test-9"
+        const val DB8 = "migration-test-8"
+        const val DB7 = "migration-test-7"
+        const val DB6 = "migration-test-6"
+        const val DB5 = "migration-test-5"
         const val DB4 = "migration-test-4"
         const val DB3 = "migration-test-3"
         const val DB2 = "migration-test-2"

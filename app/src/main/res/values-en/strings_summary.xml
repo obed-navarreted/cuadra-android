@@ -15,7 +15,7 @@
     <string name="summary_profit">Estimated profit</string>
     <string name="summary_profit_formula">sales − cost of goods − expenses</string>
     <string name="summary_coverage_warning">Cost is recorded on %1$d %% of what was sold: the real profit may be lower.</string>
-    <string name="summary_receivable">Owed to you (tabs)</string>
+    <string name="summary_receivable">Owed to you (credit)</string>
     <plurals name="summary_low_stock">
         <item quantity="one">%1$d product running low</item>
         <item quantity="other">%1$d products running low</item>
@@ -26,4 +26,12 @@
     <string name="summary_empty">There are no sales in this period yet.</string>
     <string name="summary_scope_note">Based on what this phone has synced.</string>
     <string name="more_summary">Business summary</string>
+    <string name="summary_custom">Range</string>
+    <string name="summary_range_title">Pick the dates</string>
+    <string name="summary_range_apply">Apply</string>
+    <string name="summary_range_hint">Tap the first and the last day (one tap = a single day).</string>
+    <string name="summary_range_reversed">The start date must be on or before the end date.</string>
+    <string name="summary_range_too_long">The range is %1$d days; the maximum is %2$d.</string>
+    <string name="summary_range_future">Those dates haven\'t arrived yet.</string>
+    <string name="summary_range_label">%1$s – %2$s</string>
 </resources>

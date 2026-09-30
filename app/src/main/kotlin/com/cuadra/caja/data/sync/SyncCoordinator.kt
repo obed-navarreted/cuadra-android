@@ -33,13 +33,18 @@ fun syncStatusOf(result: SyncResult): SyncStatus = when (result) {
 /** Ejecuta la sincronización de a una vez y publica su estado. */
 class SyncCoordinator(
     private val engine: () -> SyncEngine?,
-    private val onAuthProblem: suspend () -> Unit = {},
+    /** El servidor no acepta este teléfono o esta persona; recibe el código (ACCESS_DISABLED, MEMBER_NOT_ACTIVE, UNAUTHENTICATED…). */
+    private val onAuthProblem: suspend (String) -> Unit = {},
     /** Tras una sincronización terminada: por ejemplo mostrar los avisos nuevos. Un fallo aquí nunca cuenta como fallo de sincronizar. */
     private val onSynced: suspend () -> Unit = {},
 ) {
     private val mutex = Mutex()
     private val _status = MutableStateFlow(SyncStatus.IDLE)
     val status: StateFlow<SyncStatus> = _status.asStateFlow()
+
+    /** Cuándo terminó bien la última sincronización desde que arrancó la app (para los datos técnicos de «Ayuda»); nulo si aún no hubo. */
+    @Volatile var lastDoneAt: Long? = null
+        private set
 
     suspend fun run(): SyncResult? {
         val e = engine() ?: return null
@@ -48,8 +53,8 @@ class SyncCoordinator(
             _status.value = SyncStatus.SYNCING
             val result = e.run()
             _status.value = syncStatusOf(result)
-            if (result is SyncResult.AuthProblem) onAuthProblem()
-            if (result is SyncResult.Done) runCatching { onSynced() }
+            if (result is SyncResult.AuthProblem) onAuthProblem(result.code)
+            if (result is SyncResult.Done) { lastDoneAt = System.currentTimeMillis(); runCatching { onSynced() } }
             return result
         } catch (ex: Exception) {
             _status.value = SyncStatus.NEEDS_ATTENTION

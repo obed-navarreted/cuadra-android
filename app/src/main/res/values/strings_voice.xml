@@ -1,6 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="voice_dictate">Dictar por voz</string>
+    <string name="voice_stop">Detener el dictado</string>
+    <string name="voice_listening">Escuchando…</string>
     <string name="voice_prompt">Habla ahora</string>
     <string name="voice_unavailable">Este teléfono no tiene dictado por voz. Activa o instala el servicio de voz de Google.</string>
+    <string name="voice_rationale_title">Usar el micrófono</string>
+    <string name="voice_rationale">Para dictar, Cuentiva usa el micrófono solo mientras hablas. La app no guarda ningún audio.</string>
+    <string name="voice_allow">Permitir</string>
+    <string name="voice_not_now">Ahora no</string>
+    <string name="voice_denied_title">Micrófono sin permiso</string>
+    <string name="voice_denied_retry">Permite el micrófono para dictar. También puedes escribir con el teclado.</string>
+    <string name="voice_denied_settings">El micrófono está bloqueado para Cuentiva. Actívalo en Ajustes → Permisos, o escribe con el teclado.</string>
+    <string name="voice_open_settings">Abrir ajustes</string>
+    <string name="voice_no_service_title">Sin dictado por voz</string>
+    <string name="voice_no_service">Este teléfono no tiene dictado por voz. Usa el micrófono del teclado (Gboard) o instala/activa la app de Google.</string>
+    <string name="voice_error_title">No se pudo dictar</string>
+    <string name="voice_err_offline">Sin internet: descarga el idioma sin conexión en Ajustes → Google → Voz.</string>
+    <string name="voice_err_try_again">No te escuché, intenta de nuevo.</string>
+    <string name="voice_err_busy">El dictado está ocupado. Espera un momento e intenta otra vez.</string>
+    <string name="voice_err_server">El servicio de voz falló. Intenta de nuevo o usa el micrófono del teclado.</string>
+    <string name="voice_err_language">Tu teléfono no dicta en este idioma. Ve a Ajustes → Idioma y entrada → Voz → Idiomas sin conexión y descarga Español, o usa el micrófono del teclado (Gboard).</string>
+    <string name="voice_err_mic">No se pudo usar el micrófono. Revisa que otra app no lo esté usando e intenta de nuevo.</string>
+    <string name="voice_err_generic">Algo falló con el dictado. Intenta de nuevo o usa el micrófono del teclado (Gboard).</string>
+    <string name="voice_retry">Intentar de nuevo</string>
+    <string name="voice_close">Cerrar</string>
+    <string name="voice_tried">Idiomas probados: %1$s</string>
 </resources>

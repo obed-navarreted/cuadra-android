@@ -1,6 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="voice_dictate">Dictate by voice</string>
+    <string name="voice_stop">Stop dictation</string>
+    <string name="voice_listening">Listening…</string>
     <string name="voice_prompt">Speak now</string>
     <string name="voice_unavailable">This phone has no voice dictation. Turn on or install the Google voice service.</string>
+    <string name="voice_rationale_title">Use the microphone</string>
+    <string name="voice_rationale">To dictate, Cuentiva uses the microphone only while you speak. The app does not save any audio.</string>
+    <string name="voice_allow">Allow</string>
+    <string name="voice_not_now">Not now</string>
+    <string name="voice_denied_title">Microphone not allowed</string>
+    <string name="voice_denied_retry">Allow the microphone to dictate. You can also type with the keyboard.</string>
+    <string name="voice_denied_settings">The microphone is blocked for Cuentiva. Turn it on in Settings → Permissions, or type with the keyboard.</string>
+    <string name="voice_open_settings">Open settings</string>
+    <string name="voice_no_service_title">No voice dictation</string>
+    <string name="voice_no_service">This phone has no voice dictation. Use the keyboard microphone (Gboard) or install/enable the Google app.</string>
+    <string name="voice_error_title">Could not dictate</string>
+    <string name="voice_err_offline">No internet: download the offline language in Settings → Google → Voice.</string>
+    <string name="voice_err_try_again">I didn\'t hear you, try again.</string>
+    <string name="voice_err_busy">Dictation is busy. Wait a moment and try again.</string>
+    <string name="voice_err_server">The voice service failed. Try again or use the keyboard microphone.</string>
+    <string name="voice_err_language">Your phone can\'t dictate in this language. Go to Settings → Language &amp; input → Voice → Offline languages and download English, or use the keyboard microphone (Gboard).</string>
+    <string name="voice_err_mic">Could not use the microphone. Check that no other app is using it and try again.</string>
+    <string name="voice_err_generic">Something went wrong with dictation. Try again or use the keyboard microphone (Gboard).</string>
+    <string name="voice_retry">Try again</string>
+    <string name="voice_close">Close</string>
+    <string name="voice_tried">Languages tried: %1$s</string>
 </resources>

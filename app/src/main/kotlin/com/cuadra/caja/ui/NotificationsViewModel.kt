@@ -18,10 +18,10 @@ data class PrefsUi(val open: Boolean = false, val loading: Boolean = false, val 
 
 /** Orden en que se muestran los tipos en las preferencias. */
 val NOTIFICATION_TYPES = listOf(
-    "LOW_STOCK", "OUT_OF_STOCK", "SHIFT_CLOSED", "SHIFT_DIFFERENCE", "SHIFT_NOT_CLOSED", "SALE_DELETED", "DEVICE_STALE", "PIN_LOCKOUT", "MEMBER_JOINED", "DAILY_SUMMARY", "SCHEDULED",
+    "LOW_STOCK", "OUT_OF_STOCK", "SHIFT_CLOSED", "SHIFT_DIFFERENCE", "SHIFT_NOT_CLOSED", "SALE_DELETED", "SALE_CONFLICT", "SALE_RETURNED", "SALE_UNDONE", "LATE_AFTER_DISABLE", "PRICE_CHANGED", "DEVICE_STALE", "PIN_LOCKOUT", "MEMBER_JOINED", "DAILY_SUMMARY", "SCHEDULED",
 )
 
-class NotificationsViewModel(private val c: AppContainer) : ViewModel() {
+class NotificationsViewModel(private val c: AppContainer) : ViewModel(), NotificationsActions {
     val items: StateFlow<List<NotificationEntity>> = c.notifications.inbox().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val unread: StateFlow<Int> = c.notifications.unreadCount().stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
@@ -29,16 +29,16 @@ class NotificationsViewModel(private val c: AppContainer) : ViewModel() {
     val prefs: StateFlow<PrefsUi> = _prefs.asStateFlow()
 
     /** Marca como leída y devuelve el enlace al que lleva (o a la propia bandeja si no trae). */
-    fun open(n: NotificationEntity): String? {
+    override fun open(n: NotificationEntity): String? {
         viewModelScope.launch { c.notifications.markRead(n.id) }
         return n.deepLink
     }
 
-    fun markAllRead() {
+    override fun markAllRead() {
         viewModelScope.launch { c.notifications.markAllRead() }
     }
 
-    fun openPrefs() {
+    override fun openPrefs() {
         _prefs.value = PrefsUi(open = true, loading = true)
         viewModelScope.launch {
             c.schedules.preferences().fold(
@@ -48,11 +48,11 @@ class NotificationsViewModel(private val c: AppContainer) : ViewModel() {
         }
     }
 
-    fun closePrefs() {
+    override fun closePrefs() {
         _prefs.value = PrefsUi()
     }
 
-    fun toggle(type: String, enabled: Boolean) {
+    override fun toggle(type: String, enabled: Boolean) {
         // Cambio inmediato en pantalla; si el servidor no lo acepta, vuelve al valor real.
         _prefs.update { it.copy(prefs = it.prefs?.plus(type to enabled)) }
         viewModelScope.launch {

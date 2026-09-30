@@ -8,13 +8,21 @@ import com.cuadra.caja.R
 import com.cuadra.caja.core.model.Currency
 import com.cuadra.caja.core.model.Money
 import com.cuadra.caja.data.local.BusinessEntity
+import com.cuadra.caja.data.local.CategoryEntity
 import com.cuadra.caja.data.local.ProductEntity
 import com.cuadra.caja.data.local.ProductProfit
 import com.cuadra.caja.data.local.ProductStock
 import com.cuadra.caja.data.local.StockMovementEntity
-import com.cuadra.caja.data.remote.ProductInputDto
 import com.cuadra.caja.data.repo.StockFilter
+import com.cuadra.caja.data.remote.ApiFailure
+import com.cuadra.caja.data.remote.ProductHistoryEntryDto
 import com.cuadra.caja.domain.Money3
+import com.cuadra.caja.domain.ProductEditor
+import com.cuadra.caja.domain.ProductEditorResult
+import com.cuadra.caja.domain.ProductError
+import com.cuadra.caja.domain.ProductForm
+import com.cuadra.caja.domain.ProductPayload
+import com.cuadra.caja.domain.ProductPermissions
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,10 +42,17 @@ data class CountDraft2(val productId: String, val kind: StockAction, val initial
 
 enum class StockAction { COUNT, DAMAGE, RETURN }
 
-/** Editor de producto: nuevo (`id == null`) o existente. Los campos de código, categoría y "rápido" se conservan tal cual. */
+/**
+ * Editor de producto: nuevo (`id == null`) o existente. `form` es lo escrito (texto); `barcodeOwner` = nombre del otro producto que ya tiene ese código
+ * (se averigua al escribirlo); `newCategory` != null = se está escribiendo una categoría nueva.
+ */
 data class ProductEditorDraft(
-    val id: String? = null, val name: String = "", val price: String = "", val cost: String = "", val unit: String = "UNIT", val minStock: String = "",
-    val track: Boolean = false, val wasTracked: Boolean = false, val error: Boolean = false,
+    val id: String? = null,
+    val form: ProductForm = ProductForm(),
+    val wasTracked: Boolean = false,
+    val errors: Set<ProductError> = emptySet(),
+    val barcodeOwner: String? = null,
+    val newCategory: String? = null,
 )
 
 data class InventoryUi(
@@ -45,13 +60,25 @@ data class InventoryUi(
     val filter: StockFilter = StockFilter.ALL,
     val selectedId: String? = null,
     val editor: ProductEditorDraft? = null,
+    /** Categorías de productos que el teléfono conoce (para elegir en el editor). */
+    val categories: List<CategoryEntity> = emptyList(),
     val count: CountDraft2? = null,
+    val confirmActive: Boolean? = null,
+    val history: HistoryState? = null,
     @StringRes val messageRes: Int? = null,
 )
 
+/** El historial del producto abierto: solo se puede leer en línea. */
+sealed interface HistoryState {
+    data object Loading : HistoryState
+    data object Offline : HistoryState
+    data object Error : HistoryState
+    data class Loaded(val entries: List<ProductHistoryEntryDto>) : HistoryState
+}
+
 data class ProductDetail(val stock: ProductStock, val movements: List<StockMovementEntity>, val profit: ProductProfit)
 
-class InventoryViewModel(private val c: AppContainer, private val clock: () -> Long = System::currentTimeMillis) : ViewModel() {
+class InventoryViewModel(private val c: AppContainer, private val clock: () -> Long = System::currentTimeMillis) : ViewModel(), InventoryActions {
     private val _ui = MutableStateFlow(InventoryUi())
     val ui: StateFlow<InventoryUi> = _ui.asStateFlow()
 
@@ -59,6 +86,10 @@ class InventoryViewModel(private val c: AppContainer, private val clock: () -> L
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val items: StateFlow<List<ProductStock>> = _ui.map { it.query to it.filter }.flatMapLatest { (q, f) -> c.inventory.stock(q, f) }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** El rol de quien tiene la caja: decide si se ve dar de baja / reactivar. */
+    val role: StateFlow<String?> = c.sessionStore.flow.map { it.memberRole }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    val canDelete: StateFlow<Boolean> = role.map { ProductPermissions.canDelete(it) }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     val reviewCount: StateFlow<Int> = c.inventory.reviewCount().stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 
@@ -70,18 +101,41 @@ class InventoryViewModel(private val c: AppContainer, private val clock: () -> L
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    fun setQuery(q: String) = _ui.update { it.copy(query = q) }
-    fun setFilter(f: StockFilter) = _ui.update { it.copy(filter = f) }
-    fun select(id: String?) = _ui.update { it.copy(selectedId = id) }
+    override fun setQuery(q: String) = _ui.update { it.copy(query = q) }
+    override fun setFilter(f: StockFilter) = _ui.update { it.copy(filter = f) }
+    override fun select(id: String?) = _ui.update { it.copy(selectedId = id, history = null, confirmActive = null) }
+
+    override fun loadHistory(productId: String) {
+        _ui.update { it.copy(history = HistoryState.Loading) }
+        viewModelScope.launch {
+            val r = c.products.history(productId)
+            val state = r.fold({ HistoryState.Loaded(it) }, { if (it is ApiFailure.Offline) HistoryState.Offline else HistoryState.Error })
+            _ui.update { if (it.selectedId == productId) it.copy(history = state) else it }
+        }
+    }
+
+    // ---------- dar de baja / reactivar: solo dueño y administrador ----------
+    override fun askActive(active: Boolean) { if (canDelete.value) _ui.update { it.copy(confirmActive = active) } }
+    override fun cancelActive() = _ui.update { it.copy(confirmActive = null) }
+    override fun confirmActive() {
+        val active = _ui.value.confirmActive ?: return
+        val id = _ui.value.selectedId ?: return
+        if (!canDelete.value) { cancelActive(); return }
+        viewModelScope.launch {
+            val old = c.db.products().get(id) ?: return@launch
+            c.products.save(id, ProductPayload.withActive(old, active))
+            _ui.update { it.copy(confirmActive = null, selectedId = null, history = null) }
+        }
+    }
     fun dismissMessage() = _ui.update { it.copy(messageRes = null) }
 
     // ---------- conteo, baja, devolución ----------
-    fun openCount(productId: String, action: StockAction, initial: Boolean = false) = _ui.update { it.copy(count = CountDraft2(productId, action, initial)) }
-    fun updateCount(d: CountDraft2) = _ui.update { it.copy(count = d) }
+    override fun openCount(productId: String, action: StockAction, initial: Boolean) = _ui.update { it.copy(count = CountDraft2(productId, action, initial)) }
+    override fun updateCount(d: CountDraft2) = _ui.update { it.copy(count = d) }
     /** Al terminar (o saltar) el conteo inicial se muestra el producto; antes no, para que el conteo no quede tapado por su detalle. */
-    fun closeCount() = _ui.update { it.copy(selectedId = it.count?.takeIf { d -> d.initial }?.productId ?: it.selectedId, count = null) }
+    override fun closeCount() = _ui.update { it.copy(selectedId = it.count?.takeIf { d -> d.initial }?.productId ?: it.selectedId, count = null) }
 
-    fun confirmCount() {
+    override fun confirmCount() {
         val d = _ui.value.count ?: return
         val qty = Money3.parse(d.amount, 3) ?: return
         viewModelScope.launch {
@@ -95,42 +149,74 @@ class InventoryViewModel(private val c: AppContainer, private val clock: () -> L
     }
 
     // ---------- editor de producto ----------
-    fun newProduct() = _ui.update { it.copy(editor = ProductEditorDraft()) }
+    init {
+        viewModelScope.launch { c.products.categories().collect { list -> _ui.update { it.copy(categories = list) } } }
+    }
 
-    fun edit(p: ProductEntity) {
+    override fun newProduct() = _ui.update { it.copy(editor = ProductEditorDraft()) }
+
+    override fun edit(p: ProductEntity) {
         val decimals = decimals()
-        _ui.update {
-            it.copy(editor = ProductEditorDraft(
-                p.id, p.name, plain(p.priceMinor, decimals), p.costMinor?.let { c -> plain(c, decimals) }.orEmpty(), p.unit,
-                p.minStockMilli?.let { m -> java.math.BigDecimal.valueOf(m, 3).stripTrailingZeros().toPlainString() }.orEmpty(), p.trackStock, p.trackStock,
-            ))
+        _ui.update { it.copy(editor = ProductEditorDraft(p.id, ProductEditor.formOf(p, decimals), wasTracked = p.trackStock)) }
+        checkBarcode(p.barcode.orEmpty())
+    }
+
+    override fun updateEditor(d: ProductEditorDraft) {
+        val before = _ui.value.editor
+        _ui.update { it.copy(editor = d.copy(errors = emptySet())) }
+        if (before == null || before.form.barcode != d.form.barcode) checkBarcode(d.form.barcode)
+    }
+
+    /** Al escribir o escanear un código: ¿ya lo tiene otro producto del catálogo? Se avisa antes de guardar. */
+    private fun checkBarcode(code: String) {
+        val id = _ui.value.editor?.id
+        viewModelScope.launch {
+            val owner = c.products.ownerOfBarcode(code, id)
+            val label = owner?.let { listOfNotNull(it.name, it.variant).joinToString(" · ") }
+            _ui.update { s -> s.editor?.takeIf { it.form.barcode == code }?.let { s.copy(editor = it.copy(barcodeOwner = label)) } ?: s }
         }
     }
 
-    fun updateEditor(d: ProductEditorDraft) = _ui.update { it.copy(editor = d.copy(error = false)) }
-    fun closeEditor() = _ui.update { it.copy(editor = null) }
+    override fun closeEditor() = _ui.update { it.copy(editor = null) }
 
-    fun saveEditor() {
+    override fun confirmNewCategory() {
+        val d = _ui.value.editor ?: return
+        val name = d.newCategory?.trim().orEmpty()
+        if (name.isEmpty()) { _ui.update { it.copy(editor = d.copy(newCategory = null)) }; return }
+        viewModelScope.launch {
+            // Si ya existe una con ese nombre, se elige esa en vez de duplicarla.
+            val existing = _ui.value.categories.firstOrNull { it.name.equals(name, ignoreCase = true) }
+            val cat = existing ?: c.products.createCategory(name)
+            _ui.update { s -> s.editor?.let { e -> s.copy(editor = e.copy(form = e.form.copy(categoryId = cat.id), newCategory = null)) } ?: s }
+        }
+    }
+
+    override fun saveEditor() {
         val d = _ui.value.editor ?: return
         val decimals = decimals()
-        val price = Money.parse(d.price, decimals)?.minor
-        val cost = if (d.cost.isBlank()) null else Money.parse(d.cost, decimals)?.minor ?: run { _ui.update { it.copy(editor = d.copy(error = true)) }; return }
-        val min = if (d.minStock.isBlank()) null else Money3.parse(d.minStock, 3) ?: run { _ui.update { it.copy(editor = d.copy(error = true)) }; return }
-        if (d.name.isBlank() || price == null) { _ui.update { it.copy(editor = d.copy(error = true)) }; return }
         viewModelScope.launch {
+            // Una categoría escrita pero no confirmada también se guarda: la persona la escribió para usarla.
+            var form = d.form
+            val pending = d.newCategory?.trim().orEmpty()
+            val owner = c.products.ownerOfBarcode(form.barcode, d.id)
+            val ownerLabel = owner?.let { listOfNotNull(it.name, it.variant).joinToString(" · ") }
             val old = d.id?.let { c.db.products().get(it) }
-            val input = ProductInputDto(
-                barcode = old?.barcode, shortCode = old?.shortCode, name = d.name.trim(), variant = old?.variant, categoryId = old?.categoryId, unit = d.unit,
-                pricing = old?.pricing ?: "FIXED", priceMinor = price, costMinor = cost, isQuick = old?.isQuick ?: false, quickPosition = old?.quickPosition, color = old?.color,
-                trackStock = d.track, minStockMilli = min, active = old?.active ?: true,
-            )
-            val saved = c.products.save(d.id, input)
-            // Empezar a llevar control pide un conteo inicial: sin él la existencia no significaría nada.
-            if (d.track && !d.wasTracked) _ui.update { it.copy(editor = null, selectedId = null, count = CountDraft2(saved.id, StockAction.COUNT, initial = true)) }
-            else _ui.update { it.copy(editor = null, selectedId = saved.id) }
+            when (val r = ProductEditor.build(old, form, decimals, ownerLabel)) {
+                is ProductEditorResult.Invalid -> _ui.update { s -> s.editor?.let { s.copy(editor = it.copy(errors = r.errors, barcodeOwner = ownerLabel)) } ?: s }
+                is ProductEditorResult.Valid -> {
+                    var input = r.input
+                    if (pending.isNotEmpty()) {
+                        val cat = _ui.value.categories.firstOrNull { it.name.equals(pending, ignoreCase = true) } ?: c.products.createCategory(pending)
+                        input = input.copy(categoryId = cat.id)
+                    }
+                    val saved = c.products.save(d.id, input)
+                    // Empezar a llevar control pide un conteo inicial: sin él la existencia no significaría nada.
+                    if (form.trackStock && !d.wasTracked) _ui.update { it.copy(editor = null, selectedId = null, count = CountDraft2(saved.id, StockAction.COUNT, initial = true)) }
+                    else _ui.update { it.copy(editor = null, selectedId = saved.id) }
+                }
+            }
         }
     }
 
     private fun decimals() = business.value?.let { Currency.of(it.currency).decimals } ?: 2
-    private fun plain(minor: Long, decimals: Int) = java.math.BigDecimal.valueOf(minor, decimals).toPlainString()
 }

@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shared range picker -->
+    <string name="range_today">Today</string>
+    <string name="range_yesterday">Yesterday</string>
+    <string name="range_last_7">Last 7 days</string>
+    <string name="range_last_30">Last 30 days</string>
+    <string name="range_this_month">This month</string>
+    <string name="range_last_month">Last month</string>
+    <string name="range_custom">Custom</string>
+    <string name="range_window">%1$s → %2$s</string>
+    <string name="range_in_progress">in progress</string>
+    <string name="summary_yesterday_close">See yesterday\'s close</string>
+
+    <!-- Credit without a sale, renamed -->
+    <string name="manual_help">For debts from before, or that don\'t come from a sale</string>
+
+    <!-- Sales -->
+    <string name="sales_status_completed">Paid</string>
+    <string name="sales_status_cancelled">Deleted</string>
+    <string name="sales_filter_method">Payment method</string>
+    <string name="sales_filter_person">Sold by</string>
+    <string name="sales_filter_all">All</string>
+    <string name="sales_filters_more">More filters</string>
+    <string name="sales_filters_less">Fewer filters</string>
+    <plurals name="sales_cancelled_count">
+        <item quantity="one">%1$d deleted sale</item>
+        <item quantity="other">%1$d deleted sales</item>
+    </plurals>
+    <string name="sales_offline_note">Offline: showing this phone\'s sales. Connect to see them all.</string>
+    <string name="sales_error">Could not load the list.</string>
+    <string name="sales_retry">Try again</string>
+    <string name="sales_load_more">Show more sales</string>
+    <string name="sales_loading">Loading…</string>
+    <string name="sales_empty_filtered">No sales match these filters.</string>
+
+    <!-- Sale detail -->
+    <string name="sale_detail_title">Sale details</string>
+    <string name="sale_sold_by">Sold by: %1$s</string>
+    <string name="sale_edited">Edited by %1$s · %2$s</string>
+    <string name="sale_edited_unknown">Edited by %1$s</string>
+    <string name="sale_cancelled_by">Deleted by %1$s · %2$s</string>
+    <string name="sale_cancelled_unknown">Deleted by %1$s</string>
+    <string name="sale_cancel_reason">Reason: %1$s</string>
+    <string name="sale_lines">Products</string>
+    <string name="sale_payments">Payments</string>
+    <string name="sale_discount">Discount</string>
+    <string name="sale_total">Total</string>
+    <string name="sale_tendered">Received %1$s</string>
+    <string name="sale_change">Change %1$s</string>
+    <string name="sale_debtor">Owed by: %1$s</string>
+    <string name="sale_line_qty">%1$s × %2$s</string>
+    <string name="sale_delete">Delete sale</string>
+    <string name="sale_delete_title">Delete this sale</string>
+    <string name="sale_delete_help">The sale is not erased: it stays marked as deleted with your name, the time and the reason. It leaves the totals, returns the stock and voids any credit it created.</string>
+    <string name="sale_delete_reason">Reason (at least 5 letters)</string>
+    <string name="sale_delete_reason_short">Write at least 5 letters.</string>
+    <string name="sale_delete_confirm">Delete sale</string>
+    <string name="error_REASON_REQUIRED">To delete a paid sale, write a reason of at least 5 letters.</string>
+
+    <!-- Daily close -->
+    <string name="more_daily_close">Daily close</string>
+    <string name="close_title">Daily close</string>
+    <string name="close_intro">It is worked out by itself for each business day: nothing to open or close.</string>
+    <string name="close_needs_connection">The daily close is read from the server: it needs a connection.</string>
+    <string name="close_error">Could not load the daily close.</string>
+    <string name="close_stale_note">Offline: showing the last thing that could be loaded.</string>
+    <string name="close_retry">Try again</string>
+    <string name="close_loading">Working it out…</string>
+    <plurals name="close_sales_count">
+        <item quantity="one">%1$d sale</item>
+        <item quantity="other">%1$d sales</item>
+    </plurals>
+    <string name="close_total_sales">Total sold</string>
+    <string name="close_by_method">How they paid</string>
+    <string name="close_credit_sales">On credit (sale)</string>
+    <string name="close_collected">Credit payments collected</string>
+    <string name="close_expenses">Expenses</string>
+    <string name="close_drawer_expenses">From the drawer</string>
+    <string name="close_other_expenses">Other ways</string>
+    <string name="close_cash_moves">Drawer movements</string>
+    <string name="close_withdrawals">Withdrawals</string>
+    <string name="close_deposits">Deposits</string>
+    <string name="close_expected">Expected cash in the drawer</string>
+    <string name="close_expected_how">Cash sales + cash credit payments + deposits − drawer expenses − withdrawals − cash refunds ± today\'s corrections.</string>
+    <plurals name="close_cancelled">
+        <item quantity="one">%1$d deleted sale · %2$s</item>
+        <item quantity="other">%1$d deleted sales · %2$s</item>
+    </plurals>
+    <string name="close_quiet_day">Nothing happened on this business day.</string>
+
+    <!-- Barcode: number or letter keyboard -->
+    <string name="barcode_kb_label">Keyboard</string>
+    <string name="barcode_kb_numbers">Numbers</string>
+    <string name="barcode_kb_letters">Letters</string>
+    <string name="barcode_kb_help">Letters only for codes that have them</string>
+</resources>

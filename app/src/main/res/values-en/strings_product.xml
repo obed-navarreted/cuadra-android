@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="product_barcode_taken">Already used by %1$s</string>
+    <string name="product_short_code">Short code (optional)</string>
+    <string name="product_variant">Variant (optional)</string>
+    <string name="product_category">Category</string>
+    <string name="product_category_none">No category</string>
+    <string name="product_category_new">+ New category</string>
+    <string name="product_category_name">Category name</string>
+    <string name="product_category_add">Add category</string>
+    <string name="product_pricing_title">How it is priced</string>
+    <string name="pricing_OPEN">Open price</string>
+    <string name="pricing_OPEN_option">Open price — asked at sale</string>
+    <string name="pricing_FIXED_hint">Always sold at the same price.</string>
+    <string name="pricing_BY_WEIGHT_hint">Weighed at sale; the price is per weight unit.</string>
+    <string name="pricing_OPEN_hint">You type the price on each sale.</string>
+    <string name="product_price_per">Price per %1$s</string>
+    <string name="product_price_suggested">Suggested price (optional)</string>
+    <string name="product_cost_optional">Cost (optional)</string>
+    <string name="product_error_name">Enter the name.</string>
+    <string name="product_error_price">Enter the price.</string>
+    <string name="product_error_amount">Enter a valid amount.</string>
+    <string name="product_price_hint_optional">Open price: asked at sale.</string>
+    <string name="open_price_title">Price of %1$s</string>
+    <string name="open_price_label">Price</string>
+    <string name="open_price_hint">Type what it costs this time.</string>
+    <string name="open_price_add">Add</string>
+    <string name="open_price_suggested">Suggested %1$s</string>
+    <string name="inventory_price_suggested">Suggested price</string>
+    <string name="product_price_by_weight">Price per lb</string>
+</resources>

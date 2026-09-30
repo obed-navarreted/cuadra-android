@@ -5,7 +5,7 @@
     <string name="notif_channel_team">Equipo</string>
     <string name="notif_channel_scheduled">Programadas</string>
     <string name="notif_channel_credit">Fiados</string>
-    <string name="notif_channel_platform">Novedades de Cuadra</string>
+    <string name="notif_channel_platform">Novedades de Cuentiva</string>
     <string name="notif_low_stock_title">Queda poco %1$s</string>
     <string name="notif_low_stock_body">Quedan %1$s. Conviene comprar más.</string>
     <string name="notif_out_of_stock_title">Se agotó %1$s</string>
@@ -18,6 +18,12 @@
     <string name="notif_shift_not_closed_body">El turno de %1$s sigue abierto.</string>
     <string name="notif_sale_deleted_title">Venta eliminada</string>
     <string name="notif_sale_deleted_body">%1$s eliminó una venta de %2$s.</string>
+    <string name="notif_sale_conflict_title">Venta para revisar</string>
+    <string name="notif_sale_conflict_body">Una venta de %1$s de %2$s chocó con una cuenta ya cobrada o descartada en otro teléfono. Se guardó aparte para que no se pierda el dinero: revisa si es un duplicado.</string>
+    <string name="notif_price_changed_title">Cambio de precio: %1$s</string>
+    <string name="notif_price_changed_body">%1$s cambió el precio de %2$s a %3$s.</string>
+    <string name="notif_cost_changed_title">Cambio de costo: %1$s</string>
+    <string name="notif_cost_changed_body">%1$s cambió el costo.</string>
     <string name="notif_device_stale_title">Un teléfono no ha sincronizado</string>
     <string name="notif_device_stale_body">%1$s tiene %2$s operaciones sin enviar.</string>
     <string name="notif_pin_lockout_title">PIN bloqueado</string>
@@ -43,6 +49,8 @@
     <string name="notif_type_SHIFT_DIFFERENCE">Diferencia en un cierre</string>
     <string name="notif_type_SHIFT_NOT_CLOSED">Caja sin cerrar</string>
     <string name="notif_type_SALE_DELETED">Venta eliminada</string>
+    <string name="notif_type_SALE_CONFLICT">Venta en conflicto (para revisar)</string>
+    <string name="notif_type_PRICE_CHANGED">Un cajero cambió un precio o costo</string>
     <string name="notif_type_DEVICE_STALE">Teléfono sin sincronizar</string>
     <string name="notif_type_PIN_LOCKOUT">PIN bloqueado</string>
     <string name="notif_type_MEMBER_JOINED">Alguien se unió al equipo</string>

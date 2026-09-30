@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Needs attention (rejected or to-review operations) -->
+    <string name="att_title">Needs attention</string>
+    <string name="att_hint">This did not reach the server or needs a look. Nothing is deleted on its own: you decide. Retry sends it again; Discard removes it from this phone and records who did it.</string>
+    <string name="att_empty">All up to date: nothing to review.</string>
+    <string name="att_retry">Retry</string>
+    <string name="att_discard">Discard</string>
+    <string name="att_dismiss_review">Remove from list</string>
+    <string name="att_tag_review">To review</string>
+    <string name="att_tag_rejected">Rejected</string>
+    <string name="att_meta">%1$s · by %2$s</string>
+    <string name="att_what_sale">Sale of %1$s</string>
+    <string name="att_what_sale_plain">Sale</string>
+    <string name="att_what_sale_cancel">Discard or delete a sale</string>
+    <string name="att_what_credit_payment">Payment of %1$s</string>
+    <string name="att_what_credit">Credit of %1$s</string>
+    <string name="att_what_expense">Expense of %1$s</string>
+    <string name="att_what_withdrawal">Withdrawal of %1$s</string>
+    <string name="att_what_deposit">Cash in of %1$s</string>
+    <string name="att_what_product">Product “%1$s”</string>
+    <string name="att_what_product_plain">Product change</string>
+    <string name="att_what_customer">Customer “%1$s”</string>
+    <string name="att_what_other">An unsent change</string>
+    <string name="att_reason_CONFLICT_COPY">This ticket was already charged or discarded on another phone. It was saved as a separate sale so no money is lost: check in Sales whether it is a duplicate.</string>
+    <string name="att_reason_ALREADY_CLOSED">This ticket was already charged or discarded on another phone: check before discarding.</string>
+    <string name="att_reason_CREDIT_LIMIT">Goes over the credit limit of %1$s: limit %2$s, already owed %3$s. Raise the limit or collect part of it, then retry.</string>
+    <string name="att_reason_CREDIT_LIMIT_plain">Goes over the customer\'s credit limit. Raise the limit or collect part of it, then retry.</string>
+    <string name="att_reason_CREDIT_CLOSED">That credit was already closed (written off or cancelled on another phone) and the customer has no other debts: the payment was not saved. Give the money back or record it another way.</string>
+    <string name="att_reason_NO_OPEN_CREDITS">The customer no longer owed anything: the payment was not saved. Give the money back or record it another way.</string>
+    <string name="att_reason_MEMBER_DISABLED">The person who did it was disabled before it was sent.</string>
+    <string name="att_reason_DEVICE_NOT_TRUSTED">This phone cannot act with the role of the person who did it. Ask the owner to do it from their phone or the web.</string>
+    <string name="att_reason_FORBIDDEN">The person who did it is not allowed to do this.</string>
+    <string name="att_reason_PAYMENT_MISMATCH">The payments do not add up to the sale total.</string>
+    <string name="att_reason_CUSTOMER_REQUIRED">The business requires a listed customer on every credit.</string>
+    <string name="att_reason_CREDIT_HAS_PAYMENTS">The credit already has payments: void them first.</string>
+    <string name="att_reason_NOT_FOUND">What was being changed no longer exists on the server.</string>
+    <string name="att_reason_CODE_IN_USE">Another product already uses that code.</string>
+    <string name="att_reason_OTHER">The server rejected it (code %1$s).</string>
+    <string name="att_discard_title">Discard this?</string>
+    <string name="att_discard_body">“%1$s” leaves the list and this phone stops counting it. Who discarded it and when is recorded. If it was money received, record it another way so the till balances.</string>
+    <string name="att_discard_review_body">“%1$s” is already saved on the server: it is only removed from this list.</string>
+    <plurals name="more_attention_open">
+        <item quantity="one">See %d item that needs attention</item>
+        <item quantity="other">See %d items that need attention</item>
+    </plurals>
+
+    <!-- Access disabled -->
+    <string name="disabled_title">Your access was disabled</string>
+    <string name="disabled_body">The owner of %1$s disabled your access. This phone can no longer sell or see the business data.</string>
+    <string name="disabled_body_plain">The business owner disabled your access. This phone can no longer sell or see the business data.</string>
+    <string name="disabled_all_sent">Everything you did before being disabled has been sent.</string>
+    <plurals name="disabled_pending">
+        <item quantity="one">%d operation is still unsent. Keep the phone online so it reaches the business.</item>
+        <item quantity="other">%d operations are still unsent. Keep the phone online so they reach the business.</item>
+    </plurals>
+    <plurals name="disabled_failed">
+        <item quantity="one">%d operation was not accepted because it was done after you were disabled.</item>
+        <item quantity="other">%d operations were not accepted because they were done after you were disabled.</item>
+    </plurals>
+    <string name="disabled_help">What you charged before being disabled does reach the business. If you think this is a mistake, talk to the owner.</string>
+    <string name="disabled_retry">Send now</string>
+    <string name="disabled_exit">Leave this business</string>
+    <string name="disabled_exit_title">Leave with unsent operations?</string>
+    <plurals name="disabled_exit_body">
+        <item quantity="one">If you leave now, %d unsent operation is deleted from this phone and never reaches the business.</item>
+        <item quantity="other">If you leave now, %d unsent operations are deleted from this phone and never reach the business.</item>
+    </plurals>
+    <string name="disabled_exit_anyway">Leave anyway</string>
+    <string name="disabled_member_notice">%1$s was disabled and can no longer sign in on this phone. What they did before being disabled is still sent.</string>
+    <string name="disabled_ok">Got it</string>
+
+    <!-- Business switch blocked -->
+    <string name="error_business_switch_blocked">There are unsent operations from %2$s (%1$d). Sign back in to that business with internet to send them before switching.</string>
+    <string name="error_business_switch_blocked_unnamed">There are unsent operations from the previous business (%1$d). Sign back in to that business with internet to send them before switching.</string>
+
+    <!-- Parked tickets -->
+    <string name="parked_discard_title">Discard this ticket?</string>
+    <string name="parked_discard_body">“%1$s” for %2$s is removed from parked tickets on every phone. Nothing was charged.</string>
+    <string name="att_what_sale_return">Item return</string>
+    <string name="att_reason_UNDO_NOT_ALLOWED">It could no longer be undone: the 5 minutes had passed or it was not your last sale. The sale is still paid; ask the owner or an admin to delete it.</string>
+    <string name="att_reason_RETURN_REJECTED">The return was not applied: more than what was left was returned, the credit no longer covered it, or it was not allowed.</string>
+    <string name="att_reason_LATE_OP_REJECTED">It was made by someone who was deactivated and it is not credible that it happened before (too old, before the phone was linked, or everything had already been sent).</string>
+</resources>

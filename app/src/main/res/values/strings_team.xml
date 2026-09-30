@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Más -->
+    <string name="module_team">Equipo</string>
+
+    <!-- Equipo: pestañas y personas -->
+    <string name="team_title">Equipo</string>
+    <string name="team_tab_people">Personas</string>
+    <string name="team_tab_devices">Teléfonos</string>
+    <string name="team_dismiss">Entendido</string>
+    <string name="team_hint">Toca a una persona para ver qué puedes hacer con su cuenta. El dueño gestiona a todos; un administrador, a cajeros y a otros administradores, pero no al dueño.</string>
+    <string name="team_offline_note">Sin conexión: se muestra la última lista guardada en este teléfono. Para cambiar algo necesitas internet.</string>
+    <string name="team_empty">Todavía no hay personas.</string>
+    <string name="team_add">Agregar persona</string>
+    <string name="team_you">tú</string>
+    <string name="team_status_disabled">Deshabilitado</string>
+    <string name="team_pin_set">PIN definido</string>
+    <string name="team_no_pin">Sin PIN</string>
+    <string name="team_google">Entra con Google</string>
+    <string name="team_owner_locked">Solo el dueño puede modificar esta cuenta</string>
+    <string name="team_no_actions">No puedes modificar esta cuenta.</string>
+    <string name="team_edit">Editar nombre y color</string>
+    <string name="team_make_admin">Cambiar a administrador</string>
+    <string name="team_make_cashier">Cambiar a cajero</string>
+    <string name="team_disable">Deshabilitar</string>
+    <string name="team_enable">Habilitar</string>
+    <string name="team_change_my_pin">Cambiar mi PIN</string>
+    <string name="team_reset_pin">Restablecer PIN</string>
+    <string name="team_edit_title">Editar persona</string>
+    <string name="team_name_label">Nombre (es su usuario)</string>
+    <string name="team_color">Color</string>
+    <string name="team_role_label">Rol</string>
+    <string name="team_confirm_do">Confirmar</string>
+    <string name="team_confirm_make_admin">%1$s podrá gestionar cajeros y teléfonos, y ver los reportes del negocio.</string>
+    <string name="team_confirm_make_cashier">%1$s dejará de administrar y solo podrá vender y cambiar su propio PIN.</string>
+    <string name="team_confirm_disable">%1$s ya no podrá entrar a la caja. Su historial se conserva y puedes volver a habilitarla.</string>
+    <string name="team_confirm_enable">%1$s podrá volver a entrar a la caja.</string>
+    <string name="team_new_hint">Crea a alguien que entrará con el código del negocio, su nombre (usuario) y su PIN, sin cuenta de Google.</string>
+    <string name="team_create">Crear persona</string>
+    <string name="team_pin_title">PIN nuevo para %1$s</string>
+    <string name="team_pin_save">Guardar PIN</string>
+    <string name="team_pin_new">PIN nuevo</string>
+    <string name="team_pin_repeat">Repite el PIN</string>
+    <string name="team_pin_hint">PIN de 5 números.</string>
+    <string name="team_pin_mismatch">Los dos PIN no son iguales.</string>
+    <string name="team_must_change">Debe cambiarlo en su primer ingreso</string>
+    <string name="team_must_change_help">Al entrar por primera vez tendrá que elegir su propio PIN.</string>
+    <string name="team_saved">Cambios guardados.</string>
+    <string name="team_pin_saved">PIN de %1$s guardado. Díselo ahora: por seguridad no se puede volver a ver.</string>
+    <string name="team_created">%1$s ya puede entrar con el código del negocio, su usuario y su PIN.</string>
+
+    <!-- Equipo: errores del servidor -->
+    <string name="team_err_CANNOT_MODIFY_OWNER">Solo el dueño puede modificar esta cuenta.</string>
+    <string name="team_err_CANNOT_MODIFY_SELF">No puedes cambiar tu propio rol ni deshabilitarte.</string>
+    <string name="team_err_USE_OWNER_TRANSFER">El dueño solo cambia con el traspaso de propiedad, desde el panel web.</string>
+    <string name="team_err_INVALID_ROLE">Ese rol no se puede asignar. Elige cajero o administrador.</string>
+    <string name="team_err_INVALID_PIN">El PIN debe tener exactamente 5 números.</string>
+    <string name="team_err_INVALID_STATUS">Ese estado no es válido.</string>
+    <string name="team_err_MEMBER_NOT_FOUND">Esa persona ya no está en el equipo.</string>
+    <string name="team_err_DEVICE_NOT_FOUND">Ese teléfono ya no está vinculado.</string>
+    <string name="team_err_INVALID_CASH_REGISTER">Esa caja no existe.</string>
+    <string name="team_err_FORBIDDEN">Tu rol no permite esta acción.</string>
+    <string name="account_err_unverifiable">No pudimos comprobar tu PIN actual en este teléfono. Vuelve a entrar con tu PIN e inténtalo de nuevo.</string>
+
+
+    <!-- Teléfonos -->
+    <string name="dev_empty">Todavía no hay teléfonos vinculados.</string>
+    <string name="dev_revoke">Revocar</string>
+    <string name="dev_revoked">«%1$s» fue revocado.</string>
+    <string name="dev_revoked_tag">Revocado</string>
+    <string name="dev_revoke_title">Revocar teléfono</string>
+    <string name="dev_revoke_body">«%1$s» dejará de sincronizar y habrá que vincularlo de nuevo.</string>
+    <plurals name="dev_revoke_pending">
+        <item quantity="one">Tiene %1$d operación sin enviar; se conserva en el teléfono pero no llegará aquí hasta vincularlo de nuevo.</item>
+        <item quantity="other">Tiene %1$d operaciones sin enviar; se conservan en el teléfono pero no llegarán aquí hasta vincularlo de nuevo.</item>
+    </plurals>
+    <plurals name="dev_pending">
+        <item quantity="one">%1$d operación sin enviar</item>
+        <item quantity="other">%1$d operaciones sin enviar</item>
+    </plurals>
+    <string name="dev_version">versión %1$s</string>
+    <string name="dev_register">Caja: %1$s</string>
+    <string name="dev_last_sync">Última sincronización: %1$s</string>
+    <string name="dev_never">nunca</string>
+    <string name="dev_this">Este teléfono</string>
+
+    <!-- Mi cuenta -->
+    <string name="account_title">Mi cuenta</string>
+    <string name="account_name_section">Mi nombre</string>
+    <string name="account_pin_section">Mi PIN</string>
+    <string name="account_pin_hint">Escribe tu PIN actual y el nuevo dos veces. Lo usarás para entrar a la caja.</string>
+    <string name="account_pin_hint_none">Todavía no tienes PIN. Crea uno para entrar rápido a la caja en este teléfono.</string>
+    <string name="account_pin_current">PIN actual</string>
+    <string name="account_saved">Listo: tus cambios quedaron guardados.</string>
+    <string name="team_name_help">Con este nombre entra; no puede repetirse.</string>
+    <string name="team_err_NAME_TAKEN">Ya hay otra persona con ese nombre en este negocio. Elige otro (es el usuario con el que entra).</string>
+    <string name="team_err_ACCESS_CODE_TAKEN">Ese código ya lo usa otro negocio. Elige otro.</string>
+    <string name="team_err_INVALID_ACCESS_CODE">El código debe tener 5 números y no empezar con 0.</string>
+    <string name="team_created_title">Persona creada</string>
+    <string name="dev_hint">Cada persona que entra con el código del negocio aparece aquí.</string>
+    <string name="team_code_saved">Listo: el código del negocio cambió.</string>
+    <string name="team_code_renewed">Listo: el código del negocio es nuevo.</string>
+</resources>

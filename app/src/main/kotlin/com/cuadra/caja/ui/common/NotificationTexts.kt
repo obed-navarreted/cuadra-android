@@ -33,6 +33,16 @@ object NotificationTexts {
             "SHIFT_DIFFERENCE" -> res.getString(R.string.notif_shift_difference_title) to res.getString(R.string.notif_shift_difference_body, s("memberName"), money(kotlin.math.abs(l("differenceMinor"))))
             "SHIFT_NOT_CLOSED" -> res.getString(R.string.notif_shift_not_closed_title) to res.getString(R.string.notif_shift_not_closed_body, s("memberName"))
             "SALE_DELETED" -> res.getString(R.string.notif_sale_deleted_title) to res.getString(R.string.notif_sale_deleted_body, s("memberName"), money(l("totalMinor")))
+            "SALE_CONFLICT" -> res.getString(R.string.notif_sale_conflict_title) to res.getString(R.string.notif_sale_conflict_body, money(l("totalMinor")), s("memberName"))
+            "SALE_RETURNED" -> res.getString(R.string.notif_sale_returned_title) to res.getString(R.string.notif_sale_returned_body, s("memberName"), money(l("totalMinor")), s("reason"))
+            "SALE_UNDONE" -> res.getString(R.string.notif_sale_undone_title) to res.getString(R.string.notif_sale_undone_body, s("memberName"), money(l("totalMinor")), s("reason"))
+            "LATE_AFTER_DISABLE" -> res.getString(R.string.notif_late_after_disable_title) to res.getString(R.string.notif_late_after_disable_body, s("count"), s("memberName"), money(l("amountMinor")))
+            // Cambio de precio de un cajero: antes y después; si solo cambió el costo, se dice así.
+            "PRICE_CHANGED" -> if (a["toPriceMinor"] != null) {
+                res.getString(R.string.notif_price_changed_title, s("productName")) to res.getString(R.string.notif_price_changed_body, s("memberName"), money(l("fromPriceMinor")), money(l("toPriceMinor")))
+            } else {
+                res.getString(R.string.notif_cost_changed_title, s("productName")) to res.getString(R.string.notif_cost_changed_body, s("memberName"))
+            }
             "DEVICE_STALE" -> res.getString(R.string.notif_device_stale_title) to res.getString(R.string.notif_device_stale_body, s("deviceName"), s("pending"))
             "PIN_LOCKOUT" -> res.getString(R.string.notif_pin_lockout_title) to res.getString(R.string.notif_pin_lockout_body, s("memberName"))
             "MEMBER_JOINED" -> res.getString(R.string.notif_member_joined_title) to res.getString(R.string.notif_member_joined_body, s("memberName"))

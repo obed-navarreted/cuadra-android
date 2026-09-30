@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Team sign-in (business code + username + PIN, ADR 0012) and the business code in Team. -->
+<resources>
+    <string name="login_owner_title">I am the owner</string>
+    <string name="login_team_title">I am on the team</string>
+    <string name="login_team_hint">The owner gave you the business code, your username and your PIN.</string>
+    <string name="login_enter_with_code">Enter with the business code</string>
+    <string name="login_code_title">Sign in to the business</string>
+    <string name="login_code_hint">The owner gave you the business code, your username and your PIN.</string>
+    <string name="login_code_label">Business code</string>
+    <string name="login_code_help">5 digits</string>
+    <string name="login_user_label">Username</string>
+    <string name="login_user_help">Your name, as the owner added you</string>
+    <string name="login_pin_label">Your PIN (5 digits)</string>
+    <string name="login_err_INVALID_CREDENTIALS">Wrong code, username or PIN</string>
+    <string name="login_err_LOCKED">Too many attempts. Wait 15 minutes or ask the owner to reset your PIN</string>
+    <string name="login_err_OWNER_USES_GOOGLE">The owner signs in with Google</string>
+    <string name="login_err_PLAN_LIMIT_DEVICES">The business reached its phone limit; tell the owner</string>
+    <string name="login_err_RATE_LIMITED">Too many tries in a row. Wait a minute and try again</string>
+    <string name="login_err_offline">You need internet to sign in the first time</string>
+    <string name="newpin_title">Choose your new PIN</string>
+    <string name="newpin_hint">The owner set a temporary PIN for you. Choose your own 5-digit PIN; you will use it from now on.</string>
+    <string name="newpin_first">Enter your new PIN</string>
+    <string name="newpin_repeat">Repeat your new PIN</string>
+    <string name="newpin_mismatch">The two PINs don\'t match. Start over.</string>
+    <string name="share_copy">Copy</string>
+    <string name="share_copied">Copied</string>
+    <string name="share_share">Share</string>
+    <string name="code_title">Business code</string>
+    <string name="code_hint">Each person signs in on their own phone with this code, their username and their PIN.</string>
+    <string name="code_unknown">· · · · ·</string>
+    <string name="code_unknown_note">The code shows up when you are online.</string>
+    <string name="code_share_message">To get into %1$s in the Cuentiva app: code %2$s, your username and your PIN.</string>
+    <string name="code_renew">Renew code</string>
+    <string name="code_renew_do">Renew</string>
+    <string name="code_renew_body">The current code will stop working for NEW sign-ins. Phones that already signed in keep working. Then give the new code to whoever is about to sign in.</string>
+    <string name="code_choose">Choose my own code</string>
+    <string name="code_choose_body">Type a code that is easy to remember. Anyone who knows it can try to sign in with a username and a PIN, so don\'t use an obvious one.</string>
+    <string name="code_choose_label">New code</string>
+    <string name="code_choose_help">5 digits, not starting with 0</string>
+    <string name="cred_title">Sign-in details</string>
+    <string name="cred_business">Business: %1$s</string>
+    <string name="cred_code">Business code</string>
+    <string name="cred_user">Username</string>
+    <string name="cred_pin">PIN</string>
+    <string name="cred_pin_once">The PIN is not shown again. Copy or share it now.</string>
+    <string name="cred_share_message">To get into %1$s in the Cuentiva app: code %2$s, username %3$s, PIN %4$s.</string>
+    <string name="cred_done">Done</string>
+</resources>

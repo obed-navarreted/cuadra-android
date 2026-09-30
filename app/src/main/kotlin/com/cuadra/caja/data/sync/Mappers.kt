@@ -10,6 +10,7 @@ import com.cuadra.caja.data.local.StockMovementEntity
 import com.cuadra.caja.data.local.SupplierEntity
 import com.cuadra.caja.data.local.SupplierPaymentEntity
 import com.cuadra.caja.data.local.CreditEntity
+import com.cuadra.caja.data.local.CategoryEntity
 import com.cuadra.caja.data.local.ExpenseCategoryEntity
 import com.cuadra.caja.data.local.ExpenseEntity
 import com.cuadra.caja.data.local.ShiftEntity
@@ -30,6 +31,7 @@ import com.cuadra.caja.data.remote.StockMovementDto
 import com.cuadra.caja.data.remote.SupplierDto
 import com.cuadra.caja.data.remote.SupplierPaymentDto
 import com.cuadra.caja.data.remote.CreditDto
+import com.cuadra.caja.data.remote.CategoryDto
 import com.cuadra.caja.data.remote.ExpenseCategoryDto
 import com.cuadra.caja.data.remote.ExpenseDto
 import com.cuadra.caja.data.remote.ShiftDto
@@ -54,6 +56,8 @@ fun ProductDto.toEntity() = ProductEntity(
     stockMilli, minStockMilli, active, rev,
 )
 
+fun CategoryDto.toEntity() = CategoryEntity(id, name, active, rev)
+
 fun MemberDto.toEntity() = MemberEntity(id, displayName, role, status, hasGoogle, pinSet, pinMustChange, color, pinHash)
 
 fun CashRegisterDto.toEntity() = CashRegisterEntity(id, name, active)
@@ -62,13 +66,18 @@ fun BusinessDto.toEntity() = BusinessEntity(
     id, name, country, currency, timezone, defaultLocale, dayCutoff, inventoryMode,
     json.encodeToString(MapSerializer(String.serializer(), Boolean.serializer()), modules),
     json.encodeToString(ListSerializer(String.serializer()), posViews), creditRequiresCustomer, shiftRequired, shiftNoteThresholdMinor,
+    com.cuadra.caja.domain.BusinessCalendar.toJson(dayRules), dayRuleEffectiveFrom,
+    type, creditDefaultDueDays, creditOverdueDays, creditLimitEnforced, accessCode, currencyLocked,
 )
+
+/** Las jornadas del negocio con su historial de reglas (la única fuente de «a qué día pertenece»; nunca la zona del teléfono). */
+fun BusinessEntity.calendar() = com.cuadra.caja.domain.BusinessCalendar.fromJson(dayRulesJson, timezone, dayCutoff)
 
 fun BusinessEntity.modules(): Map<String, Boolean> = json.decodeFromString(MapSerializer(String.serializer(), Boolean.serializer()), modulesJson)
 fun BusinessEntity.posViews(): List<String> = json.decodeFromString(ListSerializer(String.serializer()), posViewsJson)
 
-/** Lo que el servidor sabe de una venta: cabecera, líneas y pagos listos para guardar. */
-data class SaleRows(val sale: SaleEntity, val items: List<SaleItemEntity>, val payments: List<SalePaymentEntity>)
+/** Lo que el servidor sabe de una venta: cabecera, líneas, pagos y devoluciones listos para guardar. */
+data class SaleRows(val sale: SaleEntity, val items: List<SaleItemEntity>, val payments: List<SalePaymentEntity>, val returns: List<com.cuadra.caja.data.local.SaleReturnEntity> = emptyList())
 
 fun SaleDto.toRows(): SaleRows {
     val sale = SaleEntity(
@@ -76,15 +85,24 @@ fun SaleDto.toRows(): SaleRows {
         totalMinor = totalMinor, createdByMemberId = createdBy?.id, createdByName = createdBy?.name, completedByName = completedBy?.name,
         completedAt = millis(completedAt), editedByName = editedBy?.name, cancelledByName = cancelledBy?.name, cancelReason = cancelReason,
         lockedByDeviceId = lockedByDeviceId, createdAt = millis(createdAt) ?: 0, updatedAt = millis(updatedAt) ?: 0, rev = rev,
+        editedAt = millis(editedAt), cancelledAt = millis(cancelledAt), reviewFlag = reviewFlag, conflictOfSaleId = conflictOfSaleId, returnedMinor = returnedMinor,
+        completedByMemberId = completedBy?.id,
     )
     return SaleRows(
         sale,
-        items.mapIndexed { i, it -> SaleItemEntity(id, it.id, it.productId, it.barcode, it.name, it.variant, it.unitPriceMinor, it.unitCostMinor, it.quantityMilli, it.discountMinor, i) },
+        items.mapIndexed { i, it -> SaleItemEntity(id, it.id, it.productId, it.barcode, it.name, it.variant, it.unitPriceMinor, it.unitCostMinor, it.quantityMilli, it.discountMinor, i, it.returnedMilli) },
         payments.mapIndexed { i, p ->
             SalePaymentEntity(id, p.id, p.method, p.otherLabel, p.amountMinor, p.tenderedMinor, p.changeMinor, p.reference, i, p.debtorLabel, p.debtorPhone, p.customerId)
         },
+        returns.map { it.toEntity(rev) },
     )
 }
+
+fun com.cuadra.caja.data.remote.ReturnDto.toEntity(rev: Long) = com.cuadra.caja.data.local.SaleReturnEntity(
+    id, saleId, reason, refundMethod, totalMinor, createdBy?.name, millis(occurredAt) ?: 0,
+    json.encodeToString(ListSerializer(com.cuadra.caja.data.remote.ReturnItemDto.serializer()), items),
+    json.encodeToString(ListSerializer(com.cuadra.caja.data.remote.RefundDto.serializer()), refunds), rev.coerceAtLeast(1),
+)
 
 fun CustomerDto.toEntity() = CustomerEntity(id, name, phone, notes, creditLimitMinor, millis(lastReminderAt), archived, balanceMinor, millis(oldestOpenAt), rev)
 

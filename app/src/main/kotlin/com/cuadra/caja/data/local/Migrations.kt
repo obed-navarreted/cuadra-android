@@ -75,3 +75,93 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_notifications_readAt` ON `notifications` (`readAt`)")
     }
 }
+
+/**
+ * 5 → 6: categorías de productos (para elegirlas en el editor). Aditiva. El cursor de sincronización vuelve a 0 una vez: las categorías que ya
+ * existían en el servidor nunca se bajaron, y volver a traer todo es seguro (cada tipo respeta lo que el teléfono tiene sin enviar).
+ */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS `product_categories` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `active` INTEGER NOT NULL, `rev` INTEGER NOT NULL, PRIMARY KEY(`id`))")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_product_categories_name` ON `product_categories` (`name`)")
+        db.execSQL("UPDATE sync_state SET cursor = 0")
+    }
+}
+
+/**
+ * 6 → 7 (ADR 0011): historial de zona/corte del negocio y quién/cuándo editó o anuló una venta. Aditiva: nada se borra. El cursor de sincronización vuelve a 0
+ * una vez para bajar de nuevo el negocio con sus `dayRules` (sin ellas el teléfono usa la regla única de siempre) y las horas de anulación.
+ */
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `business` ADD COLUMN `dayRulesJson` TEXT NOT NULL DEFAULT '[]'")
+        db.execSQL("ALTER TABLE `business` ADD COLUMN `dayRuleEffectiveFrom` TEXT")
+        db.execSQL("ALTER TABLE `sales` ADD COLUMN `editedAt` INTEGER")
+        db.execSQL("ALTER TABLE `sales` ADD COLUMN `cancelledAt` INTEGER")
+        db.execSQL("UPDATE sync_state SET cursor = 0")
+    }
+}
+
+/**
+ * 7 → 8 (Ajustes del negocio): tipo de negocio y reglas de fiado (vencimiento por defecto, días para «vencido», límite obligatorio). Aditiva: nada se borra.
+ * El cursor de sincronización vuelve a 0 una vez para bajar de nuevo el negocio con esos campos.
+ */
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `business` ADD COLUMN `type` TEXT")
+        db.execSQL("ALTER TABLE `business` ADD COLUMN `creditDefaultDueDays` INTEGER")
+        db.execSQL("ALTER TABLE `business` ADD COLUMN `creditOverdueDays` INTEGER NOT NULL DEFAULT 30")
+        db.execSQL("ALTER TABLE `business` ADD COLUMN `creditLimitEnforced` INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("UPDATE sync_state SET cursor = 0")
+    }
+}
+
+/**
+ * 8 → 9 (ADR 0012): código del negocio (`accessCode`, 5 dígitos) para mostrarlo en Equipo. Aditiva: nada se borra. El cursor vuelve a 0 una vez para
+ * bajar de nuevo el negocio con su código.
+ */
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `business` ADD COLUMN `accessCode` TEXT")
+        db.execSQL("UPDATE sync_state SET cursor = 0")
+    }
+}
+
+/**
+ * 9 → 10 (revisión del flujo sin conexión): cada operación de la cola guarda QUIÉN la hizo y de QUÉ negocio es, más los datos del rechazo; el cursor
+ * recuerda su negocio; y lo que se descarta de «Requiere atención» deja una línea en `outbox_discarded`. Aditiva: nada se borra. Lo que ya estaba en la
+ * cola es del único negocio que había en el teléfono; quién lo hizo no se sabe (el servidor usará la persona activa, como antes).
+ */
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `outbox` ADD COLUMN `memberId` TEXT")
+        db.execSQL("ALTER TABLE `outbox` ADD COLUMN `businessId` TEXT")
+        db.execSQL("ALTER TABLE `outbox` ADD COLUMN `lastDetail` TEXT")
+        db.execSQL("UPDATE `outbox` SET `businessId` = (SELECT `id` FROM `business` LIMIT 1)")
+        db.execSQL("ALTER TABLE `sync_state` ADD COLUMN `businessId` TEXT")
+        db.execSQL("UPDATE `sync_state` SET `businessId` = (SELECT `id` FROM `business` LIMIT 1)")
+        db.execSQL("CREATE TABLE IF NOT EXISTS `outbox_discarded` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `opId` TEXT NOT NULL, `kind` TEXT NOT NULL, `entityId` TEXT NOT NULL, `payload` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `memberId` TEXT, `businessId` TEXT, `code` TEXT, `discardedAt` INTEGER NOT NULL, `discardedById` TEXT, `discardedByName` TEXT)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_outbox_discarded_discardedAt` ON `outbox_discarded` (`discardedAt`)")
+    }
+}
+
+/**
+ * 10 → 11 (docs/adr/0013): devoluciones (`sale_returns` y lo devuelto por línea), etiquetas para revisar una venta (conflicto, llegó después de la baja,
+ * hora corregida), quién la cobró (para «Anular mi última venta») y si la moneda del negocio ya quedó fija. Aditiva: nada se borra. El cursor vuelve a 0
+ * una vez para bajar de nuevo ventas y negocio con esos datos.
+ */
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `sales` ADD COLUMN `reviewFlag` TEXT")
+        db.execSQL("ALTER TABLE `sales` ADD COLUMN `conflictOfSaleId` TEXT")
+        db.execSQL("ALTER TABLE `sales` ADD COLUMN `returnedMinor` INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE `sales` ADD COLUMN `completedByMemberId` TEXT")
+        db.execSQL("UPDATE `sales` SET `completedByMemberId` = `createdByMemberId` WHERE `status` IN ('COMPLETED', 'CANCELLED') AND `completedAt` IS NOT NULL")
+        db.execSQL("ALTER TABLE `sale_items` ADD COLUMN `returnedMilli` INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("CREATE TABLE IF NOT EXISTS `sale_returns` (`id` TEXT NOT NULL, `saleId` TEXT NOT NULL, `reason` TEXT NOT NULL, `refundMethod` TEXT NOT NULL, `totalMinor` INTEGER NOT NULL, `createdByName` TEXT, `occurredAt` INTEGER NOT NULL, `itemsJson` TEXT NOT NULL, `refundsJson` TEXT NOT NULL, `rev` INTEGER NOT NULL, PRIMARY KEY(`id`))")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_sale_returns_saleId` ON `sale_returns` (`saleId`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_sale_returns_occurredAt` ON `sale_returns` (`occurredAt`)")
+        db.execSQL("ALTER TABLE `business` ADD COLUMN `currencyLocked` INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("UPDATE sync_state SET cursor = 0")
+    }
+}

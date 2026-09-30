@@ -1,7 +1,7 @@
 package com.cuadra.caja.ui.screens
 
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,7 +15,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
+import com.cuadra.caja.ui.common.Text
+import com.cuadra.caja.ui.common.LinkAction
+import com.cuadra.caja.ui.common.SplitRow
+import com.cuadra.caja.ui.common.TitleBar
+import com.cuadra.caja.ui.common.ChipFlow
+import com.cuadra.caja.ui.common.ButtonRow
+import com.cuadra.caja.ui.common.ScreenFrame
+import com.cuadra.caja.ui.common.Sheet
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -27,6 +34,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.cuadra.caja.R
+import com.cuadra.caja.domain.ModuleVisibility
 import com.cuadra.caja.data.local.MemberEntity
 import com.cuadra.caja.data.remote.ScheduleAudienceDto
 import com.cuadra.caja.data.remote.ScheduleDto
@@ -37,6 +45,8 @@ import com.cuadra.caja.domain.ScheduleDrafts
 import com.cuadra.caja.domain.ScheduleRepeat
 import com.cuadra.caja.domain.ScheduleWhen
 import com.cuadra.caja.ui.SCHEDULE_TEMPLATES
+import com.cuadra.caja.ui.SchedulesActions
+import com.cuadra.caja.ui.SchedulesUi
 import com.cuadra.caja.ui.SchedulesViewModel
 import com.cuadra.caja.ui.ErrorMessage
 import com.cuadra.caja.ui.asString
@@ -70,41 +80,55 @@ fun SchedulesScreen(vm: SchedulesViewModel, onBack: () -> Unit) {
     val ui by vm.ui.collectAsState()
     val business by vm.business.collectAsState()
     val members by vm.members.collectAsState()
-    val zone = runCatching { ZoneId.of(business?.timezone.orEmpty()) }.getOrDefault(ZoneId.systemDefault())
+    SchedulesContent(ui, members, business?.timezone.orEmpty(), vm, onBack)
+}
+
+/** Programar avisos sin ViewModel (estado + acciones): es lo que dibuja la guardia de diseño. */
+@Composable
+fun SchedulesContent(ui: SchedulesUi, members: List<MemberEntity>, timezone: String, actions: SchedulesActions, onBack: () -> Unit) {
+    val zone = runCatching { ZoneId.of(timezone) }.getOrDefault(ZoneId.systemDefault())
     val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
     val time = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(locale).withZone(zone)
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(Modifier.padding(top = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.sched_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
-            CuadraButton(stringResource(R.string.back), onBack, height = 44)
-        }
-        when {
-            ui.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(stringResource(R.string.sched_loading), color = CuadraColors.Muted) }
-            ui.loadError != null -> Column(Modifier.fillMaxWidth().padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text((ui.loadError ?: ErrorMessage(R.string.sched_err_generic)).asString(), color = CuadraColors.Orange, fontWeight = FontWeight.Bold)
-                CuadraButton(stringResource(R.string.sched_retry), vm::load, Modifier.fillMaxWidth(), kind = ButtonKind.PRIMARY)
+    ScreenFrame(
+        Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        footer = {
+            if (!ui.loading && ui.loadError == null) CuadraButton(stringResource(R.string.sched_new), actions::openNew, Modifier.fillMaxWidth().padding(bottom = 8.dp), kind = ButtonKind.PRIMARY, height = 48)
+        },
+    ) {
+        LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            item {
+                TitleBar(Modifier.padding(top = 16.dp), end = { CuadraButton(stringResource(R.string.back), onBack, height = 48) }) {
+                    Text(stringResource(R.string.sched_title), style = MaterialTheme.typography.headlineMedium)
+                }
             }
-            else -> {
-                CuadraButton(stringResource(R.string.sched_new), vm::openNew, Modifier.fillMaxWidth(), kind = ButtonKind.PRIMARY, height = 48)
-                if (ui.schedules.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(stringResource(R.string.sched_empty), color = CuadraColors.Muted) }
-                else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) { items(ui.schedules, key = { it.id }) { ScheduleCard(it, time, members, vm) } }
+            when {
+                ui.loading -> item { Box(Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) { Text(stringResource(R.string.sched_loading), color = CuadraColors.Muted) } }
+                ui.loadError != null -> item {
+                    Column(Modifier.fillMaxWidth().padding(top = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text((ui.loadError ?: ErrorMessage(R.string.sched_err_generic)).asString(), color = CuadraColors.Orange, fontWeight = FontWeight.Bold)
+                        CuadraButton(stringResource(R.string.sched_retry), actions::load, Modifier.fillMaxWidth(), kind = ButtonKind.PRIMARY)
+                    }
+                }
+                ui.schedules.isEmpty() -> item { Box(Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) { Text(stringResource(R.string.sched_empty), color = CuadraColors.Muted, textAlign = TextAlign.Center) } }
+                else -> items(ui.schedules, key = { it.id }) { ScheduleCard(it, time, members, actions) }
             }
         }
     }
-    ui.editor?.let { Editor(it, ui.editorError, ui.saveError, ui.saving, members, vm) }
+    ui.editor?.let { Editor(it, ui.editorError, ui.saveError, ui.saving, members, actions) }
     ui.deleteId?.let {
-        Sheet(vm::cancelDelete) {
+        Sheet(actions::cancelDelete, actions = {
+            ButtonRow {
+                CuadraButton(stringResource(R.string.cancel), actions::cancelDelete, Modifier.share(1f))
+                CuadraButton(stringResource(R.string.sched_delete), actions::confirmDelete, Modifier.share(1.4f), kind = ButtonKind.DANGER)
+            }
+        }) {
             Text(stringResource(R.string.sched_delete_title), style = MaterialTheme.typography.headlineMedium)
             Text(stringResource(R.string.sched_delete_hint), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CuadraButton(stringResource(R.string.cancel), vm::cancelDelete, Modifier.weight(1f))
-                CuadraButton(stringResource(R.string.sched_delete), vm::confirmDelete, Modifier.weight(1.4f), kind = ButtonKind.DANGER)
-            }
         }
     }
     ui.historyFor?.let { s ->
-        Sheet(vm::closeHistory) {
+        Sheet(actions::closeHistory, actions = { CuadraButton(stringResource(R.string.close), actions::closeHistory, Modifier.fillMaxWidth(), kind = ButtonKind.DARK) }) {
             Text(stringResource(R.string.sched_history_title), style = MaterialTheme.typography.headlineMedium)
             Text(s.title, fontWeight = FontWeight.Bold)
             val runs = ui.history
@@ -112,23 +136,22 @@ fun SchedulesScreen(vm: SchedulesViewModel, onBack: () -> Unit) {
                 runs == null -> Text(stringResource(R.string.sched_loading), color = CuadraColors.Muted)
                 runs.isEmpty() -> Text(stringResource(R.string.sched_history_empty), color = CuadraColors.Muted)
                 else -> runs.forEach { r ->
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
+                    SplitRow(end = {
+                        if (r.status == "SENT") Tag(stringResource(R.string.sched_run_SENT), CuadraColors.Green, CuadraColors.GreenSoft)
+                        else Tag(stringResource(R.string.sched_run_SKIPPED_LATE), CuadraColors.Orange, CuadraColors.OrangeSoft)
+                    }) {
+                        Column {
                             Text(instantText(r.runAt, time), fontWeight = FontWeight.Bold)
                             Text(stringResource(R.string.sched_run_recipients, r.recipients), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted)
                         }
-                        if (r.status == "SENT") Tag(stringResource(R.string.sched_run_SENT), CuadraColors.Green, CuadraColors.GreenSoft)
-                        else Tag(stringResource(R.string.sched_run_SKIPPED_LATE), CuadraColors.Orange, CuadraColors.OrangeSoft)
                     }
                 }
             }
-            CuadraButton(stringResource(R.string.close), vm::closeHistory, Modifier.fillMaxWidth(), kind = ButtonKind.DARK)
         }
     }
     ui.message?.let { msg ->
-        Sheet(vm::dismissMessage) {
+        Sheet(actions::dismissMessage, actions = { CuadraButton(stringResource(R.string.close), actions::dismissMessage, Modifier.fillMaxWidth(), kind = ButtonKind.DARK) }) {
             Text(msg.asString(), style = MaterialTheme.typography.bodyLarge)
-            CuadraButton(stringResource(R.string.close), vm::dismissMessage, Modifier.fillMaxWidth(), kind = ButtonKind.DARK)
         }
     }
 }
@@ -167,12 +190,11 @@ private fun audienceText(a: ScheduleAudienceDto): String {
 }
 
 @Composable
-private fun ScheduleCard(s: ScheduleDto, time: DateTimeFormatter, members: List<MemberEntity>, vm: SchedulesViewModel) {
+private fun ScheduleCard(s: ScheduleDto, time: DateTimeFormatter, members: List<MemberEntity>, actions: SchedulesActions) {
     val suffix = " " + stringResource(R.string.sched_copy_suffix)
     CuadraCard(Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(s.title, Modifier.weight(1f), fontWeight = FontWeight.ExtraBold, maxLines = 2)
+            SplitRow(end = {
                 when {
                     s.nextRunAt != null -> Unit
                     // Un aviso de una sola vez que ya salió (incluye "enviar ahora") no está pausado: está enviado.
@@ -180,28 +202,25 @@ private fun ScheduleCard(s: ScheduleDto, time: DateTimeFormatter, members: List<
                     s.active -> Tag(stringResource(R.string.sched_ended), CuadraColors.Ink, CuadraColors.Soft)
                     else -> Tag(stringResource(R.string.sched_paused), CuadraColors.Orange, CuadraColors.OrangeSoft)
                 }
+            }) {
+                Text(s.title, fontWeight = FontWeight.ExtraBold, maxLines = 3, ellipsize = true)
             }
-            Text(s.body, style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Ink2, maxLines = 3)
+            Text(s.body, style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Ink2, maxLines = 3, ellipsize = true)
             Text(ruleText(ScheduleDrafts.summary(s.rule)), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
             Text(audienceText(s.audience), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted)
             s.nextRunAt?.let { Text(stringResource(R.string.sched_next, instantText(it, time)), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Green) }
             Text(stringResource(R.string.sched_counts, s.sent, s.read), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted)
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            ChipFlow(spacing = 14.dp) {
                 val once = s.rule.type == "ONCE"
                 // Una programación de una sola vez ya enviada no se reanuda: se duplica o se elimina.
-                if (!(once && !s.active && s.nextRunAt == null)) Action(stringResource(if (s.active) R.string.sched_pause else R.string.sched_resume)) { vm.toggle(s) }
-                Action(stringResource(R.string.sched_edit)) { vm.edit(s) }
-                Action(stringResource(R.string.sched_duplicate)) { vm.duplicate(s, suffix) }
-                Action(stringResource(R.string.sched_history)) { vm.openHistory(s) }
-                Action(stringResource(R.string.sched_delete), CuadraColors.Red) { vm.askDelete(s.id) }
+                if (!(once && !s.active && s.nextRunAt == null)) LinkAction(stringResource(if (s.active) R.string.sched_pause else R.string.sched_resume), { actions.toggle(s) })
+                LinkAction(stringResource(R.string.sched_edit), { actions.edit(s) })
+                LinkAction(stringResource(R.string.sched_duplicate), { actions.duplicate(s, suffix) })
+                LinkAction(stringResource(R.string.sched_history), { actions.openHistory(s) })
+                LinkAction(stringResource(R.string.sched_delete), { actions.askDelete(s.id) }, color = CuadraColors.Red)
             }
         }
     }
-}
-
-@Composable
-private fun Action(text: String, color: androidx.compose.ui.graphics.Color = CuadraColors.Green, onClick: () -> Unit) {
-    Text(text, color = color, fontWeight = FontWeight.ExtraBold, modifier = Modifier.clickable(onClick = onClick).padding(vertical = 10.dp))
 }
 
 @Composable
@@ -220,76 +239,86 @@ private fun errorText(e: DraftError): String = stringResource(
 )
 
 @Composable
-private fun Editor(d: ScheduleDraft, error: DraftError?, saveError: ErrorMessage?, saving: Boolean, members: List<MemberEntity>, vm: SchedulesViewModel) {
-    Sheet(vm::closeEditor) {
+fun Editor(d: ScheduleDraft, error: DraftError?, saveError: ErrorMessage?, saving: Boolean, members: List<MemberEntity>, actions: SchedulesActions) {
+    val now = d.whenMode == ScheduleWhen.NOW
+    Sheet(actions::closeEditor, actions = {
+        ButtonRow {
+            CuadraButton(stringResource(R.string.cancel), actions::closeEditor, Modifier.share(1f))
+            CuadraButton(
+                stringResource(if (now) R.string.sched_send_now else if (d.id != null) R.string.sched_save_changes else R.string.sched_save), actions::save, Modifier.share(1.6f),
+                kind = ButtonKind.PRIMARY, enabled = !saving,
+            )
+        }
+    }) {
         Text(stringResource(R.string.sched_editor_title), style = MaterialTheme.typography.headlineMedium)
 
         SectionLabel(stringResource(R.string.sched_templates))
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        ChipFlow(spacing = 8.dp) {
             SCHEDULE_TEMPLATES.forEach { (titleRes, bodyRes) ->
                 val title = stringResource(titleRes)
                 val body = stringResource(bodyRes)
-                CuadraChip(title, d.title == title && d.body == body, { vm.applyTemplate(title, body) })
+                CuadraChip(title, d.title == title && d.body == body, { actions.applyTemplate(title, body) })
             }
         }
         VoiceTextField(
-            d.title, { vm.updateEditor(d.copy(title = it.take(ScheduleDrafts.TITLE_MAX))) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text(stringResource(R.string.sched_field_title)) },
+            d.title, { actions.updateEditor(d.copy(title = it.take(ScheduleDrafts.TITLE_MAX))) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text(stringResource(R.string.sched_field_title)) },
             supportingText = { Text(stringResource(R.string.sched_counter, d.title.length, ScheduleDrafts.TITLE_RECOMMENDED)) }, isError = error == DraftError.TITLE,
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
         )
         VoiceTextField(
-            d.body, { vm.updateEditor(d.copy(body = it.take(ScheduleDrafts.BODY_MAX))) }, Modifier.fillMaxWidth(), minLines = 2, label = { Text(stringResource(R.string.sched_field_body)) },
+            d.body, { actions.updateEditor(d.copy(body = it.take(ScheduleDrafts.BODY_MAX))) }, Modifier.fillMaxWidth(), minLines = 2, label = { Text(stringResource(R.string.sched_field_body)) },
             supportingText = { Text(stringResource(R.string.sched_counter, d.body.length, ScheduleDrafts.BODY_RECOMMENDED)) }, isError = error == DraftError.BODY,
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
         )
 
         SectionLabel(stringResource(R.string.sched_audience))
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            CuadraChip(stringResource(R.string.sched_aud_all), d.all, { vm.updateEditor(d.copy(all = !d.all)) })
-            CuadraChip(stringResource(R.string.sched_role_ADMIN), "ADMIN" in d.roles, { vm.updateEditor(d.copy(roles = d.roles.toggle("ADMIN"))) })
-            CuadraChip(stringResource(R.string.sched_role_CASHIER), "CASHIER" in d.roles, { vm.updateEditor(d.copy(roles = d.roles.toggle("CASHIER"))) })
+        ChipFlow(spacing = 8.dp) {
+            CuadraChip(stringResource(R.string.sched_aud_all), d.all, { actions.updateEditor(d.copy(all = !d.all)) })
+            CuadraChip(stringResource(R.string.sched_role_ADMIN), "ADMIN" in d.roles, { actions.updateEditor(d.copy(roles = d.roles.toggle("ADMIN"))) })
+            CuadraChip(stringResource(R.string.sched_role_CASHIER), "CASHIER" in d.roles, { actions.updateEditor(d.copy(roles = d.roles.toggle("CASHIER"))) })
         }
         if (members.isNotEmpty()) {
             Text(stringResource(R.string.sched_people), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted)
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                members.forEach { m -> CuadraChip(m.displayName, m.id in d.memberIds, { vm.updateEditor(d.copy(memberIds = d.memberIds.toggle(m.id))) }) }
+            ChipFlow(spacing = 8.dp) {
+                members.forEach { m -> CuadraChip(m.displayName, m.id in d.memberIds, { actions.updateEditor(d.copy(memberIds = d.memberIds.toggle(m.id))) }, userContent = true) }
             }
         }
         if (error == DraftError.AUDIENCE) Problem(error)
 
         SectionLabel(stringResource(R.string.sched_action))
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            LINKS.forEach { (link, label) -> CuadraChip(stringResource(label), d.link == link, { vm.updateEditor(d.copy(link = link)) }) }
+        ChipFlow(spacing = 8.dp) {
+            ModuleVisibility.scheduleLinks(com.cuadra.caja.ui.common.LocalModules.current, LINKS.map { it.first }).forEach { link -> val label = LINKS.first { it.first == link }.second
+                 CuadraChip(stringResource(label), d.link == link, { actions.updateEditor(d.copy(link = link)) }) }
         }
 
         SectionLabel(stringResource(R.string.sched_when))
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            CuadraChip(stringResource(R.string.sched_when_now), d.whenMode == ScheduleWhen.NOW, { vm.updateEditor(d.copy(whenMode = ScheduleWhen.NOW)) })
-            CuadraChip(stringResource(R.string.sched_when_once), d.whenMode == ScheduleWhen.ONCE, { vm.updateEditor(d.copy(whenMode = ScheduleWhen.ONCE)) })
-            CuadraChip(stringResource(R.string.sched_when_repeat), d.whenMode == ScheduleWhen.REPEAT, { vm.updateEditor(d.copy(whenMode = ScheduleWhen.REPEAT)) })
+        ChipFlow(spacing = 8.dp) {
+            CuadraChip(stringResource(R.string.sched_when_now), d.whenMode == ScheduleWhen.NOW, { actions.updateEditor(d.copy(whenMode = ScheduleWhen.NOW)) })
+            CuadraChip(stringResource(R.string.sched_when_once), d.whenMode == ScheduleWhen.ONCE, { actions.updateEditor(d.copy(whenMode = ScheduleWhen.ONCE)) })
+            CuadraChip(stringResource(R.string.sched_when_repeat), d.whenMode == ScheduleWhen.REPEAT, { actions.updateEditor(d.copy(whenMode = ScheduleWhen.REPEAT)) })
         }
         if (d.whenMode != ScheduleWhen.NOW) Text(stringResource(R.string.sched_zone_hint), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted)
         if (d.whenMode == ScheduleWhen.ONCE) {
-            TextField(d.date, R.string.sched_date, error == DraftError.DATE, KeyboardType.Number) { vm.updateEditor(d.copy(date = it.take(10))) }
-            TextField(d.time, R.string.sched_time, error == DraftError.TIME, KeyboardType.Number) { vm.updateEditor(d.copy(time = it.take(5))) }
+            TextField(d.date, R.string.sched_date, error == DraftError.DATE, KeyboardType.Number) { actions.updateEditor(d.copy(date = it.take(10))) }
+            TextField(d.time, R.string.sched_time, error == DraftError.TIME, KeyboardType.Number) { actions.updateEditor(d.copy(time = it.take(5))) }
         }
         if (d.whenMode == ScheduleWhen.REPEAT) {
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CuadraChip(stringResource(R.string.sched_repeat_daily), d.repeat == ScheduleRepeat.DAILY, { vm.updateEditor(d.copy(repeat = ScheduleRepeat.DAILY)) })
-                CuadraChip(stringResource(R.string.sched_repeat_weekly), d.repeat == ScheduleRepeat.WEEKLY, { vm.updateEditor(d.copy(repeat = ScheduleRepeat.WEEKLY)) })
-                CuadraChip(stringResource(R.string.sched_repeat_monthly), d.repeat == ScheduleRepeat.MONTHLY, { vm.updateEditor(d.copy(repeat = ScheduleRepeat.MONTHLY)) })
-                CuadraChip(stringResource(R.string.sched_repeat_every), d.repeat == ScheduleRepeat.EVERY_N, { vm.updateEditor(d.copy(repeat = ScheduleRepeat.EVERY_N)) })
+            ChipFlow(spacing = 8.dp) {
+                CuadraChip(stringResource(R.string.sched_repeat_daily), d.repeat == ScheduleRepeat.DAILY, { actions.updateEditor(d.copy(repeat = ScheduleRepeat.DAILY)) })
+                CuadraChip(stringResource(R.string.sched_repeat_weekly), d.repeat == ScheduleRepeat.WEEKLY, { actions.updateEditor(d.copy(repeat = ScheduleRepeat.WEEKLY)) })
+                CuadraChip(stringResource(R.string.sched_repeat_monthly), d.repeat == ScheduleRepeat.MONTHLY, { actions.updateEditor(d.copy(repeat = ScheduleRepeat.MONTHLY)) })
+                CuadraChip(stringResource(R.string.sched_repeat_every), d.repeat == ScheduleRepeat.EVERY_N, { actions.updateEditor(d.copy(repeat = ScheduleRepeat.EVERY_N)) })
             }
             if (d.repeat == ScheduleRepeat.WEEKLY) {
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    (1..7).forEach { day -> CuadraChip(dayLetter(day), day in d.days, { vm.updateEditor(d.copy(days = d.days.toggle(day))) }) }
+                ChipFlow(spacing = 6.dp) {
+                    (1..7).forEach { day -> CuadraChip(dayLetter(day), day in d.days, { actions.updateEditor(d.copy(days = d.days.toggle(day))) }) }
                 }
                 if (error == DraftError.DAYS) Problem(error)
             }
-            if (d.repeat == ScheduleRepeat.MONTHLY) TextField(d.dayOfMonth, R.string.sched_day_of_month, error == DraftError.DAY_OF_MONTH, KeyboardType.Number) { vm.updateEditor(d.copy(dayOfMonth = it.take(2))) }
-            if (d.repeat == ScheduleRepeat.EVERY_N) TextField(d.everyDays, R.string.sched_every_days, error == DraftError.EVERY_DAYS, KeyboardType.Number) { vm.updateEditor(d.copy(everyDays = it.take(3))) }
-            TextField(d.time, R.string.sched_time, error == DraftError.TIME, KeyboardType.Number) { vm.updateEditor(d.copy(time = it.take(5))) }
-            TextField(d.endDate, R.string.sched_end_date, error == DraftError.END_DATE, KeyboardType.Number) { vm.updateEditor(d.copy(endDate = it.take(10))) }
+            if (d.repeat == ScheduleRepeat.MONTHLY) TextField(d.dayOfMonth, R.string.sched_day_of_month, error == DraftError.DAY_OF_MONTH, KeyboardType.Number) { actions.updateEditor(d.copy(dayOfMonth = it.take(2))) }
+            if (d.repeat == ScheduleRepeat.EVERY_N) TextField(d.everyDays, R.string.sched_every_days, error == DraftError.EVERY_DAYS, KeyboardType.Number) { actions.updateEditor(d.copy(everyDays = it.take(3))) }
+            TextField(d.time, R.string.sched_time, error == DraftError.TIME, KeyboardType.Number) { actions.updateEditor(d.copy(time = it.take(5))) }
+            TextField(d.endDate, R.string.sched_end_date, error == DraftError.END_DATE, KeyboardType.Number) { actions.updateEditor(d.copy(endDate = it.take(10))) }
         }
 
         SectionLabel(stringResource(R.string.sched_preview))
@@ -303,14 +332,6 @@ private fun Editor(d: ScheduleDraft, error: DraftError?, saveError: ErrorMessage
         // Audiencia y días ya muestran su aviso junto al campo; el resto se dice aquí, junto al botón.
         if (error != null && error != DraftError.AUDIENCE && error != DraftError.DAYS) Problem(error)
         saveError?.let { Text(it.asString(), color = CuadraColors.Red, fontWeight = FontWeight.Bold) }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            CuadraButton(stringResource(R.string.cancel), vm::closeEditor, Modifier.weight(1f))
-            val now = d.whenMode == ScheduleWhen.NOW
-            CuadraButton(
-                stringResource(if (now) R.string.sched_send_now else if (d.id != null) R.string.sched_save_changes else R.string.sched_save), vm::save, Modifier.weight(1.6f),
-                kind = ButtonKind.PRIMARY, enabled = !saving,
-            )
-        }
     }
 }
 

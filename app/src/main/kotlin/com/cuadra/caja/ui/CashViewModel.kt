@@ -14,7 +14,11 @@ import com.cuadra.caja.data.local.ExpenseTotals
 import com.cuadra.caja.data.local.ShiftEntity
 import com.cuadra.caja.data.repo.CloseResult
 import com.cuadra.caja.data.session.Session
-import com.cuadra.caja.domain.BusinessDay
+import com.cuadra.caja.data.sync.calendar
+import com.cuadra.caja.domain.BusinessCalendar
+import com.cuadra.caja.domain.RangeChoice
+import com.cuadra.caja.domain.RangePresets
+import kotlinx.coroutines.flow.filterNotNull
 import com.cuadra.caja.domain.CashClosing
 import com.cuadra.caja.domain.ClosingBreakdown
 import com.cuadra.caja.domain.Denominations
@@ -35,8 +39,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-enum class ExpensePeriod { TODAY, WEEK, MONTH }
-
 /** Una fila de la lista de gastos: gastos y retiros/entradas se mezclan por hora. */
 sealed interface CashRow {
     val at: Long
@@ -52,11 +54,18 @@ data class VoidTarget(val id: String, val isMovement: Boolean, val reason: Strin
 
 data class CountDraft(val counts: Map<Long, Int> = emptyMap(), val counted: String = "", val note: String = "", val showCounter: Boolean = false, val forceReason: String? = null)
 
+/** Administrar las categorías de gastos: cuál se está renombrando (`editingId`; «nueva» si `adding`), el nombre escrito y el resultado de la última llamada. */
+data class CategoryManagerUi(val editingId: String? = null, val adding: Boolean = false, val name: String = "", val saving: Boolean = false, val error: ErrorMessage? = null) {
+    val editing: Boolean get() = adding || editingId != null
+}
+
 data class CashUi(
-    val period: ExpensePeriod = ExpensePeriod.TODAY,
+    /** Periodo elegido en el selector compartido (jornadas del negocio). */
+    val range: RangeChoice = RangeChoice(),
     val expenseDraft: ExpenseDraft? = null,
     val movementDraft: MovementDraft? = null,
     val voidTarget: VoidTarget? = null,
+    val categoryManager: CategoryManagerUi? = null,
     val showShift: Boolean = false,
     val openFloat: String? = null,
     val count: CountDraft = CountDraft(),
@@ -65,7 +74,13 @@ data class CashUi(
     val noteRequired: Boolean = false,
 )
 
-class CashViewModel(private val c: AppContainer) : ViewModel() {
+/** Lo contado: lo escrito a mano, o la suma de los billetes si se usó el contador. */
+fun CountDraft.countedMinor(decimals: Int): Long? {
+    if (counted.isNotBlank()) return Money.parse(counted, decimals)?.minor
+    return counts.takeIf { it.isNotEmpty() }?.let { Denominations.total(it) }
+}
+
+class CashViewModel(private val c: AppContainer) : ViewModel(), CashActions {
     private val _ui = MutableStateFlow(CashUi())
     val ui: StateFlow<CashUi> = _ui.asStateFlow()
 
@@ -73,6 +88,7 @@ class CashViewModel(private val c: AppContainer) : ViewModel() {
     val session: StateFlow<Session?> = c.sessionStore.flow.stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val canManage: StateFlow<Boolean> = session.map { it?.memberRole == "OWNER" || it?.memberRole == "ADMIN" }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
     val categories: StateFlow<List<ExpenseCategoryEntity>> = c.expenses.categories().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    private val allCategories: StateFlow<List<ExpenseCategoryEntity>> = c.expenses.allCategories().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val currentShift: StateFlow<ShiftEntity?> = c.shifts.current().stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val recentShifts: StateFlow<List<ShiftEntity>> = c.shifts.recent().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -83,19 +99,13 @@ class CashViewModel(private val c: AppContainer) : ViewModel() {
 
     val suggestedFloat = MutableStateFlow(0L)
 
-    private fun range(period: ExpensePeriod, b: BusinessEntity?): Pair<Long, Long> {
-        val zone = b?.timezone?.let { runCatching { ZoneId.of(it) }.getOrNull() } ?: ZoneId.systemDefault()
-        val cutoff = b?.dayCutoff?.let { runCatching { LocalTime.parse(it) }.getOrNull() } ?: LocalTime.of(2, 0)
-        val today = BusinessDay.of(Instant.ofEpochMilli(System.currentTimeMillis()), zone, cutoff)
-        val start = when (period) {
-            ExpensePeriod.TODAY -> today.date
-            ExpensePeriod.WEEK -> today.date.minusDays(6)
-            ExpensePeriod.MONTH -> today.date.withDayOfMonth(1)
-        }
-        return BusinessDay.forDate(start, zone, cutoff).startMillis to today.endMillis
-    }
+    val calendar: StateFlow<BusinessCalendar?> = business.map { it?.calendar() }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    private val window: Flow<Pair<Long, Long>> = combine(_ui.map { it.period }, business) { p, b -> range(p, b) }
+    /** Ventana [desde, hasta) de la elección, con las jornadas del NEGOCIO (zona, corte e historial), nunca con la zona del teléfono. */
+    private val window: Flow<Pair<Long, Long>> = combine(_ui.map { it.range }, calendar.filterNotNull()) { ch, cal ->
+        val r = RangePresets.resolve(ch, cal, System.currentTimeMillis())
+        r.startMillis to r.endMillis
+    }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val totals: StateFlow<ExpenseTotals> = window.flatMapLatest { (f, t) -> c.expenses.totals(f, t) }.stateIn(viewModelScope, SharingStarted.Eagerly, ExpenseTotals(0, 0, 0))
@@ -103,38 +113,39 @@ class CashViewModel(private val c: AppContainer) : ViewModel() {
     /** Un cajero solo ve lo que él mismo anotó (el servidor ya filtra los movimientos; los gastos propios se reconocen por autor). */
     @OptIn(ExperimentalCoroutinesApi::class)
     val rows: StateFlow<List<CashRow>> = window.flatMapLatest { (f, t) ->
-        combine(c.expenses.expenses(f, t), c.expenses.movements(f, t), categories) { ex, mv, cats ->
-            val names = cats.associate { it.id to (it.key ?: it.name.orEmpty()) }
+        combine(c.expenses.expenses(f, t), c.expenses.movements(f, t), allCategories) { ex, mv, cats ->
+            // Un nombre propio (categoría creada o renombrada) manda sobre la clave de fábrica; las archivadas siguen dando nombre a sus gastos viejos.
+            val names = cats.associate { it.id to (it.name?.takeIf { n -> n.isNotBlank() } ?: it.key.orEmpty()) }
             (ex.map { CashRow.Expense(it, it.categoryId?.let(names::get)) } + mv.map { CashRow.Movement(it) }).sortedByDescending { it.at }
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     // ---------- navegación ----------
-    fun setPeriod(p: ExpensePeriod) = _ui.update { it.copy(period = p) }
-    fun dismissMessage() = _ui.update { it.copy(messageRes = null) }
+    override fun setRange(choice: RangeChoice) = _ui.update { it.copy(range = choice) }
+    override fun dismissMessage() = _ui.update { it.copy(messageRes = null) }
 
-    fun openExpense() = _ui.update { it.copy(expenseDraft = ExpenseDraft()) }
-    fun updateExpense(d: ExpenseDraft) = _ui.update { it.copy(expenseDraft = d) }
-    fun closeExpense() = _ui.update { it.copy(expenseDraft = null) }
+    override fun openExpense() = _ui.update { it.copy(expenseDraft = ExpenseDraft()) }
+    override fun updateExpense(d: ExpenseDraft) = _ui.update { it.copy(expenseDraft = d) }
+    override fun closeExpense() = _ui.update { it.copy(expenseDraft = null) }
 
-    fun openMovement(kind: String) = _ui.update { it.copy(movementDraft = MovementDraft(kind)) }
-    fun updateMovement(d: MovementDraft) = _ui.update { it.copy(movementDraft = d) }
-    fun closeMovement() = _ui.update { it.copy(movementDraft = null) }
+    override fun openMovement(kind: String) = _ui.update { it.copy(movementDraft = MovementDraft(kind)) }
+    override fun updateMovement(d: MovementDraft) = _ui.update { it.copy(movementDraft = d) }
+    override fun closeMovement() = _ui.update { it.copy(movementDraft = null) }
 
-    fun askVoid(t: VoidTarget) = _ui.update { it.copy(voidTarget = t) }
-    fun updateVoid(reason: String) = _ui.update { s -> s.copy(voidTarget = s.voidTarget?.copy(reason = reason)) }
-    fun closeVoid() = _ui.update { it.copy(voidTarget = null) }
+    override fun askVoid(t: VoidTarget) = _ui.update { it.copy(voidTarget = t) }
+    override fun updateVoid(reason: String) = _ui.update { s -> s.copy(voidTarget = s.voidTarget?.copy(reason = reason)) }
+    override fun closeVoid() = _ui.update { it.copy(voidTarget = null) }
 
-    fun showShift(show: Boolean) {
+    override fun showShift(show: Boolean) {
         _ui.update { it.copy(showShift = show, openFloat = null, count = CountDraft(), closedShift = null, noteRequired = false) }
         if (show) viewModelScope.launch { suggestedFloat.value = c.shifts.suggestedFloat() }
     }
 
-    fun updateOpenFloat(text: String?) = _ui.update { it.copy(openFloat = text) }
-    fun updateCount(d: CountDraft) = _ui.update { it.copy(count = d, noteRequired = false) }
+    override fun updateOpenFloat(text: String?) = _ui.update { it.copy(openFloat = text) }
+    override fun updateCount(d: CountDraft) = _ui.update { it.copy(count = d, noteRequired = false) }
 
     // ---------- acciones ----------
-    fun saveExpense() {
+    override fun saveExpense() {
         val d = _ui.value.expenseDraft ?: return
         val minor = Money.parse(d.amount, decimals())?.minor?.takeIf { it > 0 } ?: return
         // El cajero solo saca del cajón; el resto de orígenes es de quien administra (el servidor lo exige igual).
@@ -145,7 +156,7 @@ class CashViewModel(private val c: AppContainer) : ViewModel() {
         }
     }
 
-    fun saveMovement() {
+    override fun saveMovement() {
         val d = _ui.value.movementDraft ?: return
         val minor = Money.parse(d.amount, decimals())?.minor?.takeIf { it > 0 } ?: return
         if (d.kind == "WITHDRAWAL" && !canManage.value) return
@@ -155,7 +166,40 @@ class CashViewModel(private val c: AppContainer) : ViewModel() {
         }
     }
 
-    fun confirmVoid() {
+    // ---------- categorías de gastos (dueño y admin, con conexión) ----------
+    override fun openCategories() = _ui.update { it.copy(categoryManager = CategoryManagerUi()) }
+    override fun closeCategories() = _ui.update { it.copy(categoryManager = null) }
+    override fun startCategoryEdit(id: String?) = _ui.update { s ->
+        s.copy(categoryManager = CategoryManagerUi(editingId = id, adding = id == null, name = id?.let { i -> categories.value.firstOrNull { it.id == i }?.let { c -> c.name?.takeIf { n -> n.isNotBlank() } ?: c.key.orEmpty() } }.orEmpty()))
+    }
+    override fun updateCategoryName(name: String) = _ui.update { s -> s.copy(categoryManager = s.categoryManager?.copy(name = name.take(60), error = null)) }
+    override fun cancelCategoryEdit() = _ui.update { it.copy(categoryManager = CategoryManagerUi()) }
+
+    override fun saveCategory() {
+        val m = _ui.value.categoryManager ?: return
+        if (!m.editing || m.saving || m.name.isBlank()) return
+        _ui.update { it.copy(categoryManager = m.copy(saving = true, error = null)) }
+        viewModelScope.launch {
+            c.expenses.saveCategory(m.editingId, m.name).fold(
+                onSuccess = { _ui.update { it.copy(categoryManager = CategoryManagerUi()) } },
+                onFailure = { e -> _ui.update { it.copy(categoryManager = m.copy(saving = false, error = e.settingsError())) } },
+            )
+        }
+    }
+
+    override fun archiveCategory(id: String) {
+        val m = _ui.value.categoryManager ?: return
+        if (m.saving) return
+        _ui.update { it.copy(categoryManager = m.copy(saving = true, error = null)) }
+        viewModelScope.launch {
+            c.expenses.saveCategory(id, null, active = false).fold(
+                onSuccess = { _ui.update { it.copy(categoryManager = CategoryManagerUi()) } },
+                onFailure = { e -> _ui.update { it.copy(categoryManager = m.copy(saving = false, error = e.settingsError())) } },
+            )
+        }
+    }
+
+    override fun confirmVoid() {
         val t = _ui.value.voidTarget ?: return
         if (!canManage.value) return
         viewModelScope.launch {
@@ -164,7 +208,7 @@ class CashViewModel(private val c: AppContainer) : ViewModel() {
         }
     }
 
-    fun openShift() {
+    override fun openShift() {
         val text = _ui.value.openFloat ?: return
         val minor = Money.parse(text.ifBlank { "0" }, decimals())?.minor ?: return
         viewModelScope.launch {
@@ -174,13 +218,9 @@ class CashViewModel(private val c: AppContainer) : ViewModel() {
     }
 
     /** Lo contado: lo escrito a mano, o la suma de los billetes si se usó el contador. */
-    fun countedMinor(): Long? {
-        val d = _ui.value.count
-        if (d.counted.isNotBlank()) return Money.parse(d.counted, decimals())?.minor
-        return d.counts.takeIf { it.isNotEmpty() }?.let { Denominations.total(it) }
-    }
+    fun countedMinor(): Long? = _ui.value.count.countedMinor(decimals())
 
-    fun closeShift() {
+    override fun closeShift() {
         val shift = currentShift.value ?: return
         val d = _ui.value.count
         val counted = countedMinor() ?: return

@@ -1,5 +1,10 @@
 package com.cuadra.caja.ui.screens
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -15,7 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import com.cuadra.caja.ui.common.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -51,28 +56,24 @@ fun openStoreListing(context: Context) {
     }
 }
 
-/** Abre la página de donación en el navegador. Sin red o sin navegador avisa con un mensaje amable; no rastrea nada. */
-fun openDonationPage(context: Context, url: String) {
-    val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
-    val online = cm?.getNetworkCapabilities(cm.activeNetwork)?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
-    val opened = online && runCatching {
-        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    }.isSuccess
-    if (!opened) android.widget.Toast.makeText(context, context.getString(if (online) R.string.support_open_failed else R.string.support_offline), android.widget.Toast.LENGTH_LONG).show()
-}
-
 /** Pantalla completa: la versión instalada ya no es compatible. Deja claro que los datos están a salvo. */
 @Composable
 fun UpdateRequiredScreen() {
     val context = LocalContext.current
+    UpdateRequiredContent { openStoreListing(context) }
+}
+
+/** La pantalla de «actualiza la app» sin lógica (es lo que dibuja la guardia de diseño). Se desplaza si el texto no cabe. */
+@Composable
+fun UpdateRequiredContent(onUpdate: () -> Unit) {
     Column(
-        Modifier.fillMaxSize().background(CuadraColors.Bg).statusBarsPadding().navigationBarsPadding().padding(24.dp),
+        Modifier.fillMaxSize().background(CuadraColors.Bg).statusBarsPadding().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(stringResource(R.string.update_required_title), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold, color = CuadraColors.Ink)
         Text(stringResource(R.string.update_required_body), Modifier.padding(top = 12.dp), style = MaterialTheme.typography.bodyLarge, color = CuadraColors.Ink2)
         Text(stringResource(R.string.update_required_safe), Modifier.padding(top = 12.dp, bottom = 24.dp), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = CuadraColors.Green)
-        CuadraButton(stringResource(R.string.update_required_button), { openStoreListing(context) }, Modifier.fillMaxWidth(), kind = ButtonKind.PRIMARY)
+        CuadraButton(stringResource(R.string.update_required_button), onUpdate, Modifier.fillMaxWidth(), kind = ButtonKind.PRIMARY)
     }
 }
 
@@ -105,10 +106,13 @@ fun NoticeBanners(container: AppContainer) {
 }
 
 @Composable
-private fun Banner(text: String, bg: androidx.compose.ui.graphics.Color, fg: androidx.compose.ui.graphics.Color, onClick: () -> Unit, onDismiss: () -> Unit) {
+fun Banner(text: String, bg: androidx.compose.ui.graphics.Color, fg: androidx.compose.ui.graphics.Color, onClick: () -> Unit, onDismiss: () -> Unit) {
     Row(Modifier.fillMaxWidth().background(bg).padding(start = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(text, Modifier.weight(1f).clickable(onClick = onClick).padding(vertical = 10.dp), color = fg, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, maxLines = 2)
+        // Un anuncio de la plataforma puede ser largo: hasta 3 líneas y «…» (deliberado); tocar el texto abre lo que anuncia.
+        Text(text, Modifier.weight(1f).heightIn(min = 48.dp).clickable(onClick = onClick).padding(vertical = 10.dp), color = fg, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, maxLines = 3, ellipsize = true)
         val dismissLabel = stringResource(R.string.notice_dismiss)
-        Text("X", Modifier.clickable(onClick = onDismiss).semantics { contentDescription = dismissLabel }.padding(horizontal = 16.dp, vertical = 10.dp), color = fg, fontWeight = FontWeight.ExtraBold)
+        Box(Modifier.size(48.dp).clickable(onClick = onDismiss).semantics { contentDescription = dismissLabel }, contentAlignment = Alignment.Center) {
+            Text("X", color = fg, fontWeight = FontWeight.ExtraBold)
+        }
     }
 }

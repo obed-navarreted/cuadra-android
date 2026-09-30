@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="register_add_key">Agregar</string>
+    <string name="register_receipt">Recibo</string>
+    <string name="register_receipt_n">Recibo · %1$d</string>
+    <string name="register_receipt_open">Ver el recibo</string>
+    <string name="register_charge_total">Cobrar · %1$s</string>
+    <string name="receipt_title">Recibo</string>
+    <string name="receipt_total">Total</string>
+    <string name="receipt_close">Cerrar recibo</string>
+    <string name="receipt_empty">El recibo está vacío. Escribe un monto o toca un producto.</string>
+    <string name="receipt_hint">Desliza una línea a la izquierda para quitarla, o a la derecha para escribir la cantidad. También puedes tocarla.</string>
+    <string name="receipt_hint_ok">Entendido</string>
+    <string name="receipt_swipe_delete">Eliminar</string>
+    <string name="receipt_swipe_qty">Cantidad</string>
+    <string name="receipt_line_menu">Opciones de la línea</string>
+    <string name="receipt_delete_line">Eliminar</string>
+    <string name="receipt_change_qty">Cambiar cantidad</string>
+    <string name="receipt_minus">Quitar uno</string>
+    <string name="receipt_plus">Agregar uno</string>
+    <string name="qty_title">Cantidad</string>
+    <string name="line_description">Descripción</string>
+    <string name="line_description_empty">Vacía = «Varios»</string>
+    <string name="line_catalog_name">Producto del catálogo: su nombre no se cambia aquí.</string>
+    <string name="qty_label">Cantidad</string>
+    <string name="qty_zero_hint">Con 0 se elimina la línea del recibo.</string>
+    <string name="qty_invalid">Escribe una cantidad válida.</string>
+    <string name="qty_no_decimals">Este producto se vende por unidad: escribe un número entero.</string>
+    <string name="qty_line_total">%1$s × %2$s = %3$s</string>
+    <string name="qty_save">Guardar</string>
+    <string name="qty_remove">Eliminar línea</string>
+    <string name="undo_added">%1$s ×%2$s · %3$s</string>
+    <string name="undo_deleted">Línea eliminada</string>
+    <string name="undo_cleared">Recibo vaciado</string>
+    <string name="undo_action">Deshacer</string>
+</resources>

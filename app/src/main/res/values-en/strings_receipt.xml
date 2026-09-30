@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="register_add_key">Add</string>
+    <string name="register_receipt">Receipt</string>
+    <string name="register_receipt_n">Receipt · %1$d</string>
+    <string name="register_receipt_open">View the receipt</string>
+    <string name="register_charge_total">Charge · %1$s</string>
+    <string name="receipt_title">Receipt</string>
+    <string name="receipt_total">Total</string>
+    <string name="receipt_close">Close receipt</string>
+    <string name="receipt_empty">The receipt is empty. Type an amount or tap a product.</string>
+    <string name="receipt_hint">Swipe a line left to remove it, or right to type the quantity. You can also tap it.</string>
+    <string name="receipt_hint_ok">Got it</string>
+    <string name="receipt_swipe_delete">Delete</string>
+    <string name="receipt_swipe_qty">Quantity</string>
+    <string name="receipt_line_menu">Line options</string>
+    <string name="receipt_delete_line">Delete</string>
+    <string name="receipt_change_qty">Change quantity</string>
+    <string name="receipt_minus">Remove one</string>
+    <string name="receipt_plus">Add one</string>
+    <string name="qty_title">Quantity</string>
+    <string name="line_description">Description</string>
+    <string name="line_description_empty">Empty = “Varios”</string>
+    <string name="line_catalog_name">Catalog product: its name can\'t be changed here.</string>
+    <string name="qty_label">Quantity</string>
+    <string name="qty_zero_hint">With 0 the line is removed from the receipt.</string>
+    <string name="qty_invalid">Type a valid quantity.</string>
+    <string name="qty_no_decimals">This product is sold by the unit: type a whole number.</string>
+    <string name="qty_line_total">%1$s × %2$s = %3$s</string>
+    <string name="qty_save">Save</string>
+    <string name="qty_remove">Delete line</string>
+    <string name="undo_added">%1$s ×%2$s · %3$s</string>
+    <string name="undo_deleted">Line removed</string>
+    <string name="undo_cleared">Receipt cleared</string>
+    <string name="undo_action">Undo</string>
+</resources>

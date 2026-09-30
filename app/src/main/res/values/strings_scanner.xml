@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Lector de códigos: lector físico (Zebra / teclado), cámara y prueba. -->
+    <string name="reader_ready">Lector listo</string>
+    <string name="reader_title">Lector de códigos</string>
+    <string name="reader_device_title">Este equipo</string>
+    <string name="reader_datawedge">Zebra DataWedge</string>
+    <string name="reader_detected">Detectado</string>
+    <string name="reader_not_detected">No detectado</string>
+    <string name="reader_camera">Cámara</string>
+    <string name="reader_keyboard">Teclado o lector conectado</string>
+    <string name="reader_yes">Sí</string>
+    <string name="reader_no">No</string>
+    <string name="reader_use_reader">Usar el lector del equipo (Zebra/teclado)</string>
+    <string name="reader_use_reader_hint">Recibe lo que lee el láser del equipo (el gatillo físico), o un lector Bluetooth/USB que escribe el código y pulsa Enter. Se enciende solo en un Zebra (como el TC77); en los demás teléfonos empieza apagado: enciéndelo si conectas un lector. La cámara sigue funcionando siempre.</string>
+    <string name="reader_use_camera">Usar la cámara</string>
+    <string name="reader_beep">Sonido al leer</string>
+    <string name="reader_setup_button">Configurar lector Zebra</string>
+    <string name="reader_setup_hint">Crea en DataWedge el perfil «Cuentiva» para esta app: envía cada código como aviso a Cuentiva y no lo teclea.</string>
+    <string name="reader_setup_absent">Este equipo no tiene DataWedge (no es un Zebra). No hace falta configurar nada: un lector que teclea funciona solo.</string>
+    <string name="reader_setup_running">Configurando…</string>
+    <string name="reader_setup_ok">Listo: el perfil «Cuentiva» quedó configurado.</string>
+    <string name="reader_setup_failed">DataWedge respondió con un error.</string>
+    <string name="reader_setup_failed_detail">DataWedge respondió con un error: %1$s</string>
+    <string name="reader_setup_no_answer">DataWedge no respondió. Puede estar desactivado: actívalo en la app DataWedge o configura el perfil a mano.</string>
+    <string name="reader_test_title">Escanea un código de prueba</string>
+    <string name="reader_test_hint">Lee cualquier código con el lector o la cámara: aquí verás qué llegó. No se agrega a ninguna venta.</string>
+    <string name="reader_test_empty">Todavía no se leyó nada.</string>
+    <string name="reader_test_code">Código</string>
+    <string name="reader_test_source">Origen</string>
+    <string name="reader_test_format">Formato</string>
+    <string name="reader_test_check">Dígito de control</string>
+    <string name="reader_source_camera">Cámara</string>
+    <string name="reader_source_wedge">Teclado (el lector teclea el código)</string>
+    <string name="reader_source_datawedge">Zebra DataWedge</string>
+    <string name="reader_format_unknown">No se sabe</string>
+    <string name="reader_check_valid">Válido</string>
+    <string name="reader_check_invalid">No válido (lectura dudosa)</string>
+    <string name="reader_check_na">No aplica</string>
+    <string name="reader_test_count">Lecturas: %1$d</string>
+    <string name="reader_test_camera">Probar la cámara</string>
+    <string name="reader_test_clear">Borrar</string>
+
+    <!-- Cámara -->
+    <string name="scan_camera_off">La cámara está apagada en Más › Lector de códigos. Usa el lector del equipo o escribe el código aquí abajo.</string>
+    <string name="scan_busy">La cámara la está usando otra app. Ciérrala e inténtalo de nuevo, o escribe el código aquí abajo.</string>
+    <string name="scan_done">Escaneado</string>
+    <string name="scan_hint_focus">Acerca o aleja hasta enfocar</string>
+    <string name="scan_hint_light">Poca luz: enciende la linterna</string>
+    <string name="scan_hint_light_no_torch">Poca luz: busca un lugar con más luz</string>
+    <string name="scan_zoom">Zoom</string>
+</resources>

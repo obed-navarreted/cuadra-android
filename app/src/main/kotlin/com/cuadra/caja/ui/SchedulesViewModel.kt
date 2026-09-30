@@ -47,7 +47,7 @@ val SCHEDULE_TEMPLATES: List<Pair<Int, Int>> = listOf(
 )
 
 /** Pantalla "Programar avisos": gestión con conexión (dueño y admins). Nada se guarda en el teléfono. */
-class SchedulesViewModel(private val c: AppContainer) : ViewModel() {
+class SchedulesViewModel(private val c: AppContainer) : ViewModel(), SchedulesActions {
     private val _ui = MutableStateFlow(SchedulesUi())
     val ui: StateFlow<SchedulesUi> = _ui.asStateFlow()
 
@@ -75,7 +75,7 @@ class SchedulesViewModel(private val c: AppContainer) : ViewModel() {
         else -> ErrorMessage(R.string.sched_err_generic)
     }
 
-    fun load() {
+    override fun load() {
         _ui.update { it.copy(loading = true, loadError = null) }
         viewModelScope.launch {
             c.schedules.list().fold(
@@ -85,21 +85,21 @@ class SchedulesViewModel(private val c: AppContainer) : ViewModel() {
         }
     }
 
-    fun dismissMessage() = _ui.update { it.copy(message = null) }
+    override fun dismissMessage() = _ui.update { it.copy(message = null) }
 
     // ---------- editor ----------
-    fun openNew() = _ui.update { it.copy(editor = ScheduleDraft(), editorError = null, saveError = null) }
-    fun edit(s: ScheduleDto) = _ui.update { it.copy(editor = ScheduleDrafts.draftOf(s), editorError = null, saveError = null) }
-    fun updateEditor(d: ScheduleDraft) = _ui.update { it.copy(editor = d, editorError = null, saveError = null) }
-    fun closeEditor() = _ui.update { it.copy(editor = null, editorError = null, saveError = null) }
+    override fun openNew() = _ui.update { it.copy(editor = ScheduleDraft(), editorError = null, saveError = null) }
+    override fun edit(s: ScheduleDto) = _ui.update { it.copy(editor = ScheduleDrafts.draftOf(s), editorError = null, saveError = null) }
+    override fun updateEditor(d: ScheduleDraft) = _ui.update { it.copy(editor = d, editorError = null, saveError = null) }
+    override fun closeEditor() = _ui.update { it.copy(editor = null, editorError = null, saveError = null) }
 
-    fun applyTemplate(title: String, body: String) {
+    override fun applyTemplate(title: String, body: String) {
         val d = _ui.value.editor ?: return
         updateEditor(d.copy(title = title, body = body))
     }
 
     /** Programa (Una vez o Repetir) o envía al instante (Ahora), según el borrador. */
-    fun save() {
+    override fun save() {
         val d = _ui.value.editor ?: return
         val error = ScheduleDrafts.validate(d)
         if (error != null) { _ui.update { it.copy(editorError = error) }; return }
@@ -119,7 +119,7 @@ class SchedulesViewModel(private val c: AppContainer) : ViewModel() {
     }
 
     // ---------- acciones sobre una programación ----------
-    fun toggle(s: ScheduleDto) {
+    override fun toggle(s: ScheduleDto) {
         viewModelScope.launch {
             c.schedules.setActive(s.id, !s.active).fold(
                 onSuccess = { load() },
@@ -129,7 +129,7 @@ class SchedulesViewModel(private val c: AppContainer) : ViewModel() {
     }
 
     /** Copia con id nuevo y título + `suffix` (el texto viene de recursos). */
-    fun duplicate(s: ScheduleDto, suffix: String) {
+    override fun duplicate(s: ScheduleDto, suffix: String) {
         val draft = ScheduleDrafts.draftOf(s).copy(id = null, title = (s.title + suffix).take(ScheduleDrafts.TITLE_MAX))
         viewModelScope.launch {
             c.schedules.save(UUID.randomUUID().toString(), ScheduleDrafts.toInput(draft)).fold(
@@ -139,10 +139,10 @@ class SchedulesViewModel(private val c: AppContainer) : ViewModel() {
         }
     }
 
-    fun askDelete(id: String) = _ui.update { it.copy(deleteId = id) }
-    fun cancelDelete() = _ui.update { it.copy(deleteId = null) }
+    override fun askDelete(id: String) = _ui.update { it.copy(deleteId = id) }
+    override fun cancelDelete() = _ui.update { it.copy(deleteId = null) }
 
-    fun confirmDelete() {
+    override fun confirmDelete() {
         val id = _ui.value.deleteId ?: return
         _ui.update { it.copy(deleteId = null) }
         viewModelScope.launch {
@@ -153,7 +153,7 @@ class SchedulesViewModel(private val c: AppContainer) : ViewModel() {
         }
     }
 
-    fun openHistory(s: ScheduleDto) {
+    override fun openHistory(s: ScheduleDto) {
         _ui.update { it.copy(historyFor = s, history = null) }
         viewModelScope.launch {
             c.schedules.runs(s.id).fold(
@@ -163,5 +163,5 @@ class SchedulesViewModel(private val c: AppContainer) : ViewModel() {
         }
     }
 
-    fun closeHistory() = _ui.update { it.copy(historyFor = null, history = null) }
+    override fun closeHistory() = _ui.update { it.copy(historyFor = null, history = null) }
 }

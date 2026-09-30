@@ -2,9 +2,12 @@ package com.cuadra.caja.data.sync
 
 import androidx.room.withTransaction
 import com.cuadra.caja.data.local.CuadraDatabase
+import com.cuadra.caja.data.local.mergeMembers
+import com.cuadra.caja.data.local.deleteUnconfirmedPayment
 import com.cuadra.caja.data.local.SyncStateEntity
 import com.cuadra.caja.data.remote.BusinessDto
 import com.cuadra.caja.data.remote.CashRegisterDto
+import com.cuadra.caja.data.remote.CategoryDto
 import com.cuadra.caja.data.remote.CashMovementDto
 import com.cuadra.caja.data.remote.NotificationDto
 import com.cuadra.caja.data.remote.PurchaseDto
@@ -24,15 +27,22 @@ import com.cuadra.caja.data.remote.ProductDto
 import com.cuadra.caja.data.remote.SaleDto
 import kotlinx.serialization.json.Json
 
-class RoomSyncStore(private val db: CuadraDatabase) : SyncStore {
+/** `businessId`: el negocio al que está vinculado el teléfono. Solo se envía lo de ese negocio y el cursor es el suyo. */
+class RoomSyncStore(private val db: CuadraDatabase, private val businessId: String? = null, private val hasMember: () -> Boolean = { true }) : SyncStore {
     private val json = Json { ignoreUnknownKeys = true }
 
-    override suspend fun dueOps(limit: Int, now: Long) = db.outbox().due(limit, now)
+    override suspend fun dueOps(limit: Int, now: Long) = db.outbox().due(limit, now, businessId, hasMember())
     override suspend fun acknowledge(seqs: List<Long>) = db.outbox().delete(seqs)
-    override suspend fun markFailed(seq: Long, code: String) = db.outbox().markFailed(seq, code)
+    override suspend fun markFailed(seq: Long, code: String, detail: String?) = db.outbox().markFailed(seq, code, detail)
+    override suspend fun markReview(seq: Long, code: String, detail: String?) = db.outbox().markReview(seq, code, detail)
     override suspend fun retryLater(seqs: List<Long>, next: Long, code: String?) = db.outbox().retryLater(seqs, next, code)
     override suspend fun pendingCount() = db.outbox().pendingCountNow()
-    override suspend fun cursor() = db.directory().cursor() ?: 0L
+
+    /** El cursor guardado solo vale si es de ESTE negocio (uno de otro negocio saltaría su historial): si no, se baja todo desde cero. */
+    override suspend fun cursor(): Long {
+        val state = db.directory().syncState() ?: return 0L
+        return if (state.businessId != null && businessId != null && state.businessId != businessId) 0L else state.cursor
+    }
 
     override suspend fun applyPage(changes: List<ChangeDto>, cursor: Long) {
         db.withTransaction {
@@ -46,7 +56,7 @@ class RoomSyncStore(private val db: CuadraDatabase) : SyncStore {
                 touchedCustomers += db.credits().customersOf(touchedCredits.toList())
             }
             if (touchedCustomers.isNotEmpty()) db.customers().recompute(touchedCustomers.toList())
-            db.directory().setCursor(SyncStateEntity(cursor = cursor))
+            db.directory().setCursor(SyncStateEntity(cursor = cursor, businessId = businessId))
         }
     }
 
@@ -54,12 +64,16 @@ class RoomSyncStore(private val db: CuadraDatabase) : SyncStore {
         val dir = db.directory()
         when (c.type) {
             "business" -> dir.upsertBusiness(json.decodeFromJsonElement(BusinessDto.serializer(), c.data).toEntity())
-            "member" -> dir.upsertMembers(listOf(json.decodeFromJsonElement(MemberDto.serializer(), c.data).toEntity()))
+            "member" -> dir.mergeMembers(listOf(json.decodeFromJsonElement(MemberDto.serializer(), c.data).toEntity()))
             "cash_register" -> dir.upsertRegisters(listOf(json.decodeFromJsonElement(CashRegisterDto.serializer(), c.data).toEntity()))
             "product" -> {
                 val p = json.decodeFromJsonElement(ProductDto.serializer(), c.data)
                 // Si hay un cambio local sin enviar sobre este producto, gana el teléfono hasta que se suba.
                 if (db.outbox().countFor(p.id) == 0) db.products().upsert(p.toEntity())
+            }
+            "category" -> {
+                val d = json.decodeFromJsonElement(CategoryDto.serializer(), c.data)
+                if (db.outbox().countFor(d.id) == 0) db.products().upsertCategory(d.toEntity())
             }
             "sale" -> {
                 val s = json.decodeFromJsonElement(SaleDto.serializer(), c.data)
@@ -70,6 +84,10 @@ class RoomSyncStore(private val db: CuadraDatabase) : SyncStore {
                     sales.upsert(rows.sale)
                     sales.deleteItems(s.id); sales.insertItems(rows.items)
                     sales.deletePayments(s.id); sales.insertPayments(rows.payments)
+                    // Las devoluciones confirmadas se reemplazan con las del servidor; una hecha aquí sin conexión (pendiente) se conserva y vuelve a contar.
+                    sales.deleteConfirmedReturns(s.id)
+                    rows.returns.forEach { r -> sales.deleteUnconfirmedReturn(r.id); sales.upsertReturn(r) }
+                    com.cuadra.caja.data.repo.SaleReturns.recomputeReturned(sales, s.id)
                 }
             }
             "customer" -> {
@@ -89,6 +107,9 @@ class RoomSyncStore(private val db: CuadraDatabase) : SyncStore {
                 val d = json.decodeFromJsonElement(CreditPaymentDto.serializer(), c.data)
                 // Un abono repartido se guarda en la cola con el id del grupo; sus hijos (ids derivados) se reconocen por él.
                 if (db.outbox().countFor(d.groupId ?: d.id) == 0) {
+                    // Un abono que el teléfono guardó a UN fiado y el servidor repartió (ese fiado ya estaba cerrado: se pasó a las otras deudas del
+                    // cliente): la fila local sin confirmar con el id del grupo se quita, para no contar el dinero dos veces.
+                    d.groupId?.let { g -> db.credits().deleteUnconfirmedPayment(g)?.let { touchedCredits += it } }
                     db.credits().upsertPayments(listOf(d.toEntity()))
                     touchedCredits += d.creditId
                 }
@@ -136,14 +157,20 @@ class RoomSyncStore(private val db: CuadraDatabase) : SyncStore {
                     if (d.status == "OPEN") db.cash().dropOtherOpenShifts(d.cashRegisterId, d.id)
                 }
             }
-            else -> Unit   // categorías y tipos futuros: se ignoran sin fallar
+            else -> Unit   // tipos futuros: se ignoran sin fallar
         }
     }
 }
 
 /** Adaptador de Retrofit al motor. */
-class RetrofitSyncRemote(private val api: com.cuadra.caja.data.remote.CuadraApi, private val businessId: String) : SyncRemote {
-    override suspend fun push(body: com.cuadra.caja.data.remote.PushBody) = com.cuadra.caja.data.remote.apiCall { api.push(businessId, body) }
+class RetrofitSyncRemote(
+    private val api: com.cuadra.caja.data.remote.CuadraApi, private val businessId: String, private val activeMember: () -> String? = { null },
+) : SyncRemote {
+    /** Sin persona activa (pantalla de PIN, acceso desactivado) la tanda va como quien hizo las operaciones: lo pendiente no espera a que alguien entre. */
+    override suspend fun push(body: com.cuadra.caja.data.remote.PushBody) = com.cuadra.caja.data.remote.apiCall {
+        api.push(businessId, body, if (activeMember() != null) null else body.ops.firstNotNullOfOrNull { it.memberId })
+    }
     override suspend fun pull(since: Long, limit: Int) = com.cuadra.caja.data.remote.apiCall { api.pull(businessId, since, limit) }
+    override suspend fun pull(since: Long, limit: Int, pendingOps: Int?) = com.cuadra.caja.data.remote.apiCall { api.pull(businessId, since, limit, pendingOps) }
 }
 

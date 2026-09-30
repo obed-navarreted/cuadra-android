@@ -18,7 +18,7 @@ object MessageTemplates {
         MessageKind.TICKET to "{negocio} — {fecha}\n{detalle}\nTotal: {monto}\n¡Gracias por su compra!",
     )
     private val EN = mapOf(
-        MessageKind.CREDIT_NEW to "Hi {cliente}, this is {negocio}.\nToday ({fecha}) we put {monto} on your tab:\n{detalle}\n{pagado_linea}Thank you!",
+        MessageKind.CREDIT_NEW to "Hi {cliente}, this is {negocio}.\nToday ({fecha}) we put {monto} on your credit account:\n{detalle}\n{pagado_linea}Thank you!",
         MessageKind.PAYMENT to "Hi {cliente}, we received your payment of {monto} on {fecha}.\nYour remaining balance is {saldo}. Thank you! — {negocio}",
         MessageKind.PAID_OFF to "Hi {cliente}, we received your payment of {monto} on {fecha}: you no longer owe anything at {negocio}. Thank you!",
         MessageKind.REMINDER to "Hi {cliente}, a friendly reminder that you have a balance of {saldo} at {negocio}{desde}. Any payment is welcome. Thanks!",
@@ -48,4 +48,22 @@ object WhatsAppLinks {
 
     /** Identificador de chat que WhatsApp acepta en el extra `jid` al compartir una imagen hacia un número. */
     fun jid(phoneDigits: String): String = "$phoneDigits@s.whatsapp.net"
+}
+
+/** Por dónde sale un mensaje de texto de WhatsApp. Nunca se envía solo: siempre abre algo y la persona toca «Enviar». */
+enum class ShareRoute {
+    /** Chat de ese número (`wa.me/<E.164>?text=…`) con el mensaje ya escrito. */
+    WHATSAPP_CHAT,
+    /** Sin número: WhatsApp abre su selector de contactos con el mensaje listo. */
+    WHATSAPP_PICKER,
+    /** WhatsApp no está instalado: la hoja de compartir del sistema (correo, SMS, otra app…). */
+    SYSTEM_SHARE,
+}
+
+object WhatsAppRoutes {
+    fun forText(phoneDigits: String?, whatsAppInstalled: Boolean): ShareRoute = when {
+        !whatsAppInstalled -> ShareRoute.SYSTEM_SHARE
+        phoneDigits != null -> ShareRoute.WHATSAPP_CHAT
+        else -> ShareRoute.WHATSAPP_PICKER
+    }
 }

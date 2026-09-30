@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Más › Avanzado -->
+    <string name="more_group_advanced">Avanzado</string>
+    <string name="more_advanced_hint">Impresora térmica y lector de códigos. Nada de esto hace falta para vender.</string>
+    <string name="more_advanced_hide">Ocultar avanzado</string>
+    <string name="more_optional">Opcional</string>
+
+    <!-- Impresora: ajustes -->
+    <string name="printer_title">Impresora</string>
+    <string name="printer_switch">Imprimir recibos en una impresora térmica</string>
+    <string name="printer_switch_help">Opcional. Al cobrar imprime un comprobante de venta de 58 mm. Es un comprobante simple, no una factura fiscal.</string>
+    <string name="printer_nofiscal">Comprobante de venta — no es factura fiscal</string>
+    <string name="printer_status_title">Estado</string>
+    <string name="printer_status_connected">Conectada</string>
+    <string name="printer_status_connecting">Conectando…</string>
+    <string name="printer_status_disconnected">Sin conexión</string>
+    <string name="printer_status_error">No se pudo conectar</string>
+    <string name="printer_reconnect">Reconectar</string>
+    <string name="printer_auto_hint">La app se conecta y reconecta sola mientras está abierta.</string>
+    <string name="printer_issue_no_device">Elige abajo la impresora.</string>
+    <string name="printer_issue_bt_off">El Bluetooth está apagado. Enciéndelo en los ajustes de Android.</string>
+    <string name="printer_issue_permission">Falta el permiso de Bluetooth (más abajo).</string>
+    <string name="printer_issue_usb_permission">Android pidió permiso para usar el cable USB. Acéptalo y toca «Reconectar».</string>
+    <string name="printer_issue_not_found">No se encuentra la impresora. Revisa que esté encendida y cerca, o que el cable esté puesto.</string>
+    <string name="printer_issue_failed">No se pudo conectar. Revisa que esté encendida y cerca; se sigue intentando sola.</string>
+    <string name="printer_conn_title">Conexión</string>
+    <string name="printer_link_bt">Bluetooth</string>
+    <string name="printer_link_usb">Cable USB</string>
+    <string name="printer_pick">Elige la impresora</string>
+    <string name="printer_chosen">Impresora elegida: %1$s</string>
+    <string name="printer_none_bt">No hay equipos Bluetooth emparejados. Empareja la impresora en los ajustes de Android (Bluetooth) y vuelve aquí.</string>
+    <string name="printer_open_bt_settings">Abrir ajustes de Bluetooth</string>
+    <string name="printer_none_usb">No se detecta ninguna impresora por cable. Conéctala con un cable USB (OTG) y enciéndela.</string>
+    <string name="printer_usb_auto">Sin elegir, se usa la primera impresora USB que se detecte.</string>
+    <string name="printer_usb_unsupported">Este teléfono no admite impresoras por cable USB.</string>
+    <string name="printer_bt_unsupported">Este teléfono no tiene Bluetooth.</string>
+    <string name="printer_device_printer">Impresora</string>
+    <string name="printer_perm_title">Permiso de Bluetooth</string>
+    <string name="printer_perm_why">Para hablar con tu impresora, Android pide el permiso de «Dispositivos cercanos». La app solo usa las impresoras que ya emparejaste: no busca equipos ni usa tu ubicación.</string>
+    <string name="printer_perm_grant">Permitir Bluetooth</string>
+    <string name="printer_perm_settings">Abrir ajustes de la app</string>
+    <string name="printer_paper_title">Papel y recibo</string>
+    <string name="printer_width">Ancho del papel</string>
+    <string name="printer_width_58">58 mm</string>
+    <string name="printer_width_80">80 mm</string>
+    <string name="printer_auto">Imprimir automáticamente al cobrar</string>
+    <string name="printer_copies">Copias</string>
+    <string name="printer_charset">Juego de caracteres</string>
+    <string name="printer_charset_pc858">Con acentos</string>
+    <string name="printer_charset_ascii">Sin acentos</string>
+    <string name="printer_charset_hint">Si las tildes o la ñ salen raras en el papel, elige «Sin acentos».</string>
+    <string name="printer_header_title">Encabezado y pie</string>
+    <string name="printer_address">Dirección (opcional)</string>
+    <string name="printer_phone">Teléfono (opcional)</string>
+    <string name="printer_tax">RUC o cédula (opcional)</string>
+    <string name="printer_footer">Pie del recibo</string>
+    <string name="printer_footer_hint">Si lo dejas vacío dice «Gracias por su compra».</string>
+    <string name="printer_preview_title">Vista previa</string>
+    <string name="printer_preview_hint">Así sale un recibo de muestra con estos ajustes.</string>
+    <string name="printer_test">Imprimir prueba</string>
+    <string name="printer_test_hint">Imprime acentos, ñ, un recibo de 20 renglones y corta el papel.</string>
+    <string name="printer_badge_connected">Impresora conectada. Toca para abrir sus ajustes.</string>
+    <string name="printer_badge_connecting">Impresora conectando. Toca para abrir sus ajustes.</string>
+    <string name="printer_badge_disconnected">Impresora sin conexión. Toca para abrir sus ajustes.</string>
+
+    <!-- Fin de la venta y detalle -->
+    <string name="print_ok">Impreso</string>
+    <string name="print_none">Sin impresora conectada</string>
+    <string name="print_failed">No se pudo imprimir</string>
+    <string name="print_retry">Reintentar</string>
+    <string name="print_later">Después</string>
+    <string name="print_receipt">Imprimir recibo</string>
+    <string name="print_again">Reimprimir</string>
+
+    <!-- Zebra: aviso de una sola vez -->
+    <string name="zebra_detected">Zebra detectada: lector del equipo activado</string>
+    <string name="zebra_detected_ok">Entendido</string>
+    <string name="more_group_phone">Preferencias de este teléfono</string>
+    <string name="more_offer_whatsapp">Ofrecer enviar el comprobante por WhatsApp al terminar la venta</string>
+    <string name="more_offer_whatsapp_help">Solo en este teléfono. Apagado: la venta termina sin botón ni ventana de WhatsApp.</string>
+    <string name="more_ask_description">Pedir descripción al agregar</string>
+    <string name="more_ask_description_help">Solo en este teléfono. Apagado: la calculadora no muestra el campo; la descripción se escribe después tocando la línea en el recibo.</string>
+</resources>

@@ -8,9 +8,9 @@ import java.util.Locale
 data class Currency(val code: String, val symbol: String, val decimals: Int) {
     companion object {
         private val KNOWN = listOf(
-            Currency("NIO", "C$", 2), Currency("HNL", "L", 2), Currency("GTQ", "Q", 2), Currency("CRC", "₡", 2),
-            Currency("USD", "$", 2), Currency("MXN", "$", 2), Currency("COP", "$", 2), Currency("PEN", "S/", 2),
-            Currency("EUR", "€", 2), Currency("DOP", "RD$", 2), Currency("CLP", "$", 0), Currency("ARS", "$", 2),
+            Currency("NIO", "C$", 2), Currency("HNL", "L", 2), Currency("GTQ", "Q", 2), Currency("CRC", "₡", 0),
+            Currency("USD", "$", 2), Currency("MXN", "$", 2), Currency("COP", "$", 0), Currency("PEN", "S/", 2),
+            Currency("EUR", "€", 2), Currency("DOP", "RD$", 2), Currency("CLP", "$", 0), Currency("PYG", "₲", 0), Currency("ARS", "$", 2),
         ).associateBy { it.code }
 
         /** Una moneda desconocida se muestra con su código y 2 decimales, nunca falla. */
