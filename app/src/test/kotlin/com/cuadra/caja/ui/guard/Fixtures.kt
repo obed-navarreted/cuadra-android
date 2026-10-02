@@ -216,6 +216,12 @@ object Fixtures {
         sale(6, null, total = BIG).copy(sentToRegisterAt = NOW - 60_000, sentByName = "Ana"),
     )
     val queueCounts = mapOf("s4" to 999, "s5" to 1, "s6" to 12)
+
+    /** Muchas cuentas esperando (aparece el buscador): de 2 h 30 min a recién llegada, alguna sin nota. */
+    val queuedMany = (10..19).map { i -> sale(i, if (i % 4 == 0) null else if (i % 3 == 0) NAME_120 else "Mesa $i", total = if (i % 2 == 0) HUGE else BIG).copy(sentToRegisterAt = NOW - (19 - i) * 1_000_000L, sentByName = if (i % 2 == 0) PERSON_LONG else "Kevin") }
+
+    /** Quién tiene abierta cada cuenta en otro teléfono. */
+    val queueLocks = mapOf("s4" to PERSON_LONG, "s5" to "Ana", "s12" to "Lucía")
     val queueItems = lines.mapIndexed { i, l -> com.cuadra.caja.data.local.SaleItemEntity("s4", l.id, l.productId, l.barcode, l.name, l.variant, l.unitPriceMinor, l.unitCostMinor, l.quantityMilli, l.discountMinor, i) }
     val sales = (1..12).map { sale(it, status = if (it % 4 == 0) "CANCELLED" else "COMPLETED", total = if (it % 2 == 0) HUGE else BIG) }
 

@@ -61,7 +61,7 @@ class GuardMiscTest {
                 GuardCase("Tamaño de letra: Como el sistema", full) { com.cuadra.caja.ui.screens.TextSizeScreen(com.cuadra.caja.domain.FontSizeChoice.SYSTEM, {}, {}) },
                 GuardCase("Más: dueño con todo", full) { More(SyncStatus.IDLE, 0, 0, allModules, true) },
                 GuardCase("Más: cajero", full) { More(SyncStatus.OFFLINE, 12_345, 0, null, false) },
-                GuardCase("Más: admin con Equipo, sin módulos de dueño", full) { More(SyncStatus.IDLE, 0, 0, null, true) },
+                GuardCase("Más: admin con Equipo y Actividad, sin módulos de dueño", full) { More(SyncStatus.IDLE, 0, 0, null, true) },
                 GuardCase("Más: sincronizando con error", full) { More(SyncStatus.NEEDS_ATTENTION, 3, 12_345, allModules, true) },
                 GuardCase("Más: suspendido, idioma inglés", full) { More(SyncStatus.SUSPENDED, 0, 0, allModules, true, AppLanguage.ENGLISH) },
                 GuardCase("Más: admin de plataforma (consola en el navegador)", full) { More(SyncStatus.IDLE, 0, 0, allModules, true, platform = true) },
@@ -155,13 +155,12 @@ class GuardMiscTest {
         SummaryContent(data, choice, Fixtures.calendar, object : SummaryActions {}, {}, if (yesterday) ({}) else null, Fixtures.NOW)
 
     @Composable private fun More(status: SyncStatus, pending: Int, failed: Int, modules: Map<String, Boolean>?, manager: Boolean, language: AppLanguage = AppLanguage.SPANISH, whatsApp: Boolean = false, advancedOpen: Boolean = false, askDescription: Boolean = false, platform: Boolean = false) {
-        // `modules != null` = dueño (ve Ajustes, Actividad y todo); `manager` = dueño o admin; sin ninguno de los dos = cajero.
-        val owner = modules != null
+        // `modules != null` = dueño; `manager` = dueño o admin; sin ninguno de los dos = cajero.
         val go: () -> Unit = {}
         MoreScreen(
             Fixtures.BUSINESS_120, Fixtures.PERSON_LONG, status, pending, failed, language, 12_345,
             MoreActions(
-                onSettings = if (manager) go else null, onTeam = if (manager) go else null, onActivity = if (owner) go else null, onTemplates = if (manager) go else null,
+                onSettings = if (manager) go else null, onTeam = if (manager) go else null, onActivity = if (manager) go else null, onTemplates = if (manager) go else null,
                 onProducts = if (manager) go else null, onInventory = if (manager) go else null, onPurchases = if (manager) go else null,
                 onSummary = if (manager) go else null, onDailyClose = if (manager) go else null, onNotifications = go, onReader = go, onPrinter = go, onHelp = go,
                 onSupport = if (manager) go else null, onMyAccount = go, onTextSize = go, onAttention = go, onPlatformConsole = if (platform) go else null,

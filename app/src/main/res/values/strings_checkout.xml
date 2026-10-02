@@ -12,7 +12,7 @@
         <item quantity="one">%d producto</item>
         <item quantity="other">%d productos</item>
     </plurals>
-    <string name="queue_row_by">Atendió %1$s · %2$s</string>
+    <string name="queue_row_by_name">Atendió %1$s</string>
     <string name="queue_no_note">Sin nota</string>
     <string name="queue_detail_title">Cuenta por cobrar</string>
     <string name="queue_taken_by">Atendió: %1$s</string>
@@ -25,14 +25,27 @@
     <string name="queue_cancel_help">Se quita de la lista en todos los teléfonos. No es una venta, pero queda en la actividad con quién, cuándo y tu motivo.</string>
     <string name="queue_cancel_confirm">Anular cuenta</string>
     <string name="parked_locked_by">La está cobrando %1$s.</string>
-    <string name="pay_mode_label">Esta cuenta</string>
-    <string name="pay_mode_now">Cobrar ahora</string>
-    <string name="pay_mode_register">Enviar a caja</string>
-    <string name="pay_register_hint">Sin método de pago ni vuelto: los decide quien cobra en caja.</string>
-    <string name="pay_register_note">Nota (opcional)</string>
-    <string name="pay_register_note_hint">Mesa 4, Juan</string>
-    <string name="pay_register_send">Enviar a caja</string>
     <string name="pay_register_sent">Enviada a caja</string>
+    <string name="send_bar">Enviar a caja</string>
+    <string name="send_title">Enviar a caja</string>
+    <string name="send_update_title">Actualizar en caja</string>
+    <string name="send_note_hint">Mesa, nombre o nota</string>
+    <string name="send_help">Sin método de pago ni vuelto: los decide quien cobra en caja.</string>
+    <string name="send_update_help">Se reemplaza la cuenta que estaba en la lista, con los productos de ahora.</string>
+    <string name="send_confirm">Enviar a caja</string>
+    <string name="send_update_confirm">Actualizar en caja</string>
+    <string name="send_off">El cobro en caja se desactivó. La cuenta sigue aquí: apártala o cóbrala en este teléfono.</string>
+    <string name="queue_search">Buscar por nota o por quién atendió</string>
+    <string name="queue_no_match">Ninguna cuenta coincide con «%1$s».</string>
+    <string name="queue_empty_help">Cuando alguien toque «Enviar a caja», la cuenta aparece aquí, la que más espera primero.</string>
+    <string name="queue_age_now">recién llegada</string>
+    <plurals name="queue_age_min">
+        <item quantity="one">hace %d min</item>
+        <item quantity="other">hace %d min</item>
+    </plurals>
+    <string name="queue_age_hours">hace %1$d h %2$d min</string>
+    <string name="queue_locked_tag">La está cobrando %1$s</string>
+    <string name="queue_row_desc">%1$s, %2$s, %3$s. Toca para ver y cobrar.</string>
     <string name="sale_notice_sent">Enviada a caja · %1$s</string>
     <string name="sale_taken_charged">Atendió: %1$s · Cobró: %2$s</string>
     <string name="sale_sent_to_register">Enviada a caja por %1$s, %2$s</string>
@@ -56,6 +69,5 @@
     </plurals>
     <string name="set_discard_queue_confirm">Desactivar y anular</string>
     <string name="set_err_REGISTER_QUEUE_BUSY">Alguien está cobrando una cuenta en este momento; intenta en un momento.</string>
-    <string name="pay_register_off">Cobra la cuenta aquí: el cobro en caja se desactivó.</string>
     <string name="error_COBRO_EN_CAJA_OFF">El cobro en caja está desactivado en este negocio. Cobra la cuenta aquí.</string>
 </resources>

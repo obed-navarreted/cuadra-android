@@ -11,3 +11,6 @@
 /keystore/*.jks
 /keystore/release.properties
 /app/google-services.json
+
+# Archivos temporales del compilador de Kotlin
+.kotlin/

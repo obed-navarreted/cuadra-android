@@ -107,7 +107,7 @@ fun MoreScreen(
                 CuadraButton(stringResource(R.string.more_sync_now), actions.onSyncNow, Modifier.fillMaxWidth(), enabled = status != SyncStatus.SYNCING)
             }
         }
-        // Negocio: ajustes (dueño edita, admin ve), equipo, actividad (solo dueño) y mensajes de WhatsApp (dueño y admin).
+        // Negocio: ajustes (dueño edita, admin ve), equipo, actividad (dueño y admin, solo lectura) y mensajes de WhatsApp (dueño y admin).
         MenuGroup(
             stringResource(R.string.more_group_business),
             listOfNotNull(

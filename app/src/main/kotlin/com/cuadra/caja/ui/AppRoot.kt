@@ -286,7 +286,7 @@ private fun Main(
     if (overlay == Overlay.CATALOG && !hasCatalog) overlay = null
     if ((overlay == Overlay.TEAM || overlay == Overlay.DEVICES) && !hasTeam) overlay = null
     if ((overlay == Overlay.SCHEDULES || overlay == Overlay.SUMMARY || overlay == Overlay.DAILY_CLOSE || overlay == Overlay.SETTINGS || overlay == Overlay.TEMPLATES) && !isManager) overlay = null
-    if (overlay == Overlay.ACTIVITY && !isOwner) overlay = null
+    if (overlay == Overlay.ACTIVITY && !isManager) overlay = null
     if (overlay == Overlay.PROMOTIONS && !(isManager && (hasCatalog || hasInventory))) overlay = null
     // Al confirmarse el PIN, «Confirma tu PIN» (abierta desde el aviso) ya no tiene nada que hacer.
     if (overlay == Overlay.PIN_CONFIRM && !pinPending) overlay = null
@@ -361,7 +361,7 @@ private fun Main(
                 }
                 overlay == Overlay.SETTINGS && section == Section.MORE && isManager -> BusinessSettingsScreen(settingsVm) { overlay = null }
                 overlay == Overlay.SUPPORT && section == Section.MORE -> com.cuadra.caja.ui.screens.SupportScreen(appCfg?.supportWhatsapp, appCfg?.supportEmail, com.cuadra.caja.domain.SupportContact.isPlay(BuildConfig.DISTRIBUTION)) { overlay = null }
-                overlay == Overlay.ACTIVITY && section == Section.MORE && isOwner -> ActivityScreen(activityVm) { overlay = null }
+                overlay == Overlay.ACTIVITY && section == Section.MORE && isManager -> ActivityScreen(activityVm) { overlay = null }
                 overlay == Overlay.HELP && section == Section.MORE -> HelpScreen(helpVm) { overlay = null }
                 overlay == Overlay.TEMPLATES && section == Section.MORE && isManager -> TemplatesScreen(templatesVm) { overlay = null }
                 overlay == Overlay.TEAM && section == Section.MORE && hasTeam -> TeamScreen(teamVm, onTab = { overlay = teamTab(it) }, onMyAccount = { overlay = Overlay.ACCOUNT }) { overlay = null }
@@ -381,7 +381,7 @@ private fun Main(
                         onLanguageChange = onLanguage, onSyncNow = root::syncNow, onLock = root::lock, onSignOut = root::signOut,
                         onSettings = if (isManager) ({ overlay = Overlay.SETTINGS }) else null,
                         onTeam = if (hasTeam) ({ overlay = Overlay.TEAM }) else null,
-                        onActivity = if (isOwner) ({ overlay = Overlay.ACTIVITY }) else null,
+                        onActivity = if (isManager) ({ overlay = Overlay.ACTIVITY }) else null,
                         onTemplates = if (isManager) ({ overlay = Overlay.TEMPLATES }) else null,
                         onProducts = if (hasCatalog) ({ overlay = Overlay.CATALOG }) else null,
                         onInventory = if (hasInventory) ({ overlay = Overlay.INVENTORY }) else null,

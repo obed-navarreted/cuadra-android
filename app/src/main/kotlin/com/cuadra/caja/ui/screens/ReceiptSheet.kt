@@ -82,8 +82,8 @@ import com.cuadra.caja.ui.theme.CuadraColors
 
 /** La hoja del recibo (sube desde abajo, ~75 % del alto, se arrastra para cerrarla). */
 @Composable
-fun ReceiptSheet(ui: CajaUi, actions: CajaActions, parkedCount: Int = 0) {
-    AppBottomSheet(actions::closeReceipt) { ReceiptSheetContent(ui, actions, parkedCount) }
+fun ReceiptSheet(ui: CajaUi, actions: CajaActions, parkedCount: Int = 0, registerCheckout: Boolean = false) {
+    AppBottomSheet(actions::closeReceipt) { ReceiptSheetContent(ui, actions, parkedCount, registerCheckout) }
 }
 
 /**
@@ -92,7 +92,7 @@ fun ReceiptSheet(ui: CajaUi, actions: CajaActions, parkedCount: Int = 0) {
  * Cada línea tiene además un menú (⋮) y acciones de accesibilidad con lo mismo, para no depender del gesto.
  */
 @Composable
-fun ReceiptSheetContent(ui: CajaUi, actions: CajaActions, parkedCount: Int = 0) {
+fun ReceiptSheetContent(ui: CajaUi, actions: CajaActions, parkedCount: Int = 0, registerCheckout: Boolean = false) {
     val cart = ui.cart
     // Con promociones: el total que se cobra y, debajo de la última línea que tocó cada una, «Promo 3 por C$ 100: −C$ 70».
     val priced = ui.priced
@@ -124,7 +124,9 @@ fun ReceiptSheetContent(ui: CajaUi, actions: CajaActions, parkedCount: Int = 0) 
                 Text(stringResource(R.string.receipt_total), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
             }
             ButtonRow(Modifier.padding(bottom = 8.dp)) {
-                CuadraButton(stringResource(R.string.register_park), actions::askPark, Modifier.share(0.6f), enabled = !cart.isEmpty, height = 48)
+                // Como en la barra de la caja: «Apartar» o, con «Cobro en caja», «Enviar a caja» en el mismo lugar.
+                if (registerCheckout) CuadraButton(stringResource(if (ui.resumedPending) R.string.send_update_confirm else R.string.send_bar), actions::askSend, Modifier.share(0.8f), enabled = !cart.isEmpty, height = 48)
+                else CuadraButton(stringResource(R.string.register_park), actions::askPark, Modifier.share(0.6f), enabled = !cart.isEmpty, height = 48)
                 CuadraButton(
                     stringResource(R.string.register_charge) + if (cart.isEmpty) "" else "  ·  " + money(priced.totalMinor),
                     actions::startCobro, Modifier.share(1f), kind = ButtonKind.PRIMARY, enabled = priced.totalMinor > 0, height = 48,
@@ -144,7 +146,7 @@ fun ReceiptSheetContent(ui: CajaUi, actions: CajaActions, parkedCount: Int = 0) 
                     }
                 }
                 // Las cuentas apartadas también se abren desde aquí: en un teléfono muy bajo con letra enorme el encabezado de la caja (con «Apartadas») puede no caber.
-                if (parkedCount > 0) item(key = "parked") { LinkAction(stringResource(R.string.register_parked) + " $parkedCount  ›", { actions.toggleParked(true) }) }
+                if (parkedCount > 0) item(key = "parked") { LinkAction(stringResource(if (registerCheckout) R.string.register_queue_chip else R.string.register_parked) + " $parkedCount  ›", { actions.toggleParked(true) }) }
             }
         }
     }

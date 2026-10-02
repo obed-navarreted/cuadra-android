@@ -22,8 +22,13 @@ import com.cuadra.caja.domain.ReasonCheck
 import com.cuadra.caja.domain.RegisterQueue
 import com.cuadra.caja.domain.SaleDeletion
 import com.cuadra.caja.ui.CajaActions
-import com.cuadra.caja.ui.CobroUi
+import com.cuadra.caja.ui.SendUi
 import com.cuadra.caja.ui.QueueCancelUi
+import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.cuadra.caja.ui.QueueDetailUi
 import com.cuadra.caja.ui.common.ButtonKind
 import com.cuadra.caja.ui.common.ButtonRow
@@ -31,7 +36,6 @@ import com.cuadra.caja.ui.common.CuadraButton
 import com.cuadra.caja.ui.common.CuadraCard
 import com.cuadra.caja.ui.common.MoneyText
 import com.cuadra.caja.ui.common.SectionLabel
-import com.cuadra.caja.ui.common.SegmentedChoice
 import com.cuadra.caja.ui.common.Sheet
 import com.cuadra.caja.ui.common.SplitRow
 import com.cuadra.caja.ui.common.Text
@@ -59,7 +63,18 @@ private fun timeText(millis: Long?, zone: ZoneId): String {
 fun RegisterQueueSheet(
     split: RegisterQueue.Split, actions: CajaActions, zone: ZoneId = ZoneId.systemDefault(), counts: Map<String, Int> = emptyMap(), initialConfirm: String? = null,
     refreshing: Boolean = false,
+    /** Buscador (aparece desde [RegisterQueue.SEARCH_FROM] cuentas esperando). */
+    query: String = "",
+    /** Quién tiene abierta cada cuenta en otro teléfono («La está cobrando Ana»). */
+    locks: Map<String, String> = emptyMap(),
+    nowMillis: Long? = null,
 ) {
+    // «hace 12 min» se actualiza solo mientras la lista está a la vista (cada 30 s).
+    var ticking by androidx.compose.runtime.remember { mutableStateOf(System.currentTimeMillis()) }
+    if (nowMillis == null) androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (true) { kotlinx.coroutines.delay(30_000); ticking = System.currentTimeMillis() }
+    }
+    val now = nowMillis ?: ticking
     var confirmId by rememberSaveable { mutableStateOf(initialConfirm) }
     val confirming = confirmId?.let { id -> split.parked.firstOrNull { it.id == id } }
     if (confirming != null) {
@@ -77,11 +92,24 @@ fun RegisterQueueSheet(
     Sheet({ actions.toggleParked(false) }, actions = { CuadraButton(stringResource(R.string.close), { actions.toggleParked(false) }, Modifier.fillMaxWidth()) }) {
         Text(stringResource(R.string.queue_title), style = MaterialTheme.typography.headlineMedium)
         com.cuadra.caja.ui.common.RefreshRow(refreshing) { actions.refreshQueue(com.cuadra.caja.domain.RefreshTrigger.PULLED) }
-        if (split.pending.isEmpty()) Text(stringResource(R.string.queue_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        else SplitRow(end = { MoneyText(money(split.pendingTotalMinor), fontWeight = FontWeight.ExtraBold) }) {
+        if (split.pending.isEmpty()) {
+            Column(Modifier.testTag(TAG_QUEUE_EMPTY), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(stringResource(R.string.queue_empty), fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.queue_empty_help), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        } else SplitRow(end = { MoneyText(money(split.pendingTotalMinor), fontWeight = FontWeight.ExtraBold) }) {
             Text(pluralStringResource(R.plurals.queue_count, split.pending.size, split.pending.size), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
         }
-        split.pending.forEach { s -> QueueRow(s, counts[s.id] ?: 0, zone) { actions.openQueueTicket(s.id) } }
+        // Con muchas cuentas: buscar por la nota («mesa 4») o por quién atendió. Con pocas se ven todas de un vistazo.
+        if (split.pending.size >= RegisterQueue.SEARCH_FROM || query.isNotEmpty()) {
+            VoiceTextField(
+                query, actions::setQueueQuery, Modifier.fillMaxWidth().testTag(TAG_QUEUE_SEARCH), singleLine = true, compact = true,
+                placeholder = { Text(stringResource(R.string.queue_search)) },
+            )
+        }
+        val shown = RegisterQueue.filter(split.pending, query)
+        if (shown.isEmpty() && split.pending.isNotEmpty()) Text(stringResource(R.string.queue_no_match, query.trim()), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        shown.forEach { s -> QueueRow(s, counts[s.id] ?: 0, now, locks[s.id]) { actions.openQueueTicket(s.id) } }
         if (split.parked.isNotEmpty()) {
             SectionLabel(stringResource(R.string.parked_title))
             split.parked.forEach { s -> ParkedCard(s, actions) { confirmId = s.id } }
@@ -89,20 +117,58 @@ fun RegisterQueueSheet(
     }
 }
 
-/** Una cuenta por cobrar en caja: nota, quién la tomó y a qué hora la envió, cuántos productos y el total. */
+/** La espera de una cuenta en palabras: «recién llegada», «hace 12 min», «hace 1 h 5 min». */
 @Composable
-private fun QueueRow(s: SaleEntity, count: Int, zone: ZoneId, onOpen: () -> Unit) {
-    CuadraCard(Modifier.fillMaxWidth(), onClick = onOpen) {
+fun ageText(sentAt: Long?, nowMillis: Long): String = when (val a = RegisterQueue.age(sentAt, nowMillis)) {
+    null -> "-"
+    RegisterQueue.Age.Now -> stringResource(R.string.queue_age_now)
+    is RegisterQueue.Age.Minutes -> pluralStringResource(R.plurals.queue_age_min, a.minutes.toInt(), a.minutes.toInt())
+    is RegisterQueue.Age.Hours -> stringResource(R.string.queue_age_hours, a.hours.toInt(), a.minutes.toInt())
+}
+
+/**
+ * Una cuenta por cobrar en caja: nota, quién la tomó y cuánto lleva esperando (en naranja desde [RegisterQueue.WAITING_LONG_MIN] min), cuántos productos, el
+ * total y, si otro teléfono la tiene abierta, «La está cobrando Ana». Toda la tarjeta es el botón (48 dp o más) y se lee de una vez con el lector de pantalla.
+ */
+@Composable
+private fun QueueRow(s: SaleEntity, count: Int, nowMillis: Long, lockedBy: String?, onOpen: () -> Unit) {
+    val note = s.label ?: stringResource(R.string.queue_no_note)
+    val age = ageText(s.sentToRegisterAt, nowMillis)
+    val long = RegisterQueue.waitingLong(s.sentToRegisterAt, nowMillis)
+    // «Atendió»: quien tomó la cuenta (si otra persona la reenvió, eso se ve en el detalle). El nombre puede terminar en «…»; la espera va en su propia línea y
+    // nunca se corta (es lo que quien cobra necesita ver con letra grande).
+    val by = stringResource(R.string.queue_row_by_name, s.createdByName ?: s.sentByName ?: "-")
+    val items = if (count > 0) pluralStringResource(R.plurals.queue_items, count, count) else null
+    val waitLine = listOfNotNull(age, items).joinToString(" · ")
+    val description = stringResource(R.string.queue_row_desc, note, "$by, $waitLine", money(s.totalMinor)) + (lockedBy?.let { " " + stringResource(R.string.queue_locked_tag, it) } ?: "")
+    CuadraCard(Modifier.fillMaxWidth().testTag(TAG_QUEUE_ROW).semantics(mergeDescendants = true) { contentDescription = description }, onClick = onOpen) {
         SplitRow(end = { MoneyText(money(s.totalMinor), fontWeight = FontWeight.ExtraBold) }) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(s.label ?: stringResource(R.string.queue_no_note), fontWeight = FontWeight.ExtraBold, maxLines = 3, ellipsize = true)
-                Text(stringResource(R.string.queue_row_by, s.sentByName ?: s.createdByName ?: "-", timeText(s.sentToRegisterAt, zone)), style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, ellipsize = true)
-                if (count > 0) Text(pluralStringResource(R.plurals.queue_items, count, count), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(note, fontWeight = FontWeight.ExtraBold, maxLines = 3, ellipsize = true)
+                Text(by, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, ellipsize = true)
+                Text(waitLine, style = MaterialTheme.typography.bodyMedium, fontWeight = if (long) FontWeight.Bold else null,
+                    color = if (long) CuadraColors.Orange else MaterialTheme.colorScheme.onSurfaceVariant)
+                lockedBy?.let { LockedTag(it) }
             }
         }
     }
 }
+
+/** «La está cobrando Ana» (naranja): la tiene abierta otro teléfono. El nombre de la persona es lo único que puede terminar en «…» (hasta 2 líneas). */
+@Composable
+private fun LockedTag(name: String) {
+    androidx.compose.foundation.layout.Box(
+        Modifier.testTag(TAG_QUEUE_LOCKED).background(CuadraColors.OrangeSoft, androidx.compose.foundation.shape.RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 3.dp),
+    ) {
+        Text(stringResource(R.string.queue_locked_tag, name), color = CuadraColors.Orange, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, maxLines = 2, ellipsize = true)
+    }
+}
+
+const val TAG_QUEUE_LOCKED = "queue_locked"
+const val TAG_QUEUE_ROW = "queue_row"
+const val TAG_QUEUE_SEARCH = "queue_search"
+const val TAG_QUEUE_EMPTY = "queue_empty"
+const val TAG_SEND_NOTE = "send_note"
 
 @Composable
 private fun ParkedCard(s: SaleEntity, actions: CajaActions, onDiscard: () -> Unit) {
@@ -127,7 +193,7 @@ private fun ParkedCard(s: SaleEntity, actions: CajaActions, onDiscard: () -> Uni
  * «Cobrar» (la carga en la caja con la reserva y abre «Cobrar»), «Agregar productos» y «Anular» (con motivo).
  */
 @Composable
-fun QueueTicketSheet(d: QueueDetailUi, actions: CajaActions, zone: ZoneId = ZoneId.systemDefault()) {
+fun QueueTicketSheet(d: QueueDetailUi, actions: CajaActions, zone: ZoneId = ZoneId.systemDefault(), lockedBy: String? = null, nowMillis: Long = System.currentTimeMillis()) {
     val s = d.sale
     Sheet(actions::closeQueueTicket, actions = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -142,7 +208,9 @@ fun QueueTicketSheet(d: QueueDetailUi, actions: CajaActions, zone: ZoneId = Zone
         Text(stringResource(R.string.queue_detail_title), style = MaterialTheme.typography.headlineMedium)
         Text(s.label ?: stringResource(R.string.queue_no_note), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, maxLines = 4, ellipsize = true)
         s.createdByName?.let { Text(stringResource(R.string.queue_taken_by, it), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted) }
-        Text(stringResource(R.string.queue_sent_by, s.sentByName ?: s.createdByName ?: "-", timeText(s.sentToRegisterAt, zone)), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted)
+        Text(stringResource(R.string.queue_sent_by, s.sentByName ?: s.createdByName ?: "-", timeText(s.sentToRegisterAt, zone)) + " · " + ageText(s.sentToRegisterAt, nowMillis),
+            style = MaterialTheme.typography.bodyMedium, color = if (RegisterQueue.waitingLong(s.sentToRegisterAt, nowMillis)) CuadraColors.Orange else CuadraColors.Muted)
+        lockedBy?.let { LockedTag(it) }
         SectionLabel(stringResource(R.string.sale_lines))
         d.items.forEach { l ->
             SplitRow(end = { MoneyText(money(if (d.promotions.isEmpty()) lineTotal(l) else lineTotal(l) + l.discountMinor), fontWeight = FontWeight.Bold) }) {
@@ -181,21 +249,31 @@ fun QueueCancelSheet(q: QueueCancelUi, actions: CajaActions) {
     }
 }
 
-/** Arriba de «Cobrar», con el ajuste: «Cobrar ahora» (lo de siempre) o «Enviar a caja». */
+/**
+ * «Enviar a caja» desde la barra (ADR 0015): hoja compacta con el resumen (productos y total), la nota opcional (por voz también; «Mesa, nombre o nota») y un
+ * solo botón: un toque más y se envía. Si la cuenta se retomó de la lista para agregar productos, la nota viene escrita y el botón dice «Actualizar en caja».
+ * El botón va fijo abajo (visible con el teclado abierto) y «Enviar» del teclado también la envía.
+ */
 @Composable
-fun CobroModeSwitch(cobro: CobroUi, actions: CajaActions) {
-    SegmentedChoice(
-        stringResource(R.string.pay_mode_label), listOf(stringResource(R.string.pay_mode_now), stringResource(R.string.pay_mode_register)),
-        if (cobro.toRegister) 1 else 0, { actions.setCobroMode(it == 1) },
-    )
-}
-
-/** «Enviar a caja»: sin método de pago ni vuelto; solo una nota opcional (por voz también), p. ej. «Mesa 4, Juan». */
-@Composable
-fun RegisterSendBody(cobro: CobroUi, actions: CajaActions) {
-    Text(stringResource(R.string.pay_register_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    VoiceTextField(
-        cobro.registerNote, actions::setRegisterNote, Modifier.fillMaxWidth(), singleLine = true, label = { Text(stringResource(R.string.pay_register_note)) },
-        placeholder = { Text(stringResource(R.string.pay_register_note_hint)) }, keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-    )
+fun SendSheet(send: SendUi, lineCount: Int, totalMinor: Long, actions: CajaActions) {
+    val confirm = stringResource(if (send.update) R.string.send_update_confirm else R.string.send_confirm)
+    Sheet(actions::cancelSend, actions = {
+        ButtonRow {
+            CuadraButton(stringResource(R.string.cancel), actions::cancelSend, Modifier.share(1f), enabled = !send.saving)
+            CuadraButton(confirm, actions::confirmSend, Modifier.share(1.6f), kind = ButtonKind.DARK, enabled = !send.saving && lineCount > 0)
+        }
+    }) {
+        Text(stringResource(if (send.update) R.string.send_update_title else R.string.send_title), style = MaterialTheme.typography.headlineMedium)
+        SplitRow(end = { MoneyText(money(totalMinor), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold) }) {
+            Text(pluralStringResource(R.plurals.queue_items, lineCount, lineCount), fontWeight = FontWeight.Bold)
+        }
+        VoiceTextField(
+            send.note, actions::setSendNote, Modifier.fillMaxWidth().testTag(TAG_SEND_NOTE), singleLine = true,
+            placeholder = { Text(stringResource(R.string.send_note_hint)) },
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = androidx.compose.ui.text.input.ImeAction.Send),
+            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSend = { actions.confirmSend() }),
+            enabled = !send.saving,
+        )
+        Text(stringResource(if (send.update) R.string.send_update_help else R.string.send_help), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
 }

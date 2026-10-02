@@ -35,6 +35,41 @@ class RegisterQueueTest {
         assertEquals(RegisterQueue.NOTE_MAX, RegisterQueue.cleanNote("x".repeat(500))!!.length)
     }
 
+    @Test fun theAgeReadsNowMinutesOrHoursAndNeverGoesNegative() {
+        val now = 10_000_000L
+        assertEquals(RegisterQueue.Age.Now, RegisterQueue.age(now - 30_000, now))
+        assertEquals(RegisterQueue.Age.Now, RegisterQueue.age(now + 120_000, now))   // reloj de otro teléfono adelantado
+        assertEquals(RegisterQueue.Age.Minutes(12), RegisterQueue.age(now - 12 * 60_000 - 59_000, now))
+        assertEquals(RegisterQueue.Age.Hours(1, 5), RegisterQueue.age(now - 65 * 60_000, now))
+        assertNull(RegisterQueue.age(null, now))
+    }
+
+    @Test fun aTicketWaitsLongFromFifteenMinutes() {
+        val now = 10_000_000L
+        assertFalse(RegisterQueue.waitingLong(now - 14 * 60_000 - 59_000, now))
+        assertTrue(RegisterQueue.waitingLong(now - 15 * 60_000, now))
+        assertFalse(RegisterQueue.waitingLong(null, now))
+    }
+
+    @Test fun searchMatchesNoteOrWhoSentItWithoutAccentsAndKeepsTheOrder() {
+        val list = listOf(
+            sale("1", sentAt = 1).copy(label = "Mesa 4, Juan"), sale("2", sentAt = 2).copy(label = "Terraza", sentByName = "Lucía"),
+            sale("3", sentAt = 3).copy(label = null), sale("4", sentAt = 4).copy(label = "mesa 14"),
+        )
+        assertEquals(listOf("1", "4"), RegisterQueue.filter(list, "MESA").map { it.id })
+        assertEquals(listOf("1"), RegisterQueue.filter(list, "juan mesa").map { it.id })
+        assertEquals(listOf("2"), RegisterQueue.filter(list, "lucia").map { it.id })
+        assertEquals(list, RegisterQueue.filter(list, "   "))
+        assertEquals(emptyList<SaleEntity>(), RegisterQueue.filter(list, "barra"))
+    }
+
+    @Test fun backingOutOfChargingReturnsTheTicketToTheQueueOnlyWhenItCameFromThere() {
+        assertTrue(RegisterQueue.returnsToQueueOnBackOut(chargingFromQueue = true, resumedPending = true, resumedId = "s1"))
+        assertFalse(RegisterQueue.returnsToQueueOnBackOut(chargingFromQueue = false, resumedPending = true, resumedId = "s1"))   // agregar productos y luego Cobrar
+        assertFalse(RegisterQueue.returnsToQueueOnBackOut(chargingFromQueue = true, resumedPending = false, resumedId = "s1"))
+        assertFalse(RegisterQueue.returnsToQueueOnBackOut(chargingFromQueue = true, resumedPending = true, resumedId = null))
+    }
+
     @Test fun servedAndChargedOnlyWhenTheyAreDifferentPeople() {
         assertEquals("Kevin" to "Ana", RegisterQueue.takenAndCharged("Kevin", "Ana"))
         assertNull(RegisterQueue.takenAndCharged("Ana", "Ana"))

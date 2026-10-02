@@ -28,6 +28,8 @@ class GuardCase(
     val expectStrip: Boolean = false,
     /** Con qué ajustes debe dibujarse sí o sí (en los extremos de poco alto o de letra enorme la tira cede su lugar a propósito). */
     val stripWhen: (GuardCfg) -> Boolean = STRIP_NORMAL,
+    /** Elementos (por `testTag`) que deben dibujarse una vez y enteros dentro de la ventana (p. ej. «Enviar a caja» en la barra). */
+    val expectTags: List<String> = emptyList(),
     val content: @Composable () -> Unit,
 )
 
@@ -71,6 +73,16 @@ class GuardRunner(private val rule: ComposeTestRule, private val group: String) 
                 if (case.expectTotal) findings += LayoutGuard.inspectTotal(root, case.name, c, density)
                 findings += LayoutGuard.inspectStrip(root, case.name, c, density, case.expectStrip && case.stripWhen(c))
                 case.expectBadge?.let { findings += LayoutGuard.inspectReceiptBadge(root, case.name, c, density, it) }
+                for (tag in case.expectTags) {
+                    val hits = mutableListOf<androidx.compose.ui.semantics.SemanticsNode>()
+                    fun find(n: androidx.compose.ui.semantics.SemanticsNode) { if (n.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag) == tag) hits += n; n.children.forEach(::find) }
+                    find(root)
+                    if (hits.size != 1) { findings += Finding(case.name, c, GuardRule.B_OUTSIDE_SCREEN, tag, "se dibuja ${hits.size} veces y se esperaba 1"); continue }
+                    val b = hits.single().boundsInWindow
+                    val w = c.widthDp * density + 1.5f
+                    val h = c.heightDp * density + 1.5f
+                    if (b.left < -1.5f || b.top < -1.5f || b.right > w || b.bottom > h || b.width <= 0f || b.height <= 0f) findings += Finding(case.name, c, GuardRule.B_OUTSIDE_SCREEN, tag, "no queda entero dentro de la ventana ($b)")
+                }
                 // Una tecla que ni se dibuja no la ve ninguna regla de posición: se cuentan.
                 case.expectKeys?.let { expected ->
                     var keys = 0

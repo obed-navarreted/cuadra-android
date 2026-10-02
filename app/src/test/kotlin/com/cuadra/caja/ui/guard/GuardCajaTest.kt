@@ -39,6 +39,9 @@ import org.junit.Rule
 import org.junit.Test
 import com.cuadra.caja.ui.SaleNoticeUi
 import com.cuadra.caja.ui.SaleUndoUi
+import com.cuadra.caja.ui.SendUi
+import com.cuadra.caja.ui.screens.TAG_BAR_PARK
+import com.cuadra.caja.ui.screens.TAG_BAR_SEND
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -195,27 +198,57 @@ class GuardCajaTest {
                 GuardCase("Cobro: fiado con la casilla de WhatsApp (encendido)", GuardMatrix.FULL) { Cobro(Fixtures.cobro(Fixtures.HUGE, PaymentEntry(PayMethod.CREDIT, Fixtures.HUGE, debtorLabel = Fixtures.PERSON_LONG), debtor = Fixtures.PERSON_LONG).copy(offerWhatsApp = true)) },
                 GuardCase("Cobro: fiado sin casilla de WhatsApp (apagado)", GuardMatrix.FULL) { Cobro(Fixtures.cobro(Fixtures.HUGE, PaymentEntry(PayMethod.CREDIT, Fixtures.HUGE, debtorLabel = Fixtures.PERSON_LONG), debtor = Fixtures.PERSON_LONG)) },
                 GuardCase("Diálogo: aparcadas", GuardMatrix.FULL) { ParkedDialog(Fixtures.parked, object : CajaActions {}) },
-                // Cobro en caja (ADR 0015): el botón del encabezado, la lista, el detalle, anular con motivo, «Cobrar ahora / Enviar a caja», el destello y su aviso.
+                // Cobro en caja (ADR 0015): la barra «Recibo · Enviar a caja · Cobrar», la hoja «Enviar a caja», el botón del encabezado, la lista, el detalle y anular con motivo.
+                GuardCase("Caja: barra con Enviar a caja, recibo vacío", GuardMatrix.FULL, CAJA_KEYS, expectTags = listOf(TAG_BAR_SEND)) { Caja(Fixtures.cajaUi(), registerCheckout = true) },
+                GuardCase("Caja: barra con Enviar a caja, recibo con 3 líneas", GuardMatrix.FULL, CAJA_KEYS, expectBadge = 3, expectTags = listOf(TAG_BAR_SEND)) { Caja(Fixtures.cajaUi(cart = Fixtures.cartOf(3), entry = Fixtures.entry('7')), registerCheckout = true) },
+                GuardCase("Caja: barra con Enviar a caja, recibo con 15 líneas", GuardMatrix.FULL, CAJA_KEYS, expectBadge = 15, expectTags = listOf(TAG_BAR_SEND)) { Caja(Fixtures.cajaUi(cart = Fixtures.cartOf(15), entry = Fixtures.entry('7')), registerCheckout = true) },
+                GuardCase("Caja: barra con Enviar a caja, recibo con 999 líneas", GuardMatrix.FULL, CAJA_KEYS, expectBadge = 999, expectTags = listOf(TAG_BAR_SEND)) { Caja(Fixtures.cajaUi(cart = Fixtures.cartOf(999), entry = Fixtures.entry('7')), registerCheckout = true) },
+                GuardCase("Caja: barra con Enviar a caja, 3 líneas, teléfono bajo", GuardMatrix.SMALL_PHONE, CAJA_KEYS, expectBadge = 3, expectTags = listOf(TAG_BAR_SEND)) { Caja(Fixtures.cajaUi(cart = Fixtures.cartOf(3), entry = Fixtures.entry('7')), registerCheckout = true) },
+                GuardCase("Caja: barra con Enviar a caja, 15 líneas, teléfono bajo", GuardMatrix.SMALL_PHONE, CAJA_KEYS, expectBadge = 15, expectTags = listOf(TAG_BAR_SEND)) { Caja(Fixtures.cajaUi(cart = Fixtures.cartOf(15), entry = Fixtures.entry('7')), registerCheckout = true) },
+                GuardCase("Caja: barra con Enviar a caja, 999 líneas, teléfono bajo", GuardMatrix.SMALL_PHONE, CAJA_KEYS, expectBadge = 999, expectTags = listOf(TAG_BAR_SEND)) { Caja(Fixtures.cajaUi(cart = Fixtures.cartOf(999), entry = Fixtures.entry('7')), registerCheckout = true) },
+                GuardCase("Caja: barra con Enviar a caja, monto enorme", GuardMatrix.FULL, CAJA_KEYS, expectBadge = 1, expectTags = listOf(TAG_BAR_SEND)) { Caja(Fixtures.cajaUi(cart = Fixtures.oneLineCart, entry = Fixtures.bigEntry), registerCheckout = true) },
+                GuardCase("Caja: barra con Enviar a caja en Productos", GuardMatrix.FULL, expectTotal = true, expectBadge = 3, expectTags = listOf(TAG_BAR_SEND)) { Caja(Fixtures.cajaUi(PosTab.PRODUCTS, Fixtures.cartOf(3)), registerCheckout = true) },
+                GuardCase("Caja: barra con Actualizar en caja (cuenta retomada), 999 líneas", GuardMatrix.FULL, CAJA_KEYS, expectBadge = 999, expectTags = listOf(TAG_BAR_SEND)) { Caja(Fixtures.cajaUi(cart = Fixtures.cartOf(999), entry = Fixtures.entry('7')).copy(resumedId = "s5", resumedLabel = "Mesa 4", resumedPending = true), registerCheckout = true) },
+                GuardCase("Caja: barra con Actualizar en caja, teléfono bajo", GuardMatrix.SMALL_PHONE, CAJA_KEYS, expectBadge = 15, expectTags = listOf(TAG_BAR_SEND)) { Caja(Fixtures.cajaUi(cart = Fixtures.cartOf(15), entry = Fixtures.entry('7')).copy(resumedId = "s5", resumedLabel = "Mesa 4", resumedPending = true), registerCheckout = true) },
+                GuardCase("Caja: sin el ajuste vuelve Apartar, 999 líneas", GuardMatrix.FULL, CAJA_KEYS, expectBadge = 999, expectTags = listOf(TAG_BAR_PARK)) { Caja(Fixtures.cajaUi(cart = Fixtures.cartOf(999), entry = Fixtures.entry('7'))) },
+                GuardCase("Hoja Enviar a caja: cuenta nueva sin nota", GuardMatrix.FULL) { Send(SendUi(), 3, Fixtures.BIG) },
+                GuardCase("Hoja Enviar a caja: con nota larga y monto enorme", GuardMatrix.FULL) { Send(SendUi(Fixtures.NAME_60), 999, Fixtures.HUGE) },
+                GuardCase("Hoja Enviar a caja: cuenta retomada (Actualizar en caja)", GuardMatrix.FULL) { Send(SendUi.open(Fixtures.NAME_120, resumedPending = true), 15, Fixtures.HUGE) },
+                GuardCase("Hoja Enviar a caja: enviando", GuardMatrix.REDUCED) { Send(SendUi("Mesa 4", saving = true), 3, Fixtures.BIG) },
+                GuardCase("Hoja Enviar a caja (teclado)", GuardMatrix.KEYBOARD) { Send(SendUi(Fixtures.NAME_60), 999, Fixtures.HUGE) },
+                GuardCase("Hoja Actualizar en caja (teclado)", GuardMatrix.KEYBOARD) { Send(SendUi.open("Mesa 4", resumedPending = true), 3, Fixtures.HUGE) },
+                GuardCase("Caja: hoja Enviar a caja abierta sobre la caja", GuardMatrix.FULL) { Caja(Fixtures.cajaUi(cart = Fixtures.cartOf(3)).copy(sending = SendUi("Mesa 4")), registerCheckout = true) },
+                GuardCase("Diálogo: el cobro en caja se desactivó (naranja)", GuardMatrix.FULL) { NoticeDialog(Notice.RegisterCheckoutOff, object : CajaActions {}) },
+                GuardCase("Hoja del recibo con Enviar a caja", GuardMatrix.FULL) { com.cuadra.caja.ui.screens.ReceiptSheetContent(Fixtures.cajaUi(cart = Fixtures.fullCart), object : CajaActions {}, parkedCount = 12, registerCheckout = true) },
                 GuardCase("Caja: cobro en caja, botón «Por cobrar en caja»", GuardMatrix.FULL, CAJA_KEYS) { Caja(Fixtures.cajaUi(cart = Fixtures.cartOf(3), entry = Fixtures.entry('7')), registerCheckout = true, parked = Fixtures.queued + Fixtures.parked) },
                 GuardCase("Caja: cobro en caja, teléfono bajo", GuardMatrix.SMALL_PHONE, CAJA_KEYS) { Caja(Fixtures.cajaUi(cart = Fixtures.cart15, entry = Fixtures.entry('7')), business = Fixtures.BUSINESS_120, registerCheckout = true, parked = Fixtures.queued + Fixtures.parked) },
                 GuardCase("Caja: aviso «Enviada a caja · nota»", GuardMatrix.FULL, CAJA_KEYS) { Caja(Fixtures.cajaUi(entry = Fixtures.entry('7')).copy(saleNotice = SaleNoticeUi("s1", Fixtures.HUGE, 0, Fixtures.NOW, sent = true, note = Fixtures.NAME_60)), registerCheckout = true) },
-                GuardCase("Por cobrar en caja: lista con apartadas", GuardMatrix.FULL) { com.cuadra.caja.ui.screens.RegisterQueueSheet(com.cuadra.caja.domain.RegisterQueue.split(Fixtures.queued + Fixtures.parked), object : CajaActions {}, counts = Fixtures.queueCounts) },
-                GuardCase("Por cobrar en caja: vacía", GuardMatrix.FULL) { com.cuadra.caja.ui.screens.RegisterQueueSheet(com.cuadra.caja.domain.RegisterQueue.split(emptyList()), object : CajaActions {}) },
+                GuardCase("Por cobrar en caja: lista con apartadas", GuardMatrix.FULL) { Queue(Fixtures.queued + Fixtures.parked) },
+                GuardCase("Por cobrar en caja: la está cobrando otra persona", GuardMatrix.FULL) { Queue(Fixtures.queued, locks = Fixtures.queueLocks) },
+                GuardCase("Por cobrar en caja: muchas cuentas, con buscador", GuardMatrix.FULL, expectTags = listOf(com.cuadra.caja.ui.screens.TAG_QUEUE_SEARCH)) { Queue(Fixtures.queuedMany + Fixtures.parked, locks = Fixtures.queueLocks) },
+                GuardCase("Por cobrar en caja: buscando (teclado)", GuardMatrix.KEYBOARD) { Queue(Fixtures.queuedMany, query = "Mesa 1") },
+                GuardCase("Por cobrar en caja: búsqueda sin resultados", GuardMatrix.FULL) { Queue(Fixtures.queuedMany, query = Fixtures.NAME_60) },
+                GuardCase("Por cobrar en caja: vacía", GuardMatrix.FULL, expectTags = listOf(com.cuadra.caja.ui.screens.TAG_QUEUE_EMPTY)) { Queue(emptyList()) },
+                GuardCase("Por cobrar en caja: vacía con apartadas", GuardMatrix.FULL) { Queue(Fixtures.parked) },
                 GuardCase("Por cobrar en caja: actualizando (cada 15 s)", GuardMatrix.FULL) {
                     com.cuadra.caja.ui.screens.RegisterQueueSheet(com.cuadra.caja.domain.RegisterQueue.split(Fixtures.queued + Fixtures.parked), object : CajaActions {}, counts = Fixtures.queueCounts, refreshing = true)
                 },
                 GuardCase("Apartadas: actualizando", GuardMatrix.FULL) { com.cuadra.caja.ui.screens.ParkedDialog(Fixtures.parked, object : CajaActions {}, refreshing = true) },
                 GuardCase("Por cobrar en caja: descartar una apartada", GuardMatrix.FULL) { com.cuadra.caja.ui.screens.RegisterQueueSheet(com.cuadra.caja.domain.RegisterQueue.split(Fixtures.queued + Fixtures.parked), object : CajaActions {}, initialConfirm = Fixtures.parked.first().id) },
-                GuardCase("Por cobrar en caja: detalle", GuardMatrix.FULL) { com.cuadra.caja.ui.screens.QueueTicketSheet(com.cuadra.caja.ui.QueueDetailUi(Fixtures.queued.first(), Fixtures.queueItems), object : CajaActions {}) },
-                GuardCase("Por cobrar en caja: detalle sin nota", GuardMatrix.FULL) { com.cuadra.caja.ui.screens.QueueTicketSheet(com.cuadra.caja.ui.QueueDetailUi(Fixtures.queued.last(), Fixtures.queueItems.take(1)), object : CajaActions {}) },
+                GuardCase("Por cobrar en caja: detalle", GuardMatrix.FULL) { com.cuadra.caja.ui.screens.QueueTicketSheet(com.cuadra.caja.ui.QueueDetailUi(Fixtures.queued.first(), Fixtures.queueItems), object : CajaActions {}, nowMillis = Fixtures.NOW) },
+                GuardCase("Por cobrar en caja: detalle, la está cobrando otra persona", GuardMatrix.FULL) { com.cuadra.caja.ui.screens.QueueTicketSheet(com.cuadra.caja.ui.QueueDetailUi(Fixtures.queued.first(), Fixtures.queueItems), object : CajaActions {}, lockedBy = Fixtures.PERSON_LONG, nowMillis = Fixtures.NOW) },
+                GuardCase("Por cobrar en caja: detalle sin nota", GuardMatrix.FULL) { com.cuadra.caja.ui.screens.QueueTicketSheet(com.cuadra.caja.ui.QueueDetailUi(Fixtures.queued.last(), Fixtures.queueItems.take(1)), object : CajaActions {}, nowMillis = Fixtures.NOW) },
                 GuardCase("Por cobrar en caja: anular (motivo corto)", GuardMatrix.FULL) { com.cuadra.caja.ui.screens.QueueCancelSheet(com.cuadra.caja.ui.QueueCancelUi("s4", Fixtures.NAME_200, Fixtures.HUGE, "ab"), object : CajaActions {}) },
                 GuardCase("Por cobrar en caja: anular (teclado)", GuardMatrix.KEYBOARD) { com.cuadra.caja.ui.screens.QueueCancelSheet(com.cuadra.caja.ui.QueueCancelUi("s4", Fixtures.NAME_60, Fixtures.HUGE, Fixtures.NAME_120), object : CajaActions {}) },
+                GuardCase("Cobro de una cuenta de la lista: nota larga arriba", GuardMatrix.FULL) {
+                    CobroContent(Fixtures.cajaUi(cart = Fixtures.fullCart, cobro = Fixtures.cobro(Fixtures.BIG, PaymentEntry(PayMethod.CASH, Fixtures.BIG, tenderedMinor = Fixtures.HUGE), tendered = "99999999"))
+                        .copy(resumedId = "s4", resumedLabel = Fixtures.NAME_60, resumedPending = true, chargingFromQueue = true), object : CajaActions {}, nowMillis = Fixtures.NOW)
+                },
+                GuardCase("Cobro de una cuenta de la lista (teclado)", GuardMatrix.KEYBOARD) {
+                    CobroContent(Fixtures.cajaUi(cart = Fixtures.fullCart, cobro = Fixtures.cobro(Fixtures.BIG, PaymentEntry(PayMethod.CASH, Fixtures.BIG, tenderedMinor = Fixtures.HUGE), tendered = "99999999"))
+                        .copy(resumedId = "s4", resumedLabel = "Mesa 4", resumedPending = true, chargingFromQueue = true), object : CajaActions {}, nowMillis = Fixtures.NOW)
+                },
                 GuardCase("Diálogo: la está cobrando otra persona", GuardMatrix.FULL) { NoticeDialog(Notice.TicketLocked(Fixtures.PERSON_LONG), object : CajaActions {}) },
-                GuardCase("Cobro: cobrar ahora con el ajuste", GuardMatrix.FULL) { Cobro(Fixtures.cobro(Fixtures.BIG, PaymentEntry(PayMethod.CASH, Fixtures.BIG, tenderedMinor = Fixtures.HUGE), tendered = "99999999").copy(registerCheckout = true)) },
-                GuardCase("Cobro: el ajuste se apagó con el cobro abierto (aviso)", GuardMatrix.FULL) { Cobro(Fixtures.cobro(Fixtures.BIG, PaymentEntry(PayMethod.CASH, Fixtures.BIG), tendered = "99999999").copy(registerCheckout = true, toRegister = true).withRegisterSetting(false)) },
-                GuardCase("Cobro: enviar a caja con nota", GuardMatrix.FULL) { Cobro(Fixtures.cobro(Fixtures.HUGE, PaymentEntry(PayMethod.CASH, Fixtures.HUGE)).copy(registerCheckout = true, toRegister = true, registerNote = Fixtures.NAME_60)) },
-                GuardCase("Cobro: enviar a caja (teclado)", GuardMatrix.KEYBOARD) { Cobro(Fixtures.cobro(Fixtures.HUGE, PaymentEntry(PayMethod.CASH, Fixtures.HUGE)).copy(registerCheckout = true, toRegister = true, registerNote = Fixtures.NAME_60)) },
-                GuardCase("Cobro: enviada a caja (destello)", GuardMatrix.FULL) { Cobro(Fixtures.cobro(Fixtures.HUGE, PaymentEntry(PayMethod.CASH, Fixtures.HUGE)).copy(registerCheckout = true, toRegister = true, sent = true, registerNote = Fixtures.NAME_60, doneSaleId = "s1", doneAtMillis = Fixtures.NOW)) },
                 // Comprobante por WhatsApp con número (al terminar de cobrar y desde el detalle de una venta).
                 GuardCase("WhatsApp con número: prefijo del país", GuardMatrix.FULL) { WaNumber(com.cuadra.caja.ui.screens.WhatsAppNumberUi("+505 ")) },
                 GuardCase("WhatsApp con número: número inválido y dos apps", GuardMatrix.FULL) { WaNumber(com.cuadra.caja.ui.screens.WhatsAppNumberUi(Fixtures.PHONE_30, invalid = true, failed = true, choices = listOf("com.whatsapp", "com.whatsapp.w4b"), needsChoice = true)) },
@@ -304,6 +337,11 @@ class GuardCajaTest {
         registerCheckout: Boolean = false, parked: List<com.cuadra.caja.data.local.SaleEntity> = Fixtures.parked,
     ) = CajaContent(ui, tabs, products, parked, Fixtures.HUGE, business, member, object : CajaActions {}, {}, readerReady = readerReady, askDescription = askDescription, canManageFrequents = canManage,
         registerCheckout = registerCheckout, lineCounts = Fixtures.queueCounts)
+
+    @Composable private fun Send(send: SendUi, lines: Int, total: Long) = com.cuadra.caja.ui.screens.SendSheet(send, lines, total, object : CajaActions {})
+
+    @Composable private fun Queue(sales: List<com.cuadra.caja.data.local.SaleEntity>, query: String = "", locks: Map<String, String> = emptyMap()) =
+        com.cuadra.caja.ui.screens.RegisterQueueSheet(com.cuadra.caja.domain.RegisterQueue.split(sales), object : CajaActions {}, counts = Fixtures.queueCounts, query = query, locks = locks, nowMillis = Fixtures.NOW)
 
     @Composable private fun WaNumber(ui: com.cuadra.caja.ui.screens.WhatsAppNumberUi) = com.cuadra.caja.ui.screens.WhatsAppNumberSheet(ui, {}, {}, {}, {}, {})
 

@@ -136,7 +136,7 @@ fun CajaScreen(vm: CajaViewModel, container: com.cuadra.caja.AppContainer, busin
  *
  * Disposición (docs/notas/caja-ux-v2.md): arriba, lo que puede desplazarse (encabezado, total, pestañas y el contenido de «Productos»); en «Manual»,
  * la calculadora va PEGADA abajo (`dock`: descripción —solo con «Pedir descripción al agregar»—, monto y teclas de 4 columnas con «Agregar» como tecla alta) y nunca se desplaza ni queda
- * detrás de nada; al pie, siempre fija, la barra `[Recibo · N] [Apartar] [Cobrar total]` (el aviso «Deshacer» es flotante: no ocupa lugar). El detalle del recibo
+ * detrás de nada; al pie, siempre fija, la barra `[Recibo · N] [Apartar] [Cobrar total] (sin «Apartar» con «Cobro en caja»)` (el aviso «Deshacer» es flotante: no ocupa lugar). El detalle del recibo
  * vive en una hoja (`ReceiptSheet`).
  */
 @Composable
@@ -221,7 +221,7 @@ fun CajaContent(
             strip = ui.lastLine?.takeIf { typing && !imeOpen && !ui.receiptOpen }?.let { line -> { compact -> LastLineStrip(line, compact, actions) } },
             footer = {
                 Column(Modifier.fillMaxWidth().testTag(TAG_BOTTOM_BAR).padding(bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PosBottomBar(ui.priced.cart, actions)
+                    PosBottomBar(ui.priced.cart, actions, com.cuadra.caja.domain.ParkRules.middle(registerCheckout), updating = ui.resumedPending)
                 }
             },
             // Aviso flotante «Línea quitada · Deshacer» (agregar ya no abre aviso: la tira de la última línea lleva su − y su ✕): en el hueco libre entre las pestañas y la calculadora (o sobre el encabezado), sin ocupar lugar
@@ -284,16 +284,22 @@ private fun Tabs(tabs: List<PosTab>, activeTab: PosTab, actions: CajaActions) {
 }
 
 /**
- * La barra fija de tres acciones (48 dp): `[Recibo · N]` con ícono, `[Apartar]` y `[Cobrar C$ total]` (la más ancha). Si con la letra actual no caben
+ * La barra fija de tres acciones (48 dp): `[Recibo · N]` con ícono, el botón del medio y `[Cobrar C$ total]` (la más ancha). El del medio es `[Apartar]` o,
+ * con «Cobro en caja», `[Enviar a caja]` (mismo lugar y mismas reglas de ancho; ver `ParkRules.middle`). Si con la letra actual no caben
  * completas se van compactando en este orden: «Recibo» queda con ícono y número, «Cobrar» pierde el total (sigue visible arriba); al final la letra baja.
  */
 @Composable
-private fun PosBottomBar(cart: Cart, actions: CajaActions) {
+private fun PosBottomBar(
+    cart: Cart, actions: CajaActions, middle: com.cuadra.caja.domain.ParkRules.Middle = com.cuadra.caja.domain.ParkRules.Middle.PARK,
+    /** La cuenta en pantalla se retomó de «Por cobrar en caja» (agregar productos): el botón del medio dice «Actualizar en caja». */
+    updating: Boolean = false,
+) {
+    val sending = middle == com.cuadra.caja.domain.ParkRules.Middle.SEND
     val n = cart.lineCount
     val receiptFull = if (n > 0) stringResource(R.string.register_receipt_n, n) else stringResource(R.string.register_receipt)
     val receiptDesc = receiptFull
     val receiptWord = stringResource(R.string.register_receipt)
-    val park = stringResource(R.string.register_park)
+    val park = stringResource(if (!sending) R.string.register_park else if (updating) R.string.send_update_confirm else R.string.send_bar)
     val chargeShort = stringResource(R.string.register_charge)
     val chargeFull = if (cart.isEmpty) chargeShort else stringResource(R.string.register_charge_total, money(cart.totalMinor))
     val measurer = rememberTextMeasurer()
@@ -306,15 +312,16 @@ private fun PosBottomBar(cart: Cart, actions: CajaActions) {
             val recFull = w(receiptFull) + icon + 6.dp
             val recShort = if (n > 0) w(n.toString()) + icon + 6.dp else 48.dp
             val gaps = 16.dp
+            val parkW0 = w(park)
             // (Recibo completo, Cobrar completo) → (Recibo corto, Cobrar completo) → (Recibo corto, Cobrar corto) → lo mismo con la letra achicándose.
             val options = listOf(recFull to chargeFull, recShort to chargeFull, recShort to chargeShort)
-            val pick = options.indexOfFirst { (r, c) -> r + w(park) + w(c) + gaps <= maxWidth }.let { if (it < 0) 2 else it }
+            val pick = options.indexOfFirst { (r, c) -> r + parkW0 + w(c) + gaps <= maxWidth }.let { if (it < 0) 2 else it }
             val compactReceipt = pick >= 1
             val chargeText = if (pick >= 2) chargeShort else chargeFull
             // El NÚMERO va aparte (`badge`): nunca se achica ni se recorta; la palabra «Recibo» es lo que cede (y en la versión corta desaparece).
             val recWord = if (compactReceipt) "" else if (n <= 0) receiptFull else receiptWord
             val recBadge = if (n <= 0) null else if (compactReceipt) n.toString() else "· $n"
-            val natural = listOf(if (compactReceipt) recShort else recFull, w(park), w(chargeText)).map { it.value.coerceAtLeast(48f) }
+            val natural = listOf(if (compactReceipt) recShort else recFull, parkW0, w(chargeText)).map { it.value.coerceAtLeast(48f) }
             val avail = maxWidth.value - gaps.value
             // Reparto del ancho: si todo cabe, lo que sobra se reparte en proporción; si no, «Recibo» y «Apartar» conservan SU ancho (nunca por debajo del que necesita su
             // texto) y «Cobrar» toma el resto (su letra baja hasta 60 %).
@@ -322,12 +329,16 @@ private fun PosBottomBar(cart: Cart, actions: CajaActions) {
             else {
                 // «Recibo» (con su número, protegido) conserva SU ancho; «Apartar» y «Cobrar» se reparten el resto en proporción (sus letras bajan hasta 60 %).
                 val rest = (avail - natural[0]).coerceAtLeast(96f)
-                val parkW = (rest * natural[1] / (natural[1] + natural[2])).coerceIn(48f, natural[1])
+                // «Cobrar» nunca queda por debajo de lo que su texto necesita con la letra al 60 %: si falta, cede el del medio (su texto, p. ej. «Enviar a caja»,
+                // puede bajar a dos líneas sin partir palabras).
+                val chargeNeed = (natural[2] - 18f) * 0.62f + 18f
+                val parkW = (rest * natural[1] / (natural[1] + natural[2])).coerceIn(48f, natural[1]).let { p -> if (rest - p < chargeNeed) (rest - chargeNeed).coerceAtLeast(48f) else p }
                 listOf(natural[0], parkW, (rest - parkW).coerceAtLeast(48f))
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 BarButton(recWord, receiptDesc, actions::openReceipt, Modifier.width(widths[0].dp), icon = R.drawable.ic_receipt, badge = recBadge)
-                BarButton(park, park, actions::askPark, Modifier.width(widths[1].dp), enabled = !cart.isEmpty)
+                BarButton(park, park, if (sending) actions::askSend else actions::askPark, Modifier.width(widths[1].dp).testTag(if (sending) TAG_BAR_SEND else TAG_BAR_PARK), enabled = !cart.isEmpty,
+                    maxLines = if (sending) 2 else 1)
                 BarButton(chargeText, chargeText, actions::startCobro, Modifier.width(widths[2].dp), kind = ButtonKind.PRIMARY, enabled = cart.totalMinor > 0)
             }
         }
@@ -335,7 +346,7 @@ private fun PosBottomBar(cart: Cart, actions: CajaActions) {
 }
 
 @Composable
-private fun BarButton(label: String, description: String, onClick: () -> Unit, modifier: Modifier, kind: ButtonKind = ButtonKind.OUTLINE, enabled: Boolean = true, icon: Int? = null, badge: String? = null) {
+private fun BarButton(label: String, description: String, onClick: () -> Unit, modifier: Modifier, kind: ButtonKind = ButtonKind.OUTLINE, enabled: Boolean = true, icon: Int? = null, badge: String? = null, maxLines: Int = 1) {
     val shape = RoundedCornerShape(16.dp)
     val bg = when (kind) { ButtonKind.PRIMARY -> CuadraColors.Green; else -> CuadraColors.Surface }
     val fg = if (!enabled) CuadraColors.Muted else if (kind == ButtonKind.PRIMARY) androidx.compose.ui.graphics.Color.White else CuadraColors.Ink
@@ -347,7 +358,7 @@ private fun BarButton(label: String, description: String, onClick: () -> Unit, m
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             if (icon != null) Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(24.dp), tint = fg)
-            if (label.isNotEmpty()) Text(label, Modifier.weight(1f, fill = false), color = fg, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center, maxLines = 1, minScale = 0.6f)
+            if (label.isNotEmpty()) Text(label, Modifier.weight(1f, fill = false), color = fg, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center, maxLines = maxLines, minScale = 0.6f)
             // El número del recibo: una sola línea, sin achicar ni recortar (minScale = 1); la fila le reserva su ancho completo antes que a la palabra.
             if (badge != null) Text(badge, Modifier.testTag(TAG_RECEIPT_BADGE), color = fg, style = MaterialTheme.typography.labelLarge, maxLines = 1, softWrap = false, minScale = 1f)
         }
@@ -393,6 +404,10 @@ private fun Header(full: Boolean, business: String, member: String, parkedCount:
         }
     }
 }
+
+/** El botón del medio de la barra: «Apartar» o, con «Cobro en caja», «Enviar a caja». */
+const val TAG_BAR_PARK = "bar_park"
+const val TAG_BAR_SEND = "bar_send"
 
 /** La fila de pestañas «Manual | Productos» (el aviso flotante nunca la tapa). */
 const val TAG_REGISTER_TABS = "register_tabs"

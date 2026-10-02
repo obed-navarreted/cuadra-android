@@ -108,7 +108,7 @@
     <string name="set_err_NOT_FOUND">Este negocio ya no existe.</string>
     <string name="set_err_FORBIDDEN">Solo el dueño del negocio puede hacer este cambio.</string>
     <string name="act_title">Actividad</string>
-    <string name="act_subtitle">Quién hizo qué en tu negocio. Solo tú, como dueño, ves esta lista.</string>
+    <string name="act_subtitle">Quién hizo qué en tu negocio. Solo el dueño y los administradores ven esta lista.</string>
     <string name="act_kind_all">Todo</string>
     <string name="act_kind_sales">Ventas</string>
     <string name="act_kind_products">Productos</string>

@@ -55,6 +55,8 @@ interface CuadraApi {
     @GET("api/b/{businessId}/reports/sales/breakdown") suspend fun salesBreakdown(@Path("businessId") businessId: String, @Query("by") by: String, @Query("from") from: String, @Query("to") to: String): List<BreakdownRowDto>
     @GET("api/b/{businessId}/reports/daily-close") suspend fun dailyClose(@Path("businessId") businessId: String, @Query("from") from: String, @Query("to") to: String): DailyCloseDto
 
+    /** «Por cobrar en caja» (ADR 0015) tal como la ve el servidor ahora: trae quién tiene abierta cada cuenta (`lockedBy`). */
+    @GET("api/b/{businessId}/sales/register-queue") suspend fun registerQueue(@Path("businessId") businessId: String): List<SaleDto>
     @POST("api/b/{businessId}/sales/{saleId}/lock") suspend fun lockSale(@Path("businessId") businessId: String, @Path("saleId") saleId: String): SaleDto
     @DELETE("api/b/{businessId}/sales/{saleId}/lock") suspend fun unlockSale(@Path("businessId") businessId: String, @Path("saleId") saleId: String)
 

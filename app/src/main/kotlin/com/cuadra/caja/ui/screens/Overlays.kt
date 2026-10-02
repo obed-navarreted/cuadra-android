@@ -53,7 +53,7 @@ fun Overlays(
     ui: CajaUi, actions: CajaActions, parked: List<SaleEntity>, registerCheckout: Boolean = false, lineCounts: Map<String, Int> = emptyMap(),
     zone: java.time.ZoneId = java.time.ZoneId.systemDefault(),
 ) {
-    if (ui.receiptOpen) ReceiptSheet(ui, actions, parked.size)
+    if (ui.receiptOpen) ReceiptSheet(ui, actions, parked.size, registerCheckout = registerCheckout)
     ui.editingLine?.let { QuantityDialog(it, actions) }
     ui.productMenu?.let { ProductMenuSheet(it, actions) }
     if (ui.showParked) {
@@ -61,12 +61,14 @@ fun Overlays(
         com.cuadra.caja.ui.common.RefreshOnShow(actions::refreshQueue)
         if (registerCheckout) com.cuadra.caja.ui.common.RefreshEvery(QUEUE_REFRESH_MILLIS) { actions.refreshQueue(com.cuadra.caja.domain.RefreshTrigger.PERIODIC) }
         // Cobro en caja: un solo lugar con las cuentas por cobrar en caja y las apartadas.
-        if (registerCheckout) RegisterQueueSheet(com.cuadra.caja.domain.RegisterQueue.split(parked), actions, zone, lineCounts, refreshing = ui.queueRefreshing)
+        if (registerCheckout) RegisterQueueSheet(com.cuadra.caja.domain.RegisterQueue.split(parked), actions, zone, lineCounts, refreshing = ui.queueRefreshing,
+            query = ui.queueQuery, locks = ui.queueLocks)
         else ParkedDialog(parked, actions, refreshing = ui.queueRefreshing)
     }
-    ui.queueDetail?.let { QueueTicketSheet(it, actions, zone) }
+    ui.queueDetail?.let { QueueTicketSheet(it, actions, zone, lockedBy = ui.queueLocks[it.sale.id]) }
     ui.queueCancel?.let { QueueCancelSheet(it, actions) }
     if (ui.parking) ParkDialog(ui.resumedLabel.orEmpty(), actions)
+    ui.sending?.let { SendSheet(it, ui.priced.cart.lineCount, ui.priced.totalMinor, actions) }
     ui.weighing?.let { WeighingDialog(it, actions) }
     ui.openPrice?.let { OpenPriceDialog(it, actions) }
     ui.draft?.let { ProductDialog(it, actions) }
@@ -233,6 +235,7 @@ fun NoticeDialog(n: Notice, actions: CajaActions) {
         is Notice.TicketLocked -> if (n.by != null) R.string.parked_locked_by else R.string.parked_locked
         Notice.InvalidProduct -> R.string.product_invalid
         is Notice.BarcodeInUse -> R.string.product_barcode_taken
+        Notice.RegisterCheckoutOff -> R.string.send_off
     }
     Sheet(actions::dismissNotice, actions = {
         if (n is Notice.CodeUnknown) {
@@ -251,6 +254,9 @@ fun NoticeDialog(n: Notice, actions: CajaActions) {
                 else -> stringResource(text)
             },
             style = MaterialTheme.typography.bodyLarge,
+            // El cobro en caja se apagó con la hoja «Enviar a caja» abierta: aviso naranja (la cuenta no se perdió, sigue en la caja).
+            color = if (n == Notice.RegisterCheckoutOff) CuadraColors.Orange else androidx.compose.ui.graphics.Color.Unspecified,
+            fontWeight = if (n == Notice.RegisterCheckoutOff) FontWeight.Bold else null,
         )
         if (n is Notice.CodeUnknown) Text(n.code, fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.headlineMedium, maxLines = 4, minScale = 0.5f)
     }

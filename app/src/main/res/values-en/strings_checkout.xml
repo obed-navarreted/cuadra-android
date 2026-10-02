@@ -12,7 +12,7 @@
         <item quantity="one">%d item</item>
         <item quantity="other">%d items</item>
     </plurals>
-    <string name="queue_row_by">Served by %1$s · %2$s</string>
+    <string name="queue_row_by_name">Served by %1$s</string>
     <string name="queue_no_note">No note</string>
     <string name="queue_detail_title">Ticket to charge</string>
     <string name="queue_taken_by">Served by: %1$s</string>
@@ -25,14 +25,27 @@
     <string name="queue_cancel_help">It leaves the list on every phone. It is not a sale, but the activity log keeps who, when and your reason.</string>
     <string name="queue_cancel_confirm">Void ticket</string>
     <string name="parked_locked_by">%1$s is charging it.</string>
-    <string name="pay_mode_label">This ticket</string>
-    <string name="pay_mode_now">Charge now</string>
-    <string name="pay_mode_register">Send to register</string>
-    <string name="pay_register_hint">No payment method or change: whoever charges at the register decides.</string>
-    <string name="pay_register_note">Note (optional)</string>
-    <string name="pay_register_note_hint">Table 4, John</string>
-    <string name="pay_register_send">Send to register</string>
     <string name="pay_register_sent">Sent to the register</string>
+    <string name="send_bar">Send to register</string>
+    <string name="send_title">Send to the register</string>
+    <string name="send_update_title">Update at the register</string>
+    <string name="send_note_hint">Table, name or note</string>
+    <string name="send_help">No payment method or change: whoever charges at the register decides.</string>
+    <string name="send_update_help">It replaces the ticket on the list with the items you have now.</string>
+    <string name="send_confirm">Send to register</string>
+    <string name="send_update_confirm">Update at register</string>
+    <string name="send_off">Charge at the register was turned off. The ticket is still here: park it or charge it on this phone.</string>
+    <string name="queue_search">Search by note or by who served</string>
+    <string name="queue_no_match">No ticket matches “%1$s”.</string>
+    <string name="queue_empty_help">When someone taps “Send to register”, the ticket shows up here, the one waiting longest first.</string>
+    <string name="queue_age_now">just arrived</string>
+    <plurals name="queue_age_min">
+        <item quantity="one">%d min ago</item>
+        <item quantity="other">%d min ago</item>
+    </plurals>
+    <string name="queue_age_hours">%1$d h %2$d min ago</string>
+    <string name="queue_locked_tag">%1$s is charging it</string>
+    <string name="queue_row_desc">%1$s, %2$s, %3$s. Tap to view and charge.</string>
     <string name="sale_notice_sent">Sent to register · %1$s</string>
     <string name="sale_taken_charged">Served by: %1$s · Charged by: %2$s</string>
     <string name="sale_sent_to_register">Sent to the register by %1$s, %2$s</string>
@@ -56,6 +69,5 @@
     </plurals>
     <string name="set_discard_queue_confirm">Turn off and cancel</string>
     <string name="set_err_REGISTER_QUEUE_BUSY">Someone is charging a ticket right now; try again in a moment.</string>
-    <string name="pay_register_off">Charge the ticket here: charging at the register was turned off.</string>
     <string name="error_COBRO_EN_CAJA_OFF">Charging at the register is turned off for this business. Charge the ticket here.</string>
 </resources>

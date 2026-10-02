@@ -76,10 +76,13 @@ interface CajaActions {
     fun setQueueCancelReason(text: String) {}
     fun closeQueueCancel() {}
     fun confirmCancelQueued() {}
-    /** En «Cobrar», con el ajuste: «Cobrar ahora» (false) o «Enviar a caja» (true). */
-    fun setCobroMode(toRegister: Boolean) {}
-    fun setRegisterNote(text: String) {}
-    fun confirmSendToRegister() {}
+    /** Buscador de la lista «Por cobrar en caja» (por nota o por quién la envió). */
+    fun setQueueQuery(text: String) {}
+    /** «Enviar a caja» en la barra (con el ajuste, en el lugar de «Apartar»): abre la hoja con el resumen y la nota; `confirmSend` la envía. */
+    fun askSend() {}
+    fun setSendNote(text: String) {}
+    fun cancelSend() {}
+    fun confirmSend() {}
     fun startCobro() {}
     fun cancelCobro() {}
     fun toggleMethod(m: PayMethod) {}

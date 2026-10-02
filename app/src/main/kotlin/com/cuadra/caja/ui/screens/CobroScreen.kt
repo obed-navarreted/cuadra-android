@@ -104,9 +104,8 @@ fun CobroContent(ui: CajaUi, actions: CajaActions, nowMillis: Long = System.curr
 
     // El cobro ocupa toda la pantalla: la raíz ya pone el margen superior y aquí solo falta el inferior (la barra de navegación se oculta).
     val done = cobro.doneChangeMinor
-    // Enviada a caja (ADR 0015): el mismo destello corto de «Venta cobrada» y a la venta nueva.
-    val sent = cobro.sent
-    val finished = done != null || sent
+    // «Cobrar» es solo para cobrar: enviar a caja (ADR 0015) se hace desde la barra de la caja.
+    val finished = done != null
     // «Venta cobrada» vuelve sola a la venta nueva (1.2 s; 4 s con el botón de WhatsApp) y un toque en cualquier parte la adelanta. Mientras el envío por WhatsApp
     // está abierto no corre el tiempo (al cerrarlo se pasa a la venta nueva).
     val flashMillis = com.cuadra.caja.domain.SaleFlash.durationMillis(cobro.offerWhatsApp, cobro.doneShare != null)
@@ -130,15 +129,7 @@ fun CobroContent(ui: CajaUi, actions: CajaActions, nowMillis: Long = System.curr
             }
         },
         footer = {
-            if (sent) {
-                Unit
-            } else if (cobro.toRegister && cobro.registerCheckout) {
-                // «Enviar a caja»: sin método ni vuelto; el botón siempre a la vista (también con el teclado abierto escribiendo la nota).
-                CuadraButton(
-                    stringResource(R.string.pay_register_send), actions::confirmSendToRegister, Modifier.fillMaxWidth().padding(bottom = 8.dp), kind = ButtonKind.DARK,
-                    enabled = !cobro.saving, height = 56,
-                )
-            } else if (done != null) {
+            if (done != null) {
                 // «Venta cobrada» no pide nada: vuelve sola a una venta nueva. Solo con la preferencia de WhatsApp encendida se queda más y ofrece el botón, con una barra del tiempo que queda.
                 // (El comprobante se imprime solo si la impresora está activada y conectada; «Anular» vive en el aviso de la venta nueva y en Ventas.)
                 cobro.doneShare?.let {
@@ -180,13 +171,7 @@ fun CobroContent(ui: CajaUi, actions: CajaActions, nowMillis: Long = System.curr
             }
         },
     ) {
-        if (sent) {
-            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("✓", style = MaterialTheme.typography.displaySmall, color = CuadraColors.Green)
-                Text(stringResource(R.string.pay_register_sent), style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
-                if (cobro.registerNote.isNotBlank()) Text(cobro.registerNote, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center, maxLines = 3, ellipsize = true)
-            }
-        } else if (done != null) {
+        if (done != null) {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("✓", style = MaterialTheme.typography.displaySmall, color = CuadraColors.Green)
                 Text(stringResource(R.string.pay_done), style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
@@ -197,12 +182,8 @@ fun CobroContent(ui: CajaUi, actions: CajaActions, nowMillis: Long = System.curr
             }
         } else {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (cobro.registerCheckout) CobroModeSwitch(cobro, actions)
-                if (cobro.registerOffNotice) Text(stringResource(R.string.pay_register_off), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = CuadraColors.Orange)
-                if (cobro.registerCheckout && cobro.toRegister) {
-                    RegisterSendBody(cobro, actions)
-                    return@Column
-                }
+                // Qué cuenta se cobra (una retomada: «Mesa 4»), para no cobrar la equivocada. La nota la escribe la persona: puede terminar en «…».
+                ui.resumedLabel?.let { Text(it, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, maxLines = 2, ellipsize = true) }
                 SectionLabel(stringResource(R.string.pay_how))
                 ChipFlow {
                     cobro.availableMethods.forEach { m -> CuadraChip(stringResource(methodRes(m)), plan.entries.any { it.method == m }, { actions.toggleMethod(m) }) }

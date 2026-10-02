@@ -155,6 +155,17 @@ class SaleRepository(
         session.current().businessId?.let { b -> apiCall { api.unlockSale(b, saleId) } }
     }
 
+    /**
+     * Quién tiene abierta (para cobrar o agregar productos) cada cuenta por cobrar en caja en OTRO teléfono: id de la cuenta → nombre. Lo abierto en este
+     * teléfono no cuenta. Sin conexión, `null` (la lista sigue como estaba).
+     */
+    suspend fun registerQueueLocks(): Map<String, String>? {
+        val s = session.current()
+        val businessId = s.businessId ?: return null
+        val rows = apiCall { api.registerQueue(businessId) }.getOrNull() ?: return null
+        return rows.mapNotNull { r -> r.lockedBy?.takeIf { r.lockedByDeviceId != s.deviceId }?.let { r.id to it.name } }.toMap()
+    }
+
     private suspend fun save(saleId: String, status: String, cart: Cart, plan: PaymentPlan?, label: String?, sendToRegister: Boolean? = null,
                              promotions: List<com.cuadra.caja.domain.AppliedPromotion> = emptyList()): String {
         val promoRows = promotions.map { com.cuadra.caja.data.remote.SalePromotionDto(it.promotionId.ifEmpty { null }, it.name.take(200), it.quantity, it.priceMinor, it.units, it.discountMinor) }
@@ -183,8 +194,9 @@ class SaleRepository(
             sendToRegister = sendToRegister?.takeIf { status == "PARKED" },
             promotions = promoRows,
         )
-        // Cobro en caja: enviada ahora = hora y quién; sin indicarlo se conserva lo que tenía (al cobrarla queda quién la envió).
-        val sentAt = if (sendToRegister == true && status == "PARKED") time else if (sendToRegister == false) null else existing?.sentToRegisterAt
+        // Cobro en caja: enviada ahora = hora y quién; sin indicarlo se conserva lo que tenía (al cobrarla queda quién la envió). Reenviada con productos agregados
+        // conserva cuándo llegó (igual que el servidor): no pierde su lugar en la lista.
+        val sentAt = if (sendToRegister == true && status == "PARKED") existing?.sentToRegisterAt ?: time else if (sendToRegister == false) null else existing?.sentToRegisterAt
         val sentBy = if (sendToRegister == true && status == "PARKED") s.memberName else if (sendToRegister == false) null else existing?.sentByName
         val discount = input.discountMinor
         db.inTransaction {

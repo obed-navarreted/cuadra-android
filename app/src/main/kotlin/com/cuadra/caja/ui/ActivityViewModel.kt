@@ -26,7 +26,7 @@ data class ActivityUi(
     /** Siguiente página por pedir y si el servidor todavía tiene más. */
     val nextPage: Int = 0,
     val hasMore: Boolean = false,
-    /** Si esta persona puede ver la lista (solo el dueño). */
+    /** Si esta persona puede ver la lista (dueño y admin). */
     val allowed: Boolean = true,
 ) {
     val visible: List<ActivityRow> get() = ActivityFeed.filter(rows, kind)

@@ -1,45 +1,62 @@
 package com.cuadra.caja.ui
 
-import com.cuadra.caja.domain.PaymentPlan
+import com.cuadra.caja.domain.Cart
+import com.cuadra.caja.domain.CartLine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** El ajuste «Cobro en caja» manda sobre un cobro ya abierto (ADR 0015): se apaga o se enciende con la pantalla abierta. */
+/**
+ * «Enviar a caja» desde la barra (ADR 0015): cómo abre la hoja y qué pasa si el ajuste «Cobro en caja» cambia con ella abierta. «Cobrar» ya no tiene modo
+ * «Enviar a caja»: es solo para cobrar.
+ */
 class CobroRegisterSettingTest {
-    private fun cobro(on: Boolean = true, toRegister: Boolean = false) = CobroUi(PaymentPlan.cash(5000), registerCheckout = on, toRegister = toRegister)
+    private val cart = Cart(listOf(CartLine("l1", null, null, "Café", null, 5000, null, 1000)))
 
-    @Test fun turningOffHidesTheOptionAndFallsBackToChargeNow() {
-        val c = cobro(toRegister = true).withRegisterSetting(false)
-        assertFalse(c.registerCheckout)
-        assertFalse(c.toRegister)
-        assertTrue(c.registerOffNotice)
+    @Test fun aNewTicketOpensWithAnEmptyNoteAndTheSendButton() {
+        val s = SendUi.open(resumedLabel = null, resumedPending = false)
+        assertEquals("", s.note)
+        assertFalse(s.update)
+        assertFalse(s.saving)
     }
 
-    @Test fun turningOffWithChargeNowSelectedKeepsItAndWarns() {
-        val c = cobro(toRegister = false).withRegisterSetting(false)
-        assertFalse(c.registerCheckout)
-        assertTrue(c.registerOffNotice)
+    @Test fun aTicketResumedFromTheQueueKeepsItsNoteAndReadsUpdate() {
+        val s = SendUi.open(resumedLabel = "Mesa 4", resumedPending = true)
+        assertEquals("Mesa 4", s.note)
+        assertTrue(s.update)
     }
 
-    @Test fun turningOnShowsTheOptionAgainAndClearsTheWarning() {
-        val c = cobro(on = false).copy(registerOffNotice = true).withRegisterSetting(true)
-        assertTrue(c.registerCheckout)
-        assertFalse(c.registerOffNotice)
-        assertFalse(c.toRegister)
+    @Test fun aResumedPlainParkedTicketKeepsItsLabelButIsANewSend() {
+        val s = SendUi.open(resumedLabel = "Señora de rojo", resumedPending = false)
+        assertEquals("Señora de rojo", s.note)
+        assertFalse(s.update)
     }
 
-    @Test fun nothingChangesWhenTheSettingDoesNotChange() {
-        val c = cobro()
-        assertSame(c, c.withRegisterSetting(true))
+    @Test fun thePrefilledNoteIsCappedLikeTheField() {
+        assertEquals(com.cuadra.caja.domain.RegisterQueue.NOTE_MAX, SendUi.open("x".repeat(500), true).note.length)
     }
 
-    @Test fun aTicketAlreadySentOrChargedIsLeftAlone() {
-        val sent = cobro(toRegister = true).copy(sent = true)
-        assertSame(sent, sent.withRegisterSetting(false))
-        val done = cobro().copy(doneChangeMinor = 0)
-        assertEquals(true, done.withRegisterSetting(false).registerCheckout)
+    @Test fun turningTheSettingOffClosesTheOpenSheetWithTheOrangeNoticeAndKeepsTheTicket() {
+        val ui = CajaUi(cart = cart, sending = SendUi("Mesa 4"), resumedId = "s1", resumedLabel = "Mesa 4")
+        val off = ui.withRegisterSetting(false)
+        assertNull(off.sending)
+        assertEquals(Notice.RegisterCheckoutOff, off.notice)
+        assertEquals(cart, off.cart)
+        assertEquals("s1", off.resumedId)
+    }
+
+    @Test fun nothingChangesWithoutAnOpenSheetOrWhenTheSettingStaysOn() {
+        val closed = CajaUi(cart = cart)
+        assertSame(closed, closed.withRegisterSetting(false))
+        val open = CajaUi(cart = cart, sending = SendUi())
+        assertSame(open, open.withRegisterSetting(true))
+    }
+
+    @Test fun theHardwareScannerIsIgnoredWhileTheSheetIsOpen() {
+        assertEquals(HardwareScanRoute.IGNORE, CajaUi(cart = cart, sending = SendUi()).hardwareScanRoute())
+        assertEquals(HardwareScanRoute.ADD, CajaUi(cart = cart).hardwareScanRoute())
     }
 }
