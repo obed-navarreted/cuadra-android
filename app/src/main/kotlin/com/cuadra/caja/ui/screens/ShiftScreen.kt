@@ -74,7 +74,7 @@ fun ShiftContent(
     val fmt = LocalMoney.current
     val zone = runCatching { ZoneId.of(timezone) }.getOrDefault(ZoneId.systemDefault())
     val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
-    val time = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(locale).withZone(zone)
+    val time = com.cuadra.caja.domain.ClockFormat.dateTime(locale, zone)
     val closed = ui.closedShift
     val counted = ui.count.countedMinor(fmt.decimals)
     val expected = shift?.let { CashClosing.expected(it.openingFloatMinor, breakdown) }

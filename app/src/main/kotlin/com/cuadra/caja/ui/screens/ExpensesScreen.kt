@@ -100,7 +100,7 @@ fun ExpensesContent(
 ) {
     val zone = calendar?.zone ?: ZoneId.of("UTC")
     val locale: Locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
-    val time = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(locale).withZone(zone)
+    val time = com.cuadra.caja.domain.ClockFormat.dateTime(locale, zone)
 
     ScreenFrame(
         Modifier.fillMaxSize().padding(horizontal = 16.dp),

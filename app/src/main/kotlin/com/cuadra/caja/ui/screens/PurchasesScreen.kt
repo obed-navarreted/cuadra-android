@@ -220,7 +220,7 @@ private fun PurchaseDialogs(
 fun DetailSheet(row: PurchaseRow, items: List<PurchaseItemEntity>, payments: List<SupplierPaymentEntity>, timezone: String, actions: PurchasesActions) {
     val zone = runCatching { ZoneId.of(timezone) }.getOrDefault(ZoneId.systemDefault())
     val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
-    val time = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(locale).withZone(zone)
+    val time = com.cuadra.caja.domain.ClockFormat.dateTime(locale, zone)
     val p = row.purchase
     val owed = if (p.voided) 0 else (p.totalMinor - row.paidMinor).coerceAtLeast(0)
     Sheet({ actions.openDetail(null) }, actions = { CuadraButton(stringResource(R.string.close), { actions.openDetail(null) }, Modifier.fillMaxWidth(), kind = ButtonKind.DARK) }) {

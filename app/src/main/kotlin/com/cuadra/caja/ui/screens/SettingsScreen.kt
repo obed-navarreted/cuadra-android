@@ -81,7 +81,7 @@ fun BusinessSettingsScreen(vm: SettingsViewModel, onBack: () -> Unit) {
 /** Ajustes sin ViewModel (estado + acciones): es lo que dibuja la guardia de diseño. */
 @Composable
 fun SettingsContent(ui: SettingsUi, business: BusinessEntity?, actions: SettingsActions, onBack: () -> Unit) {
-    val canEdit = ui.isOwner
+    val canEdit = ui.canEdit
     val draft = ui.draft
     ScreenFrame(
         Modifier.fillMaxSize().imePadding().padding(horizontal = 16.dp),
@@ -122,7 +122,7 @@ fun SettingsContent(ui: SettingsUi, business: BusinessEntity?, actions: Settings
                 RegisterCard(draft, canEdit, actions)
                 ModulesCard(business, canEdit, ui.moduleSaving, actions)
                 NotifyCard(ui, canEdit, actions)
-                if (canEdit) DangerCard(actions)
+                if (ui.isOwner) DangerCard(actions)
             }
         }
     }
@@ -220,7 +220,7 @@ private fun DayCard(d: SettingsDraft, base: SettingsDraft, b: BusinessEntity, ca
         }
         pending?.let { r ->
             Text(stringResource(R.string.set_pending, localDate(r.from.toString())), color = CuadraColors.Green, fontWeight = FontWeight.Bold)
-            Text(stringResource(R.string.set_pending_detail, r.zone.id, r.cutoff.toString().take(5)), color = CuadraColors.Muted, style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.set_pending_detail, r.zone.id, com.cuadra.caja.domain.ClockFormat.hm(r.cutoff.toString())), color = CuadraColors.Muted, style = MaterialTheme.typography.bodyMedium)
         }
         if (rules.size > 1) {
             SectionLabel(stringResource(R.string.set_history_title))
@@ -228,7 +228,7 @@ private fun DayCard(d: SettingsDraft, base: SettingsDraft, b: BusinessEntity, ca
             rules.forEach { r ->
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(if (r.from == BusinessCalendar.SINCE_FOREVER) stringResource(R.string.set_history_always) else stringResource(R.string.set_history_from, localDate(r.from.toString())), fontWeight = FontWeight.Bold)
-                    Text(stringResource(R.string.set_history_rule, r.zone.id, r.cutoff.toString().take(5)), color = CuadraColors.Muted, style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.set_history_rule, r.zone.id, com.cuadra.caja.domain.ClockFormat.hm(r.cutoff.toString())), color = CuadraColors.Muted, style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }

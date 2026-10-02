@@ -1,5 +1,6 @@
 package com.cuadra.caja.domain.printing
 
+import com.cuadra.caja.domain.ClockFormat
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.ZoneId
@@ -115,10 +116,10 @@ object ReceiptFormatter {
     /** Referencia corta de la venta: «#» y los primeros 6 caracteres del id, en mayúsculas. */
     fun reference(saleId: String): String = "#" + saleId.filter { it.isLetterOrDigit() }.take(6).uppercase()
 
-    /** «29 sep 2026  14:32», en la zona horaria del NEGOCIO (nunca la del teléfono). */
+    /** «29 sep 2026 2:32 PM», en la zona horaria del NEGOCIO (nunca la del teléfono). */
     fun dateTime(atMillis: Long, zone: ZoneId, labels: ReceiptLabels): String {
         val t = Instant.ofEpochMilli(atMillis).atZone(zone)
-        return String.format(java.util.Locale.ROOT, "%d %s %d  %02d:%02d", t.dayOfMonth, labels.months[t.monthValue - 1], t.year, t.hour, t.minute)
+        return String.format(java.util.Locale.ROOT, "%d %s %d %d:%02d %s", t.dayOfMonth, labels.months[t.monthValue - 1], t.year, if (t.hour % 12 == 0) 12 else t.hour % 12, t.minute, if (t.hour >= 12) ClockFormat.PM else ClockFormat.AM)
     }
 
     /** Cantidad sin ceros de más: 2 → «2», 750 milésimas → «0.75». */

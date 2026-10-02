@@ -88,7 +88,7 @@ fun SchedulesScreen(vm: SchedulesViewModel, onBack: () -> Unit) {
 fun SchedulesContent(ui: SchedulesUi, members: List<MemberEntity>, timezone: String, actions: SchedulesActions, onBack: () -> Unit) {
     val zone = runCatching { ZoneId.of(timezone) }.getOrDefault(ZoneId.systemDefault())
     val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
-    val time = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(locale).withZone(zone)
+    val time = com.cuadra.caja.domain.ClockFormat.dateTime(locale, zone)
 
     ScreenFrame(
         Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -160,11 +160,11 @@ private fun instantText(iso: String, fmt: DateTimeFormatter): String = runCatchi
 
 @Composable
 private fun ruleText(s: RuleSummary): String = when (s) {
-    is RuleSummary.Once -> stringResource(R.string.sched_rule_once, s.date, s.time)
-    is RuleSummary.Daily -> stringResource(R.string.sched_rule_daily, s.time)
-    is RuleSummary.Weekly -> stringResource(R.string.sched_rule_weekly, s.days.map { dayLetter(it) }.joinToString(", "), s.time)
-    is RuleSummary.Monthly -> stringResource(R.string.sched_rule_monthly, s.day, s.time)
-    is RuleSummary.EveryN -> stringResource(R.string.sched_rule_every, s.n, s.time)
+    is RuleSummary.Once -> stringResource(R.string.sched_rule_once, s.date, com.cuadra.caja.domain.ClockFormat.hm(s.time))
+    is RuleSummary.Daily -> stringResource(R.string.sched_rule_daily, com.cuadra.caja.domain.ClockFormat.hm(s.time))
+    is RuleSummary.Weekly -> stringResource(R.string.sched_rule_weekly, s.days.map { dayLetter(it) }.joinToString(", "), com.cuadra.caja.domain.ClockFormat.hm(s.time))
+    is RuleSummary.Monthly -> stringResource(R.string.sched_rule_monthly, s.day, com.cuadra.caja.domain.ClockFormat.hm(s.time))
+    is RuleSummary.EveryN -> stringResource(R.string.sched_rule_every, s.n, com.cuadra.caja.domain.ClockFormat.hm(s.time))
 }
 
 @Composable

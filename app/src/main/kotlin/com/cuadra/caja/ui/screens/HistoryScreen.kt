@@ -119,7 +119,7 @@ fun HistoryContent(
     val zone = calendar?.zone ?: ZoneId.of("UTC")
     // El idioma se lee de la configuración de Compose: al cambiarlo desde la app, las fechas se vuelven a dar formato.
     val locale: Locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
-    val time = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(locale).withZone(zone)
+    val time = com.cuadra.caja.domain.ClockFormat.dateTime(locale, zone)
     val serverList = manager && !ui.offline && ui.error == null
     val rows = if (serverList) ui.sales else local
     var moreFilters by remember { mutableStateOf(initialMoreFilters) }

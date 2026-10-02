@@ -57,14 +57,17 @@ data class SettingsUi(
     val zoneQuery: String? = null,
     val delete: DeleteUi? = null,
 ) {
+    /** Eliminar el negocio (y el código de acceso) es solo del dueño. */
     val isOwner: Boolean get() = DeleteBusinessRules.canDelete(role)
+    /** Dueño y administrador editan los ajustes (ADR 0012, 2026-10-01); el cajero ni siquiera ve la pantalla. */
+    val canEdit: Boolean get() = role == TeamRules.OWNER || role == TeamRules.ADMIN
     val patch: UpdateBusinessBody? get() = if (base != null && draft != null) BusinessSettingsRules.patch(draft, base) else null
     val dirty: Boolean get() = patch?.isEmpty == false
     val notifyDirty: Boolean get() = notify != null && notify != notifyBase
 }
 
 /**
- * «Ajustes del negocio»: solo el dueño edita (el servidor lo exige igual); un administrador ve los valores. Guarda con `PUT /b/{id}` solo lo que cambió y actualiza el
+ * «Ajustes del negocio»: el dueño y los administradores editan (el servidor lo exige igual); solo el dueño elimina el negocio. Guarda con `PUT /b/{id}` solo lo que cambió y actualiza el
  * negocio en Room para que la app entera reaccione (Caja, Fiados, Cierre del día).
  */
 class SettingsViewModel(private val c: AppContainer) : ViewModel(), SettingsActions {
@@ -117,7 +120,7 @@ class SettingsViewModel(private val c: AppContainer) : ViewModel(), SettingsActi
         val s = _ui.value
         val d = s.draft ?: return
         val base = s.base ?: return
-        if (!s.isOwner || s.saving) return
+        if (!s.canEdit || s.saving) return
         BusinessSettingsRules.validate(d)?.let { err -> _ui.update { it.copy(validation = err) }; return }
         if (!s.dirty) return
         if (BusinessSettingsRules.changesDayRule(d, base)) { _ui.update { it.copy(confirmDayRule = true) }; return }
@@ -145,7 +148,7 @@ class SettingsViewModel(private val c: AppContainer) : ViewModel(), SettingsActi
     }
 
     override fun setModule(key: String, on: Boolean) {
-        if (!_ui.value.isOwner || _ui.value.moduleSaving) return
+        if (!_ui.value.canEdit || _ui.value.moduleSaving) return
         _ui.update { it.copy(moduleSaving = true, notice = null) }
         viewModelScope.launch {
             c.settings.update(UpdateBusinessBody(modules = mapOf(key to on))).fold(
@@ -164,7 +167,7 @@ class SettingsViewModel(private val c: AppContainer) : ViewModel(), SettingsActi
     // ---------- avisos del negocio ----------
     override fun saveNotify() {
         val n = _ui.value.notify ?: return
-        if (!_ui.value.isOwner || _ui.value.notifySaving) return
+        if (!_ui.value.canEdit || _ui.value.notifySaving) return
         NotifyRules.validate(n)?.let { err -> _ui.update { it.copy(notifyNotice = TeamNotice(err.message(), true)) }; return }
         _ui.update { it.copy(notifySaving = true, notifyNotice = null) }
         viewModelScope.launch {

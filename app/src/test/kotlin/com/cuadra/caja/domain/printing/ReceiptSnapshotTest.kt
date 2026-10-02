@@ -59,10 +59,18 @@ class ReceiptSnapshotTest {
     @Test fun referenceAndBusinessTimeZone() {
         assertEquals("#A1B2C3", ReceiptFormatter.reference("a1b2c3d4-0000-4000-8000-000000000001"))
         assertEquals("#AB", ReceiptFormatter.reference("ab"))
-        // 20:32 UTC del 29 sep es 14:32 en Managua, pero ya el 30 a las 05:32 en Tokio: el recibo usa la zona del NEGOCIO.
-        assertEquals("29 sep 2026  14:32", ReceiptFormatter.dateTime(ReceiptFixtures.AT, ZoneId.of("America/Managua"), ReceiptLabels.ES))
-        assertEquals("30 sep 2026  05:32", ReceiptFormatter.dateTime(ReceiptFixtures.AT, ZoneId.of("Asia/Tokyo"), ReceiptLabels.ES))
-        assertEquals("29 Sep 2026  14:32", ReceiptFormatter.dateTime(ReceiptFixtures.AT, ZoneId.of("America/Managua"), ReceiptLabels.EN))
+        // 20:32 UTC del 29 sep es 2:32 PM en Managua, pero ya el 30 a las 5:32 AM en Tokio: el recibo usa la zona del NEGOCIO.
+        assertEquals("29 sep 2026 2:32 PM", ReceiptFormatter.dateTime(ReceiptFixtures.AT, ZoneId.of("America/Managua"), ReceiptLabels.ES))
+        assertEquals("30 sep 2026 5:32 AM", ReceiptFormatter.dateTime(ReceiptFixtures.AT, ZoneId.of("Asia/Tokyo"), ReceiptLabels.ES))
+        assertEquals("29 Sep 2026 2:32 PM", ReceiptFormatter.dateTime(ReceiptFixtures.AT, ZoneId.of("America/Managua"), ReceiptLabels.EN))
+    }
+
+    @Test fun noonAndMidnightAreTwelve() {
+        val z = ZoneId.of("UTC")
+        fun at(t: String) = java.time.LocalDateTime.parse("2026-09-29T$t").atZone(z).toInstant().toEpochMilli()
+        assertEquals("29 sep 2026 12:05 PM", ReceiptFormatter.dateTime(at("12:05:00"), z, ReceiptLabels.ES))
+        assertEquals("29 sep 2026 12:00 AM", ReceiptFormatter.dateTime(at("00:00:00"), z, ReceiptLabels.ES))
+        assertEquals("29 Sep 2026 11:59 PM", ReceiptFormatter.dateTime(at("23:59:30"), z, ReceiptLabels.EN))
     }
 
     @Test fun quantityHasNoUselessZeros() {

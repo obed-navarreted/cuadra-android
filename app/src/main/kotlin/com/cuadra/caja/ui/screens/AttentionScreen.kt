@@ -51,7 +51,7 @@ fun AttentionScreen(vm: AttentionViewModel, onBack: () -> Unit) {
 @Composable
 fun AttentionContent(ui: AttentionUi, actions: AttentionActions, onBack: () -> Unit, zone: ZoneId = ZoneId.systemDefault()) {
     val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
-    val time = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(locale).withZone(zone)
+    val time = com.cuadra.caja.domain.ClockFormat.dateTime(locale, zone)
     ScreenFrame(
         Modifier.fillMaxSize().padding(horizontal = 16.dp),
         header = {

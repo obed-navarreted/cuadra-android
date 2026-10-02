@@ -33,4 +33,11 @@ class DeleteBusinessTest {
         assertTrue(DeleteBusinessRules.canDelete("OWNER"))
         assertFalse(DeleteBusinessRules.canDelete("ADMIN")); assertFalse(DeleteBusinessRules.canDelete("CASHIER")); assertFalse(DeleteBusinessRules.canDelete(null))
     }
+
+    @Test fun ownerAndAdminEditSettingsButOnlyTheOwnerDeletes() {
+        fun ui(role: String?) = com.cuadra.caja.ui.SettingsUi(role = role)
+        assertTrue(ui("OWNER").canEdit); assertTrue(ui("ADMIN").canEdit)
+        assertFalse(ui("CASHIER").canEdit); assertFalse(ui(null).canEdit)
+        assertTrue(ui("OWNER").isOwner); assertFalse(ui("ADMIN").isOwner)
+    }
 }

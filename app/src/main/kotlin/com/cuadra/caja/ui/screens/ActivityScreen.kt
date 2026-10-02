@@ -128,7 +128,7 @@ private fun ActivityCard(r: ActivityRow, zone: ZoneId) {
 private fun whenText(iso: String, zone: ZoneId): String {
     val locale = LocalConfiguration.current.locales[0]
     val at = runCatching { Instant.parse(iso).atZone(zone) }.getOrNull() ?: return iso
-    val time = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale).format(at)
+    val time = com.cuadra.caja.domain.ClockFormat.time(locale).format(at)
     val today = LocalDate.now(zone)
     return when (at.toLocalDate()) {
         today -> stringResource(R.string.act_today_at, time)

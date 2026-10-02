@@ -59,7 +59,7 @@
     <string name="sched_templates">Plantillas rápidas</string>
     <string name="sched_tpl1_title">Recuerda contar el fondo al abrir</string>
     <string name="sched_tpl1_body">Antes de vender, cuenta el efectivo con el que empieza la caja y anótalo al abrir el turno.</string>
-    <string name="sched_tpl2_title">Cierre de caja a las 9 p. m.</string>
+    <string name="sched_tpl2_title">Cierre de caja a las 9 PM</string>
     <string name="sched_tpl2_body">Es hora de cerrar la caja: cuenta el efectivo y cierra tu turno.</string>
     <string name="sched_tpl3_title">Hoy llega el proveedor</string>
     <string name="sched_tpl3_body">Hoy llega la mercadería. Revisa lo que entra y registra la compra.</string>

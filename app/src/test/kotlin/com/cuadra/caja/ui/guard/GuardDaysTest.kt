@@ -118,7 +118,7 @@ class GuardDaysTest {
         s: com.cuadra.caja.domain.SaleView, role: String, canReturn: Boolean = false, undoable: Boolean = false, lastReturn: com.cuadra.caja.domain.SaleReturnView? = null,
         printer: com.cuadra.caja.domain.printing.PrinterBadge = com.cuadra.caja.domain.printing.PrinterBadge.OFF, whatsApp: Boolean = false,
     ) {
-        val time = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(androidx.compose.ui.platform.LocalConfiguration.current.locales[0]).withZone(Fixtures.calendar.zone)
+        val time = com.cuadra.caja.domain.ClockFormat.dateTime(androidx.compose.ui.platform.LocalConfiguration.current.locales[0], Fixtures.calendar.zone)
         SaleDetailSheet(s, time, com.cuadra.caja.domain.SaleDeletion.canDelete(role, s.status), actions, printer, null, canReturn = canReturn, undoable = undoable, lastReturn = lastReturn, nowMillis = Fixtures.NOW,
             onWhatsApp = if (whatsApp) ({}) else null)
     }

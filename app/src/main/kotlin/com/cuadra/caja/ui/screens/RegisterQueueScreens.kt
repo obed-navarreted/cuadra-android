@@ -48,7 +48,7 @@ import java.time.format.FormatStyle
 @Composable
 private fun timeText(millis: Long?, zone: ZoneId): String {
     val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
-    return millis?.let { DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale).withZone(zone).format(Instant.ofEpochMilli(it)) } ?: "-"
+    return millis?.let { com.cuadra.caja.domain.ClockFormat.time(locale, zone).format(Instant.ofEpochMilli(it)) } ?: "-"
 }
 
 /**

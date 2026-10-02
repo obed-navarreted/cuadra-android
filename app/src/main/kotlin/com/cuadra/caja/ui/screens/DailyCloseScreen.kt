@@ -71,7 +71,7 @@ fun DailyCloseContent(ui: DailyCloseUi, calendar: BusinessCalendar?, actions: Da
         // El cierre puede estar incompleto mientras un teléfono no termine de enviar (este u otro del negocio).
         if (ui.localPending > 0 || ui.syncWarnings.isNotEmpty()) item {
             val locale: Locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
-            val fmt = java.time.format.DateTimeFormatter.ofLocalizedDateTime(java.time.format.FormatStyle.SHORT).withLocale(locale).withZone(calendar?.zone ?: java.time.ZoneId.systemDefault())
+            val fmt = com.cuadra.caja.domain.ClockFormat.dateTime(locale, calendar?.zone ?: java.time.ZoneId.systemDefault())
             CuadraCard(Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (ui.localPending > 0) Text(pluralStringResource(R.plurals.close_sync_pending_here, ui.localPending, ui.localPending), color = CuadraColors.Orange, fontWeight = FontWeight.Bold)

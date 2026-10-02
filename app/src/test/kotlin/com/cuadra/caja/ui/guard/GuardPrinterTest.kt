@@ -131,7 +131,7 @@ class GuardPrinterTest {
     }
 
     @Composable private fun Detail(s: SaleView, canDelete: Boolean, printer: PrinterBadge, notice: PrintNotice? = null) {
-        val time = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(androidx.compose.ui.platform.LocalConfiguration.current.locales[0]).withZone(Fixtures.calendar.zone)
+        val time = com.cuadra.caja.domain.ClockFormat.dateTime(androidx.compose.ui.platform.LocalConfiguration.current.locales[0], Fixtures.calendar.zone)
         SaleDetailSheet(s, time, canDelete, object : HistoryActions {}, printer, notice)
     }
 

@@ -51,12 +51,12 @@ object RangePresets {
     }
 }
 
-/** Texto exacto de una ventana: «28 sep 2:00 a. m. → 29 sep 2:00 a. m.» (zona y corte del NEGOCIO, idioma de la app). */
+/** Texto exacto de una ventana: «28 sep 2:00 AM → 29 sep 2:00 AM» (zona y corte del NEGOCIO, idioma de la app). */
 object RangeWindowText {
-    /** Un instante: «28 sep 2:00 a. m.» (con año si no es el de `nowMillis`). Las horas en el idioma pedido; espacios normales para que pueda bajar de línea. */
+    /** Un instante: «28 sep 2:00 AM» (con año si no es el de `nowMillis`). Las horas en el idioma pedido; espacios normales para que pueda bajar de línea. */
     fun point(millis: Long, zone: ZoneId, locale: Locale, withYear: Boolean): String {
         val date = DateTimeFormatter.ofPattern(if (withYear) "d MMM yyyy" else "d MMM", locale).withZone(zone).format(Instant.ofEpochMilli(millis)).replace(".", "")
-        val time = DateTimeFormatter.ofPattern("h:mm a", locale).withZone(zone).format(Instant.ofEpochMilli(millis))
+        val time = ClockFormat.time(locale, zone).format(Instant.ofEpochMilli(millis))
         return "$date $time".replace(Regex("[\\u00a0\\u202f]"), " ")
     }
 

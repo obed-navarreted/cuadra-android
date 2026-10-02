@@ -8,7 +8,7 @@
     <string name="more_group_help">Help</string>
     <string name="more_group_account">My account</string>
     <string name="set_title">Business settings</string>
-    <string name="set_owner_only">Only the owner changes these settings. You can view them.</string>
+    <string name="set_owner_only">Only the owner and admins change these settings. You can view them.</string>
     <string name="set_offline_note">Offline: showing what was last saved on this phone. You need internet to change anything.</string>
     <string name="set_loading">Loading…</string>
     <string name="set_sec_business">Business details</string>
@@ -225,7 +225,7 @@
     <string name="help_faq_offline_q">What happens if the internet goes down?</string>
     <string name="help_faq_offline_a">Nothing stops: the app keeps selling, recording credit sales and expenses, and saves everything on the phone. When the connection returns, whatever is pending is sent by itself, exactly once. Reports on the web panel catch up when the phones finish syncing.</string>
     <string name="help_faq_closing_q">How does the daily close work?</string>
-    <string name="help_faq_closing_a">The close is automatic: nobody opens or closes anything. Each business day runs from one day’s cutoff time (02:00 by default) to the next, so what is sold at 1 a.m. counts for the previous day, and “yesterday” is yesterday 02:00 to today 02:00. In More → Daily close you see, per day, sales by payment method, expenses, withdrawals and the expected cash = cash sales + cash credit payments + cash in − drawer expenses − withdrawals. Transfers, card and credit do not go in the drawer.</string>
+    <string name="help_faq_closing_a">The close is automatic: nobody opens or closes anything. Each business day runs from one day’s cutoff time (2:00 AM by default) to the next, so what is sold at 1 AM counts for the previous day, and “yesterday” is yesterday 2:00 AM to today 2:00 AM. In More → Daily close you see, per day, sales by payment method, expenses, withdrawals and the expected cash = cash sales + cash credit payments + cash in − drawer expenses − withdrawals. Transfers, card and credit do not go in the drawer.</string>
     <string name="help_faq_import_q">How do I import my products from a file?</string>
     <string name="help_faq_import_a">Importing is done in the web panel: in Inventory choose “Import CSV”. The file has one row per product with columns such as name, code, price, cost, unit, category and stock. First you see a preview of what would be created or updated, without saving anything; then you confirm. If you import again, what already exists is updated and not duplicated.</string>
     <string name="tpl_title">WhatsApp messages</string>

@@ -66,7 +66,7 @@ class RangePresetsTest {
         val r = resolve(RangePreset.THIS_MONTH, "2026-09-29T14:00:00")
         assertEquals(d("2026-09-01"), r.from)
         assertEquals(d("2026-09-29"), r.to)
-        // El 1 de octubre a la 1 a. m. todavía es la jornada del 30 de septiembre: «este mes» sigue siendo septiembre.
+        // El 1 de octubre a la 1 AM todavía es la jornada del 30 de septiembre: «este mes» sigue siendo septiembre.
         val edge = resolve(RangePreset.THIS_MONTH, "2026-10-01T01:00:00")
         assertEquals(d("2026-09-01"), edge.from)
         assertEquals(d("2026-09-30"), edge.to)
@@ -82,7 +82,7 @@ class RangePresetsTest {
         val mar = resolve(RangePreset.LAST_MONTH, "2026-03-05T10:00:00")
         assertEquals(d("2026-02-01"), mar.from)
         assertEquals(d("2026-02-28"), mar.to)
-        // Marzo a la 1 a. m. del día 1: la jornada de hoy es la del 28 de febrero, el mes pasado es enero.
+        // Marzo a la 1 AM del día 1: la jornada de hoy es la del 28 de febrero, el mes pasado es enero.
         val early = resolve(RangePreset.LAST_MONTH, "2026-03-01T01:00:00")
         assertEquals(d("2026-01-01"), early.from)
         assertEquals(d("2026-01-31"), early.to)
@@ -127,11 +127,11 @@ class RangePresetsTest {
         val r = resolve(RangePreset.YESTERDAY, "2026-09-29T14:00:00")
         val es = RangeWindowText.parts(r, calendar, now("2026-09-29T14:00:00"), Locale.forLanguageTag("es"))
         assertTrue(es.first, es.first.startsWith("28 sep") && es.first.contains(" 2:00 "))
-        assertTrue(es.first, es.first.contains("a. m.") || es.first.contains("a. m."))
+        assertTrue(es.first, es.first.contains("AM") || es.first.contains("a. m."))
         assertTrue(es.second!!, es.second!!.startsWith("29 sep"))
         val en = RangeWindowText.parts(r, calendar, now("2026-09-29T14:00:00"), Locale.ENGLISH)
         assertTrue(en.first, en.first.startsWith("28 Sep 2:00"))
-        assertTrue(en.first, en.first.uppercase().contains("AM"))
+        assertEquals("28 Sep 2:00 AM", en.first)
         assertFalse(en.first.contains(" "))
     }
 

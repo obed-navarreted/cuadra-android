@@ -49,7 +49,7 @@ private fun presetLabel(p: RangePreset): String = stringResource(
     },
 )
 
-/** La ventana exacta de una elección: «28 sep 2:00 a. m. → 29 sep 2:00 a. m.» (o «→ en curso» si el último día es hoy). Zona y corte del negocio. */
+/** La ventana exacta de una elección: «28 sep 2:00 AM → 29 sep 2:00 AM» (o «→ en curso» si el último día es hoy). Zona y corte del negocio. */
 @Composable
 fun rangeWindowText(range: ResolvedRange, calendar: BusinessCalendar, nowMillis: Long): String {
     val locale = LocalConfiguration.current.locales[0]

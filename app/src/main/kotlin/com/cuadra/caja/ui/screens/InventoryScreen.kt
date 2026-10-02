@@ -213,7 +213,7 @@ fun DetailSheet(d: ProductDetail, history: HistoryState?, canDelete: Boolean, ti
     val p = d.stock.product
     val zone = runCatching { ZoneId.of(timezone) }.getOrDefault(ZoneId.systemDefault())
     val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
-    val time = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(locale).withZone(zone)
+    val time = com.cuadra.caja.domain.ClockFormat.dateTime(locale, zone)
     Sheet({ actions.select(null) }, actions = { CuadraButton(stringResource(R.string.close), { actions.select(null) }, Modifier.fillMaxWidth(), kind = ButtonKind.DARK) }) {
         Text(p.name + (p.variant?.let { " · $it" } ?: ""), style = MaterialTheme.typography.headlineMedium)
         if (catalogOnly) Unit

@@ -59,7 +59,7 @@ fun DevicesScreen(vm: DevicesViewModel, onTab: (TeamTab) -> Unit, onBack: () -> 
 fun DevicesContent(ui: DevicesUi, timezone: String, actions: DevicesActions, onTab: (TeamTab) -> Unit, onBack: () -> Unit) {
     val zone = runCatching { ZoneId.of(timezone) }.getOrDefault(ZoneId.systemDefault())
     val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
-    val time = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(locale).withZone(zone)
+    val time = com.cuadra.caja.domain.ClockFormat.dateTime(locale, zone)
     ScreenFrame(
         Modifier.fillMaxSize().imePadding().padding(horizontal = 16.dp),
         header = {

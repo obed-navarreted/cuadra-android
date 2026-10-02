@@ -8,7 +8,7 @@
     <string name="more_group_help">Ayuda</string>
     <string name="more_group_account">Mi cuenta</string>
     <string name="set_title">Ajustes del negocio</string>
-    <string name="set_owner_only">Solo el dueño cambia estos ajustes. Tú puedes verlos.</string>
+    <string name="set_owner_only">Solo el dueño y los administradores cambian estos ajustes. Tú puedes verlos.</string>
     <string name="set_offline_note">Sin conexión: se muestra lo último guardado en este teléfono. Para cambiar algo necesitas internet.</string>
     <string name="set_loading">Cargando…</string>
     <string name="set_sec_business">Datos del negocio</string>
@@ -225,7 +225,7 @@
     <string name="help_faq_offline_q">¿Qué pasa si se cae el internet?</string>
     <string name="help_faq_offline_a">Nada se detiene: la app sigue vendiendo, fiando y anotando gastos, y guarda todo en el teléfono. Cuando vuelve la conexión, lo pendiente se envía solo y una sola vez. Los reportes del panel web se ponen al día cuando los teléfonos terminan de sincronizar.</string>
     <string name="help_faq_closing_q">¿Cómo funciona el cierre del día?</string>
-    <string name="help_faq_closing_a">El cierre es automático: nadie abre ni cierra nada. Cada jornada va de la hora de corte de un día (02:00 por defecto) a la del siguiente, así que lo vendido a la 1 a. m. cuenta para el día anterior, y «ayer» es de ayer 02:00 a hoy 02:00. En Más → Cierre del día ves, por jornada, las ventas por método de pago, los gastos, los retiros y el efectivo esperado = ventas en efectivo + abonos en efectivo + entradas − gastos del cajón − retiros. Transferencias, tarjeta y fiado no entran al cajón.</string>
+    <string name="help_faq_closing_a">El cierre es automático: nadie abre ni cierra nada. Cada jornada va de la hora de corte de un día (2:00 AM por defecto) a la del siguiente, así que lo vendido a la 1 AM cuenta para el día anterior, y «ayer» es de ayer 2:00 AM a hoy 2:00 AM. En Más → Cierre del día ves, por jornada, las ventas por método de pago, los gastos, los retiros y el efectivo esperado = ventas en efectivo + abonos en efectivo + entradas − gastos del cajón − retiros. Transferencias, tarjeta y fiado no entran al cajón.</string>
     <string name="help_faq_import_q">¿Cómo importo mis productos desde un archivo?</string>
     <string name="help_faq_import_a">La importación se hace en el panel web: en Inventario elige «Importar CSV». El archivo lleva una fila por producto con columnas como nombre, código, precio, costo, unidad, categoría y existencia. Primero ves una vista previa de lo que se crearía o actualizaría, sin guardar nada; después confirmas. Si repites la importación, lo que ya existe se actualiza y no se duplica.</string>
     <string name="tpl_title">Mensajes de WhatsApp</string>
