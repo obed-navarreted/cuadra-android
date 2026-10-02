@@ -49,6 +49,22 @@ object WhatsAppSender {
      * de WhatsApp; sin WhatsApp instalado, la hoja de compartir del sistema. Nunca se envía solo.
      * @return false si no hay nada que pueda abrirlo.
      */
+    /**
+     * Abre `https://wa.me/<número>?text=<mensaje>` (la hoja «Enviar por WhatsApp» con número): en la app de WhatsApp elegida si hay, si no lo abre lo que el
+     * teléfono tenga para ese enlace (el navegador lleva a WhatsApp). Nunca se envía solo. @return false si nada pudo abrirlo.
+     */
+    fun openChat(context: Context, phoneDigits: String, text: String, pkg: String?): Boolean {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(WhatsAppLinks.chat(phoneDigits, text)))
+        if (pkg != null) intent.setPackage(pkg)
+        if (context !is android.app.Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return try {
+            context.startActivity(intent)
+            true
+        } catch (_: ActivityNotFoundException) {
+            if (pkg == null) false else openChat(context, phoneDigits, text, null)
+        }
+    }
+
     fun sendText(context: Context, phoneDigits: String?, text: String, pkg: String?): Boolean {
         val route = WhatsAppRoutes.forText(phoneDigits, installed(context).isNotEmpty())
         val intent = when (route) {

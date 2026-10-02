@@ -8,7 +8,6 @@ import com.cuadra.caja.data.local.OutboxStamp
 import com.cuadra.caja.data.local.ProductEntity
 import com.cuadra.caja.data.local.SyncStateEntity
 import com.cuadra.caja.data.remote.ChangeDto
-import com.cuadra.caja.data.repo.LocalBusinessData
 import com.cuadra.caja.data.sync.RoomSyncStore
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -132,31 +131,5 @@ class RoomOutboxTest {
         assertEquals("kevin", line.memberId)
         assertEquals("CREDIT_LIMIT_EXCEEDED", line.code)
         assertEquals("Doña Ana", line.discardedByName)
-    }
-
-    @Test fun switchingBusinessIsBlockedWhileTheOldOneHasUnsentOperationsAndWipesItOtherwise() = runTest {
-        db.directory().upsertBusiness(BusinessEntity("b1", "La Esquina", "NI", "NIO", "America/Managua", "es", "02:00", "OFF", "{}", "[]", false))
-        db.directory().setCursor(SyncStateEntity(cursor = 900, businessId = "b1"))
-        db.products().upsert(product("p1", 2500, 1))
-        val local = LocalBusinessData(db)
-        val seq = db.outbox().insert(op("p1", business = "b1"))
-        // Mismo negocio: nada que hacer.
-        assertNull(local.prepareFor("b1"))
-        // Otro negocio con algo sin enviar: bloqueado y SIN borrar nada.
-        val blocked = local.prepareFor("b2")
-        assertNotNull(blocked)
-        assertEquals(1, blocked!!.unsent)
-        assertEquals("La Esquina", blocked.businessName)
-        assertNotNull(db.products().get("p1"))
-        // Una rechazada sin resolver también bloquea (se resuelve en «Requiere atención»).
-        db.outbox().markFailed(seq, "FORBIDDEN", null)
-        assertNotNull(local.prepareFor("b2"))
-        assertNotNull(local.blockerForAnyOther())
-        // Ya enviado todo: se borran los datos del negocio anterior y su cursor.
-        db.outbox().delete(listOf(seq))
-        assertNull(local.prepareFor("b2"))
-        assertNull(db.products().get("p1"))
-        assertNull(db.directory().syncState())
-        assertNull(local.currentBusinessId())
     }
 }

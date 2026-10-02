@@ -24,6 +24,10 @@ data class DayCloseCard(
     val netSalesMinor: Long = salesMinor,
     /** Gastos, abonos, retiros y entradas de días anteriores anulados en esta jornada (kind, cuántos, monto, efecto en el efectivo). */
     val laterVoids: List<LaterVoid> = emptyList(),
+    /** Cobro en caja (ADR 0015): cuentas que seguían por cobrar en caja al terminar la jornada (o ahora, si sigue). No son ventas. */
+    val pendingCheckoutCount: Long = 0, val pendingCheckoutMinor: Long = 0,
+    /** «Descuentos por promociones» de la jornada (ya restados de las ventas). */
+    val promotionDiscountMinor: Long = 0,
 ) {
     /** ¿Hoy se corrigió algo de días anteriores o se devolvió dinero? (líneas «Correcciones de hoy»). */
     val hasAdjustments: Boolean get() = returnsCount > 0 || priorCancelledCount > 0 || laterVoids.isNotEmpty()
@@ -58,6 +62,7 @@ object DailyClose {
         d.expectedCashMinor, d.cancelledCount, d.cancelledMinor,
         d.returnsCount, d.returnsMinor, d.cashRefundsMinor, d.priorCancelledCount, d.priorCancelledMinor, d.priorCancelledCashMinor,
         d.netSalesMinor ?: (d.salesMinor - d.returnsMinor - d.priorCancelledMinor), d.laterVoids.map { LaterVoid(it.kind, it.count, it.amountMinor, it.cashEffectMinor) },
+        d.pendingCheckoutCount, d.pendingCheckoutMinor, d.promotionDiscountMinor,
     )
 
     /** Las jornadas de la respuesta, la más reciente primero (lo último que pasó, arriba). */

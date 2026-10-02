@@ -58,7 +58,7 @@ fun TeamScreen(vm: TeamViewModel, onTab: (TeamTab) -> Unit, onMyAccount: () -> U
     LaunchedEffect(Unit) { vm.enter() }
     val ui by vm.ui.collectAsState()
     val members by vm.members.collectAsState()
-    TeamContent(ui, members, vm, onTab, onMyAccount, onBack)
+    com.cuadra.caja.ui.common.Refreshing(vm.refresher, busy = ui.loading, showOffline = false) { TeamContent(ui, members, vm, onTab, onMyAccount, onBack) }
 }
 
 /** Personas sin ViewModel (estado + acciones): es lo que dibuja la guardia de diseño. */

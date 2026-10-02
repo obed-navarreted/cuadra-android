@@ -104,30 +104,41 @@ fun CobroContent(ui: CajaUi, actions: CajaActions, nowMillis: Long = System.curr
 
     // El cobro ocupa toda la pantalla: la raíz ya pone el margen superior y aquí solo falta el inferior (la barra de navegación se oculta).
     val done = cobro.doneChangeMinor
+    // Enviada a caja (ADR 0015): el mismo destello corto de «Venta cobrada» y a la venta nueva.
+    val sent = cobro.sent
+    val finished = done != null || sent
     // «Venta cobrada» vuelve sola a la venta nueva (1.2 s; 4 s con el botón de WhatsApp) y un toque en cualquier parte la adelanta. Mientras el envío por WhatsApp
     // está abierto no corre el tiempo (al cerrarlo se pasa a la venta nueva).
     val flashMillis = com.cuadra.caja.domain.SaleFlash.durationMillis(cobro.offerWhatsApp, cobro.doneShare != null)
     val progress = remember { Animatable(1f) }
-    if (done != null) LaunchedEffect(ui.share == null) {
+    if (finished) LaunchedEffect(ui.share == null) {
         if (ui.share != null) return@LaunchedEffect
         progress.snapTo(1f)
         progress.animateTo(0f, tween(flashMillis.toInt(), easing = LinearEasing))
         actions.finishCobro()
     }
-    Box(Modifier.fillMaxSize().then(if (done != null) Modifier.pointerInput(Unit) { detectTapGestures { actions.finishCobro() } } else Modifier)) {
+    Box(Modifier.fillMaxSize().then(if (finished) Modifier.pointerInput(Unit) { detectTapGestures { actions.finishCobro() } } else Modifier)) {
     ScreenFrame(
         Modifier.fillMaxSize().navigationBarsPadding().imePadding().padding(horizontal = 16.dp), spacing = 8.dp,
         header = {
             // El título nunca se parte letra por letra (letra grande): el total baja a otra línea, a todo el ancho y sin recortarse.
             SplitRow(Modifier.padding(top = 4.dp), endMaxFraction = 0.6f, end = { MoneyText(money.format(plan.totalMinor), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleLarge) }) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (done == null) CuadraButton("‹", actions::cancelCobro, Modifier.size(48.dp))
+                    if (!finished) CuadraButton("‹", actions::cancelCobro, Modifier.size(48.dp))
                     Text(stringResource(R.string.pay_title), style = MaterialTheme.typography.headlineSmall, maxLines = 1)
                 }
             }
         },
         footer = {
-            if (done != null) {
+            if (sent) {
+                Unit
+            } else if (cobro.toRegister && cobro.registerCheckout) {
+                // «Enviar a caja»: sin método ni vuelto; el botón siempre a la vista (también con el teclado abierto escribiendo la nota).
+                CuadraButton(
+                    stringResource(R.string.pay_register_send), actions::confirmSendToRegister, Modifier.fillMaxWidth().padding(bottom = 8.dp), kind = ButtonKind.DARK,
+                    enabled = !cobro.saving, height = 56,
+                )
+            } else if (done != null) {
                 // «Venta cobrada» no pide nada: vuelve sola a una venta nueva. Solo con la preferencia de WhatsApp encendida se queda más y ofrece el botón, con una barra del tiempo que queda.
                 // (El comprobante se imprime solo si la impresora está activada y conectada; «Anular» vive en el aviso de la venta nueva y en Ventas.)
                 cobro.doneShare?.let {
@@ -169,7 +180,13 @@ fun CobroContent(ui: CajaUi, actions: CajaActions, nowMillis: Long = System.curr
             }
         },
     ) {
-        if (done != null) {
+        if (sent) {
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("✓", style = MaterialTheme.typography.displaySmall, color = CuadraColors.Green)
+                Text(stringResource(R.string.pay_register_sent), style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
+                if (cobro.registerNote.isNotBlank()) Text(cobro.registerNote, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center, maxLines = 3, ellipsize = true)
+            }
+        } else if (done != null) {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("✓", style = MaterialTheme.typography.displaySmall, color = CuadraColors.Green)
                 Text(stringResource(R.string.pay_done), style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
@@ -180,6 +197,11 @@ fun CobroContent(ui: CajaUi, actions: CajaActions, nowMillis: Long = System.curr
             }
         } else {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (cobro.registerCheckout) CobroModeSwitch(cobro, actions)
+                if (cobro.registerCheckout && cobro.toRegister) {
+                    RegisterSendBody(cobro, actions)
+                    return@Column
+                }
                 SectionLabel(stringResource(R.string.pay_how))
                 ChipFlow {
                     cobro.availableMethods.forEach { m -> CuadraChip(stringResource(methodRes(m)), plan.entries.any { it.method == m }, { actions.toggleMethod(m) }) }

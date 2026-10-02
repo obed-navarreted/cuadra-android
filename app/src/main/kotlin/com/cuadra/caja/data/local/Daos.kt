@@ -48,12 +48,58 @@ interface ProductDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(products: List<ProductEntity>)
+
+    // ---------- promociones por cantidad ----------
+
+    @Query("SELECT * FROM promotions ORDER BY name COLLATE NOCASE, id")
+    fun promotions(): Flow<List<PromotionEntity>>
+
+    @Query("SELECT * FROM promotion_products")
+    fun promotionProducts(): Flow<List<PromotionProductEntity>>
+
+    @Query("SELECT * FROM promotions WHERE id = :id")
+    suspend fun promotion(id: String): PromotionEntity?
+
+    @Query("SELECT productId FROM promotion_products WHERE promotionId = :id")
+    suspend fun promotionProductIds(id: String): List<String>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertPromotionRow(p: PromotionEntity)
+
+    @Query("DELETE FROM promotion_products WHERE promotionId = :id")
+    suspend fun deletePromotionProducts(id: String)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPromotionProducts(rows: List<PromotionProductEntity>)
+
+    @Query("DELETE FROM promotions WHERE id = :id")
+    suspend fun deletePromotionRow(id: String)
 }
+
+/** Guarda una promoción con su lista de productos (reemplaza la anterior). Se llama dentro de una transacción. */
+suspend fun ProductDao.savePromotion(p: PromotionEntity, productIds: Collection<String>) {
+    upsertPromotionRow(p)
+    deletePromotionProducts(p.id)
+    insertPromotionProducts(productIds.distinct().map { PromotionProductEntity(p.id, it) })
+}
+
+/** Quita una promoción (borrada en el servidor) y sus productos. */
+suspend fun ProductDao.deletePromotion(id: String) {
+    deletePromotionProducts(id)
+    deletePromotionRow(id)
+}
+
+/** Líneas de una venta (para la lista «Por cobrar en caja»). */
+data class SaleLineCount(val saleId: String, val lines: Int)
 
 @Dao
 interface SaleDao {
     @Query("SELECT * FROM sales WHERE status = 'PARKED' ORDER BY updatedAt DESC")
     fun parked(): Flow<List<SaleEntity>>
+
+    /** Cuántas líneas tiene cada cuenta apartada (la lista «Por cobrar en caja» lo muestra). */
+    @Query("SELECT saleId, COUNT(*) AS lines FROM sale_items WHERE saleId IN (SELECT id FROM sales WHERE status = 'PARKED') GROUP BY saleId")
+    fun parkedLineCounts(): Flow<List<SaleLineCount>>
 
     @Query("SELECT * FROM sales WHERE status IN ('COMPLETED', 'CANCELLED') ORDER BY COALESCE(completedAt, createdAt) DESC LIMIT :limit")
     fun recent(limit: Int): Flow<List<SaleEntity>>
@@ -75,6 +121,16 @@ interface SaleDao {
 
     @Query("SELECT * FROM sale_payments WHERE saleId = :saleId ORDER BY position")
     suspend fun payments(saleId: String): List<SalePaymentEntity>
+
+    /** Las promociones que aplicó una venta (en su orden). */
+    @Query("SELECT * FROM sale_promotions WHERE saleId = :saleId ORDER BY position")
+    suspend fun promotions(saleId: String): List<SalePromotionEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPromotions(rows: List<SalePromotionEntity>)
+
+    @Query("DELETE FROM sale_promotions WHERE saleId = :saleId")
+    suspend fun deletePromotions(saleId: String)
 
     @Query("SELECT * FROM sales WHERE status = 'OPEN'")
     suspend fun openSales(): List<SaleEntity>
@@ -101,6 +157,10 @@ interface SaleDao {
     /** Total y cantidad de ventas cobradas en un rango (jornada) según lo que este teléfono conoce. */
     @Query("SELECT COUNT(*) AS count, COALESCE(SUM(totalMinor), 0) AS total FROM sales WHERE status = 'COMPLETED' AND completedAt >= :from AND completedAt < :to")
     fun dayTotals(from: Long, to: Long): Flow<DayTotals>
+
+    /** Lo mismo, solo lo que cobró esa persona («Vendido hoy» de un cajero). */
+    @Query("SELECT COUNT(*) AS count, COALESCE(SUM(totalMinor), 0) AS total FROM sales WHERE status = 'COMPLETED' AND completedAt >= :from AND completedAt < :to AND COALESCE(completedByMemberId, createdByMemberId) = :memberId")
+    fun dayTotalsBy(from: Long, to: Long, memberId: String): Flow<DayTotals>
 
     @Query(
         """SELECT p.method AS method, COALESCE(SUM(p.amountMinor), 0) AS total FROM sale_payments p JOIN sales s ON s.id = p.saleId
@@ -198,6 +258,27 @@ abstract class OutboxDao {
 
     @Query("SELECT COUNT(*) FROM outbox WHERE state IN ('PENDING', 'FAILED')")
     abstract suspend fun unsentCount(): Int
+
+    /** Todo lo que hay en la cola (pendiente, rechazado o por revisar): una base con algo aquí NO se borra al cerrar sesión. */
+    @Query("SELECT COUNT(*) FROM outbox")
+    abstract suspend fun totalCount(): Int
+
+    @Query("SELECT * FROM outbox ORDER BY seq")
+    abstract suspend fun allOps(): List<OutboxEntity>
+
+    /** Filas de la cola que dicen ser de OTRO negocio que `businessId` (no deberían existir en la base de ese negocio). */
+    @Query("SELECT * FROM outbox WHERE businessId IS NOT NULL AND businessId <> :businessId ORDER BY seq")
+    abstract suspend fun foreignOps(businessId: String): List<OutboxEntity>
+
+    @Query("DELETE FROM outbox WHERE businessId IS NOT NULL AND businessId <> :businessId")
+    abstract suspend fun deleteForeign(businessId: String)
+
+    /** Pone el negocio en las filas que no lo traían (de versiones viejas). */
+    @Query("UPDATE outbox SET businessId = :businessId WHERE businessId IS NULL")
+    abstract suspend fun adoptUnowned(businessId: String)
+
+    /** Una fila rescatada de otra base: se guarda tal cual (mismo `opId`, estado, autor y negocio; el servidor aplica cada `opId` una sola vez). */
+    open suspend fun insertAdopted(op: OutboxEntity): Long = insertRow(op.copy(seq = 0))
 
     /** «Reintentar»: vuelve a la cola con un id de operación NUEVO (el servidor recuerda el rechazo del viejo). Seguro: una rechazada nunca se aplicó. */
     @Query("UPDATE outbox SET state = 'PENDING', opId = :newOpId, attempts = 0, nextAttemptAt = 0, lastCode = NULL, lastDetail = NULL WHERE seq = :seq AND state = 'FAILED'")
@@ -749,6 +830,10 @@ interface ReportDao {
 
     @Query("SELECT COALESCE(SUM(balanceMinor), 0) FROM credits WHERE status = 'OPEN'")
     fun receivable(): Flow<Long>
+
+    /** «Descuentos por promociones» de las ventas cobradas del rango (ya restados del total). */
+    @Query("SELECT COALESCE(SUM(p.discountMinor), 0) FROM sale_promotions p JOIN sales s ON s.id = p.saleId WHERE s.status = 'COMPLETED' AND s.completedAt >= :from AND s.completedAt < :to")
+    fun promotionDiscounts(from: Long, to: Long): Flow<Long>
 }
 
 /** Guarda personas sin perder el hash del PIN que ya tenemos cuando el dato nuevo llega sin él (ver `mergePinHashes`). */

@@ -45,12 +45,27 @@ import com.cuadra.caja.ui.common.VoiceTextField
 import com.cuadra.caja.ui.common.money
 import com.cuadra.caja.ui.theme.CuadraColors
 
+/** «Por cobrar en caja» se refresca sola cada 15 s mientras está a la vista. */
+const val QUEUE_REFRESH_MILLIS = 15_000L
+
 @Composable
-fun Overlays(ui: CajaUi, actions: CajaActions, parked: List<SaleEntity>) {
+fun Overlays(
+    ui: CajaUi, actions: CajaActions, parked: List<SaleEntity>, registerCheckout: Boolean = false, lineCounts: Map<String, Int> = emptyMap(),
+    zone: java.time.ZoneId = java.time.ZoneId.systemDefault(),
+) {
     if (ui.receiptOpen) ReceiptSheet(ui, actions, parked.size)
     ui.editingLine?.let { QuantityDialog(it, actions) }
     ui.productMenu?.let { ProductMenuSheet(it, actions) }
-    if (ui.showParked) ParkedDialog(parked, actions)
+    if (ui.showParked) {
+        // Al abrirla, al volver la app al frente y (por cobrar en caja) cada 15 s: llegan cuentas de otros teléfonos.
+        com.cuadra.caja.ui.common.RefreshOnShow(actions::refreshQueue)
+        if (registerCheckout) com.cuadra.caja.ui.common.RefreshEvery(QUEUE_REFRESH_MILLIS) { actions.refreshQueue(com.cuadra.caja.domain.RefreshTrigger.PERIODIC) }
+        // Cobro en caja: un solo lugar con las cuentas por cobrar en caja y las apartadas.
+        if (registerCheckout) RegisterQueueSheet(com.cuadra.caja.domain.RegisterQueue.split(parked), actions, zone, lineCounts, refreshing = ui.queueRefreshing)
+        else ParkedDialog(parked, actions, refreshing = ui.queueRefreshing)
+    }
+    ui.queueDetail?.let { QueueTicketSheet(it, actions, zone) }
+    ui.queueCancel?.let { QueueCancelSheet(it, actions) }
     if (ui.parking) ParkDialog(ui.resumedLabel.orEmpty(), actions)
     ui.weighing?.let { WeighingDialog(it, actions) }
     ui.openPrice?.let { OpenPriceDialog(it, actions) }
@@ -68,7 +83,7 @@ fun Overlays(ui: CajaUi, actions: CajaActions, parked: List<SaleEntity>) {
 
 /** Cuentas apartadas. Descartar pide confirmación (cualquiera que venda puede descartar la de otro, y se borra en todos los teléfonos). */
 @Composable
-fun ParkedDialog(parked: List<SaleEntity>, actions: CajaActions, initialConfirm: String? = null) {
+fun ParkedDialog(parked: List<SaleEntity>, actions: CajaActions, initialConfirm: String? = null, refreshing: Boolean = false) {
     var confirmId by rememberSaveable { mutableStateOf(initialConfirm) }
     val confirming = confirmId?.let { id -> parked.firstOrNull { it.id == id } }
     if (confirming != null) {
@@ -85,6 +100,7 @@ fun ParkedDialog(parked: List<SaleEntity>, actions: CajaActions, initialConfirm:
     }
     Sheet({ actions.toggleParked(false) }, actions = { CuadraButton(stringResource(R.string.close), { actions.toggleParked(false) }, Modifier.fillMaxWidth()) }) {
         Text(stringResource(R.string.parked_title), style = MaterialTheme.typography.headlineMedium)
+        com.cuadra.caja.ui.common.RefreshRow(refreshing) { actions.refreshQueue(com.cuadra.caja.domain.RefreshTrigger.PULLED) }
         if (parked.isEmpty()) Text(stringResource(R.string.parked_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
         parked.forEach { s ->
             CuadraCard {
@@ -214,7 +230,7 @@ fun NoticeDialog(n: Notice, actions: CajaActions) {
     val text = when (n) {
         is Notice.CodeUnknown -> if (n.checksumOk) R.string.register_code_unknown else R.string.register_code_unknown_checksum
         Notice.CodeUnknownOffline -> R.string.register_code_unknown_offline
-        Notice.TicketLocked -> R.string.parked_locked
+        is Notice.TicketLocked -> if (n.by != null) R.string.parked_locked_by else R.string.parked_locked
         Notice.InvalidProduct -> R.string.product_invalid
         is Notice.BarcodeInUse -> R.string.product_barcode_taken
     }
@@ -228,7 +244,14 @@ fun NoticeDialog(n: Notice, actions: CajaActions) {
             CuadraButton(stringResource(R.string.close), actions::dismissNotice, Modifier.fillMaxWidth(), kind = ButtonKind.DARK)
         }
     }) {
-        Text(if (n is Notice.BarcodeInUse) stringResource(text, n.owner) else stringResource(text), style = MaterialTheme.typography.bodyLarge)
+        Text(
+            when {
+                n is Notice.BarcodeInUse -> stringResource(text, n.owner)
+                n is Notice.TicketLocked && n.by != null -> stringResource(text, n.by)
+                else -> stringResource(text)
+            },
+            style = MaterialTheme.typography.bodyLarge,
+        )
         if (n is Notice.CodeUnknown) Text(n.code, fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.headlineMedium, maxLines = 4, minScale = 0.5f)
     }
 }

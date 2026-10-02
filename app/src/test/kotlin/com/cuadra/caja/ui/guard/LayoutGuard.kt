@@ -33,6 +33,7 @@ enum class GuardRule(val code: String, val meaning: String) {
     H_BODY_TOO_SMALL("H", "el centro de una pantalla con encabezado y pie fijos se quedó con menos de 96 dp (el resto lo comen los fijos)"),
     I_KEY_HIDDEN("I", "una tecla de la calculadora (0-9, ., ⌫, ×, Agregar) fuera de la ventana visible, recortada, tapada por la barra inferior o que no se dibuja"),
     K_RECEIPT_BADGE("K", "el número del botón «Recibo · N» de la barra inferior no se dibuja, se corta, se achica, lleva «…» o se sale de su botón o de la pantalla"),
+    L_LAST_LINE_STRIP("L", "la tira de la última línea (Manual y Productos) no se dibuja cuando debe, se sale de la ventana, está recortada, se traslapa con las pestañas, el total, las teclas, la barra inferior o el aviso, o su cantidad se corta, se achica en varias líneas o lleva «…»"),
     J_TOTAL_HIDDEN("J", "la tarjeta oscura del total de la caja no se dibuja, está fuera de la ventana, recortada, o tapada por las teclas, la barra inferior, el aviso flotante o algo fijo"),
 }
 
@@ -275,6 +276,65 @@ object LayoutGuard {
             val ap = a.positionInRoot
             if (p.x < ap.x - EPS || p.x + n.size.width > ap.x + a.size.width + EPS) fail(n, "se sale del botón: número x=${dp(p.x, density)}..${dp(p.x + n.size.width, density)}dp, botón x=${dp(ap.x, density)}..${dp(ap.x + a.size.width, density)}dp")
         }
+        return out.distinct()
+    }
+
+    /**
+     * L: la tira de la última línea (`TAG_LAST_LINE`): si está, existe UNA vez, entera dentro de la ventana y sin recorte de un contenedor, sin traslapar las pestañas,
+     * la tarjeta del total, una tecla, la barra inferior ni el aviso flotante, y su cantidad (`TAG_STRIP_QTY`) se ve completa en una sola línea, sin «…» y dentro de la tira.
+     * `required`: el caso exige que se dibuje (en los extremos de poco alto la tira cede su lugar a propósito, por eso no siempre).
+     */
+    fun inspectStrip(root: SemanticsNode, screen: String, cfg: GuardCfg, density: Float, required: Boolean): List<Finding> {
+        val out = mutableListOf<Finding>()
+        val nodes = mutableListOf<SemanticsNode>()
+        fun walk(n: SemanticsNode) { nodes += n; n.children.forEach(::walk) }
+        walk(root)
+        fun tag(n: SemanticsNode) = n.config.getOrNull(SemanticsProperties.TestTag)
+        fun rectOf(n: SemanticsNode): FloatArray { val p = n.positionInRoot; return floatArrayOf(p.x, p.y, p.x + n.size.width, p.y + n.size.height) }
+        fun ancestorsOf(n: SemanticsNode): List<SemanticsNode> { val l = mutableListOf<SemanticsNode>(); var p = n.parent; while (p != null) { l += p; p = p.parent }; return l }
+        val strips = nodes.filter { tag(it) == com.cuadra.caja.ui.screens.TAG_LAST_LINE }
+        fun fail(n: SemanticsNode?, detail: String) { out += Finding(screen, cfg, GuardRule.L_LAST_LINE_STRIP, n?.let { describe(it) } ?: "tira de la última línea", detail) }
+        if (strips.isEmpty()) { if (required) fail(null, "no se dibuja"); return out }
+        if (strips.size != 1) { fail(strips.first(), "se dibujan ${strips.size} tiras y se esperaba 1"); return out }
+        val strip = strips.single()
+        val r = rectOf(strip)
+        if (strip.size.width <= 0 || strip.size.height <= 0) { fail(strip, "mide 0"); return out }
+        if (r[0] < -EPS || r[2] > cfg.widthDp * density + EPS || r[1] < -EPS || r[3] > cfg.heightDp * density + EPS) fail(strip, "fuera de la ventana: y=${dp(r[1], density)}..${dp(r[3], density)}dp (ventana ${cfg.widthDp} x ${cfg.heightDp}dp)")
+        val b = strip.boundsInRoot
+        if (b.width < strip.size.width - EPS || b.height < strip.size.height - EPS) fail(strip, "recortada: se ve ${dp(b.width, density)} x ${dp(b.height, density)}dp de ${dp(strip.size.width.toFloat(), density)} x ${dp(strip.size.height.toFloat(), density)}dp")
+        for (o in nodes) {
+            if (o.id == strip.id || o.size.width <= 0 || o.size.height <= 0) continue
+            val what = when (tag(o)) {
+                TAG_TOTAL_CARD -> "la tarjeta del total"
+                TAG_KEY -> "una tecla"
+                TAG_BOTTOM_BAR -> "la barra inferior"
+                TAG_OVERLAY -> "el aviso flotante"
+                com.cuadra.caja.ui.screens.TAG_REGISTER_TABS -> "la fila de pestañas"
+                TAG_PINNED_ACTION -> "una zona fija (calculadora o barra)"
+                else -> continue
+            }
+            val q = rectOf(o)
+            val w = minOf(r[2], q[2]) - maxOf(r[0], q[0])
+            val h = minOf(r[3], q[3]) - maxOf(r[1], q[1])
+            if (w > EPS && h > EPS) fail(strip, "traslapa $what (${dp(w, density)} x ${dp(h, density)}dp)")
+        }
+        // El hueco reservado de «Productos» (recibo vacío) no lleva cantidad: basta que quepa su texto.
+        if (nodes.any { tag(it) == com.cuadra.caja.ui.screens.TAG_STRIP_EMPTY && ancestorsOf(it).any { a -> a.id == strip.id } }) return out.distinct()
+        val qty = nodes.filter { tag(it) == com.cuadra.caja.ui.screens.TAG_STRIP_QTY && ancestorsOf(it).any { a -> a.id == strip.id } }
+        if (qty.size != 1) { fail(strip, "lleva ${qty.size} cantidades y se esperaba 1"); return out }
+        val q = qty.single()
+        val action = q.config.getOrNull(SemanticsActions.GetTextLayoutResult)?.action
+        val list = mutableListOf<TextLayoutResult>()
+        val t = if (action != null && action(list)) list.firstOrNull() else null
+        if (t == null) { fail(q, "la cantidad no tiene diseño de texto"); return out }
+        val text = t.layoutInput.text.text
+        if (t.lineCount != 1) fail(q, "la cantidad «$text» ocupa ${t.lineCount} líneas")
+        if (t.hasVisualOverflow || t.didOverflowWidth || t.didOverflowHeight) fail(q, "la cantidad «$text» desborda su caja")
+        if (t.getLineEnd(0, visibleEnd = true) < text.length) fail(q, "la cantidad «$text» termina en «…» o cortada")
+        val qr = rectOf(q)
+        if (qr[0] < r[0] - EPS || qr[2] > r[2] + EPS || qr[1] < r[1] - EPS || qr[3] > r[3] + EPS) fail(q, "la cantidad «$text» se sale de la tira")
+        val qb = q.boundsInRoot
+        if (qb.width < q.size.width - EPS || qb.height < q.size.height - EPS) fail(q, "la cantidad «$text» queda recortada por un contenedor")
         return out.distinct()
     }
 

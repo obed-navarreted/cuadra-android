@@ -17,6 +17,7 @@
     <string name="error_generic">Algo salió mal. Inténtalo de nuevo.</string>
     <string name="error_INVALID_GOOGLE_TOKEN">No pudimos verificar tu cuenta de Google.</string>
     <string name="error_FORBIDDEN">Tu rol no permite esta acción.</string>
+    <string name="error_PIN_VERIFICATION_REQUIRED">Confirma tu PIN en este teléfono para hacer esto. La primera vez se necesita conexión.</string>
     <string name="language_label">Idioma</string>
     <string name="language_automatic">Automático</string>
     <string name="language_es">Español</string>
@@ -26,7 +27,6 @@
     <string name="onboarding_start">Empezar a vender</string>
     <string name="onboarding_your_businesses">Tus negocios</string>
     <string name="onboarding_use_here">Usar en este teléfono</string>
-    <string name="onboarding_cannot_link">Tu rol no puede vincular teléfonos con Google. Cierra sesión y entra con el código del negocio y tu PIN.</string>
     <string name="onboarding_or">o</string>
     <string name="pin_who">¿Quién atiende?</string>
     <string name="pin_type_yours">Escribe tu PIN</string>
@@ -41,6 +41,17 @@
     <string name="pin_submit">Entrar</string>
     <string name="pin_loading">Cargando el equipo…</string>
     <string name="pin_sign_out">Cerrar sesión</string>
+    <string name="refresh_offline">Sin conexión: se muestra lo guardado en este teléfono.</string>
+    <string name="refresh_now">Actualizar</string>
+    <string name="refresh_running">Actualizando…</string>
+    <string name="pinconfirm_title">Confirma tu PIN</string>
+    <string name="pinconfirm_body">Para abrir esto en este teléfono, el servidor confirma tu PIN una vez. Mientras tanto puedes vender y cobrar.</string>
+    <string name="pinconfirm_body_for">Escribe el PIN de %1$s para confirmarlo con el servidor en este teléfono.</string>
+    <string name="pinconfirm_offline">Conéctate para confirmar tu PIN la primera vez en este teléfono.</string>
+    <string name="pinconfirm_action">Confirmar PIN</string>
+    <string name="pinconfirm_checking">Confirmando con el servidor…</string>
+    <string name="pinconfirm_failed">No se pudo confirmar ahora. Inténtalo de nuevo en un momento.</string>
+    <string name="pinconfirm_pending_notice">Entraste sin conexión: por ahora puedes vender y cobrar. Conéctate para confirmar tu PIN y usar todo lo de tu rol.</string>
     <string name="role_OWNER">Dueño</string>
     <string name="role_ADMIN">Admin</string>
     <string name="role_CASHIER">Cajero</string>

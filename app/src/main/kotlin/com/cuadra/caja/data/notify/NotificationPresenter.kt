@@ -10,7 +10,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.cuadra.caja.MainActivity
 import com.cuadra.caja.R
-import com.cuadra.caja.data.local.CuadraDatabase
+import com.cuadra.caja.data.local.Db
 import com.cuadra.caja.data.local.NotificationEntity
 import com.cuadra.caja.data.session.SessionStore
 import com.cuadra.caja.ui.common.MoneyFormat
@@ -23,7 +23,7 @@ import com.cuadra.caja.ui.common.NotificationTexts
  */
 class NotificationPresenter(
     private val context: Context,
-    private val db: CuadraDatabase,
+    private val db: Db,
     private val session: SessionStore,
     private val now: () -> Long = System::currentTimeMillis,
 ) {

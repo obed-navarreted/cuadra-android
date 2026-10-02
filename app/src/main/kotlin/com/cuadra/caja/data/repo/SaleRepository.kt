@@ -1,8 +1,7 @@
 package com.cuadra.caja.data.repo
 
-import androidx.room.withTransaction
 import com.cuadra.caja.data.local.CreditEntity
-import com.cuadra.caja.data.local.CuadraDatabase
+import com.cuadra.caja.data.local.Db
 import com.cuadra.caja.data.local.OutboxEntity
 import com.cuadra.caja.data.local.SaleEntity
 import com.cuadra.caja.data.local.SaleItemEntity
@@ -30,14 +29,14 @@ import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-/** Una cuenta apartada lista para retomar. */
-data class ResumedSale(val saleId: String, val cart: Cart, val label: String?)
+/** Una cuenta apartada lista para retomar. `pendingCheckout`: estaba «Por cobrar en caja» (ADR 0015). */
+data class ResumedSale(val saleId: String, val cart: Cart, val label: String?, val pendingCheckout: Boolean = false)
 
 sealed interface ResumeResult {
     data class Ok(val sale: ResumedSale) : ResumeResult
 
-    /** Otro teléfono la tiene abierta en este momento. */
-    data object Locked : ResumeResult
+    /** Otro teléfono la tiene abierta en este momento (`by`: quién, si el servidor lo dice: «La está cobrando Ana»). */
+    data class Locked(val by: String? = null) : ResumeResult
     data object NotFound : ResumeResult
 }
 
@@ -46,7 +45,7 @@ sealed interface ResumeResult {
  * y nunca deja un cambio local sin la operación que lo enviará (PLAN.md 14.1).
  */
 class SaleRepository(
-    private val db: CuadraDatabase,
+    private val db: Db,
     private val api: CuadraApi,
     private val session: SessionStore,
     private val requestSync: () -> Unit,
@@ -56,10 +55,16 @@ class SaleRepository(
 
     fun parked(): Flow<List<SaleEntity>> = db.sales().parked()
 
+    /** Cuántas líneas tiene cada cuenta apartada (id → líneas). */
+    fun parkedLineCounts(): Flow<Map<String, Int>> = db.sales().parkedLineCounts().map { rows -> rows.associate { it.saleId to it.lines } }
+
     /** Ids de los productos más vendidos desde `since` (del más al menos vendido), para completar los frecuentes de la caja. */
     fun bestSellers(since: Long, limit: Int = 24): Flow<List<String>> = db.sales().bestSellers(since, limit).map { rows -> rows.map { it.productId } }
     fun recent(limit: Int = 100): Flow<List<SaleEntity>> = db.sales().recent(limit)
     fun dayTotals(from: Long, to: Long) = db.sales().dayTotals(from, to)
+
+    /** Lo cobrado por una persona en el rango («Vendido hoy» de un cajero). */
+    fun dayTotalsBy(from: Long, to: Long, memberId: String) = db.sales().dayTotalsBy(from, to, memberId)
     fun dayByMethod(from: Long, to: Long) = db.sales().dayByMethod(from, to)
 
     suspend fun detail(saleId: String): Triple<SaleEntity, List<SaleItemEntity>, List<SalePaymentEntity>>? {
@@ -68,7 +73,10 @@ class SaleRepository(
     }
 
     /** Una venta de este teléfono lista para mostrar (detalle), con sus devoluciones. */
-    suspend fun view(saleId: String): com.cuadra.caja.domain.SaleView? = detail(saleId)?.let { (s, i, p) -> s.toView(i, p, db.sales().returnsFor(saleId)) }
+    suspend fun view(saleId: String): com.cuadra.caja.domain.SaleView? = detail(saleId)?.let { (s, i, p) -> s.toView(i, p, db.sales().returnsFor(saleId), db.sales().promotions(saleId)) }
+
+    /** Las promociones que aplicó una venta de este teléfono. */
+    suspend fun promotionsOf(saleId: String): List<com.cuadra.caja.data.local.SalePromotionEntity> = db.sales().promotions(saleId)
 
     /** La última venta cobrada por esa persona en este teléfono (solo esa se puede anular en los primeros minutos). */
     suspend fun lastCompletedBy(memberId: String?): SaleEntity? = memberId?.let { db.sales().lastCompletedBy(it) }
@@ -101,7 +109,7 @@ class SaleRepository(
         val entity = com.cuadra.caja.data.local.SaleReturnEntity(returnId, saleId, reason.trim(), method.name, total, who, time, SaleReturns.encodeItems(items), SaleReturns.encodeRefunds(refunds), 0)
         val input = com.cuadra.caja.data.remote.ReturnInputDto(saleId, items.map { com.cuadra.caja.data.remote.ReturnLineInputDto(it.saleItemId, it.quantityMilli) }, reason.trim(), method.name,
             Instant.ofEpochMilli(time).toString())
-        db.withTransaction {
+        db.inTransaction {
             db.sales().upsertReturn(entity)
             SaleReturns.recomputeReturned(db.sales(), saleId)
             db.outbox().insert(OutboxEntity(opId = UUID.randomUUID().toString(), kind = "SALE_RETURN", entityId = returnId, payload = json.encodeToString(input), createdAt = time))
@@ -110,20 +118,46 @@ class SaleRepository(
         return SaleReturns.view(entity)
     }
 
-    /** Cobra: el recibo queda COMPLETED en el teléfono y se encola su envío. Devuelve el id de la venta. */
-    suspend fun complete(cart: Cart, plan: PaymentPlan, saleId: String = UUID.randomUUID().toString(), label: String? = null): String {
+    /**
+     * Cobra: el recibo queda COMPLETED en el teléfono y se encola su envío. Devuelve el id de la venta. `cart` es el recibo YA con las promociones aplicadas
+     * (`PricedCart.cart`: el descuento de cada promoción va en sus líneas) y `promotions`, lo que se aplicó (se guarda tal cual: el servidor no recalcula).
+     */
+    suspend fun complete(cart: Cart, plan: PaymentPlan, saleId: String = UUID.randomUUID().toString(), label: String? = null,
+                         promotions: List<com.cuadra.caja.domain.AppliedPromotion> = emptyList()): String {
         require(!cart.isEmpty) { "No hay nada que cobrar" }
         require(plan.totalMinor == cart.totalMinor && plan.isValid) { "El pago no cubre la venta" }
-        return save(saleId, "COMPLETED", cart, plan, label)
+        return save(saleId, "COMPLETED", cart, plan, label, promotions = promotions)
     }
 
-    /** Aparta la cuenta (nueva o una retomada): queda visible para todos los teléfonos del negocio. */
-    suspend fun park(cart: Cart, label: String?, saleId: String = UUID.randomUUID().toString()): String {
+    /** Aparta la cuenta (nueva o una retomada): queda visible para todos los teléfonos del negocio. Si estaba por cobrar en caja, sigue así. */
+    suspend fun park(cart: Cart, label: String?, saleId: String = UUID.randomUUID().toString(), promotions: List<com.cuadra.caja.domain.AppliedPromotion> = emptyList()): String {
         require(!cart.isEmpty) { "No hay nada que apartar" }
-        return save(saleId, "PARKED", cart, null, label)
+        return save(saleId, "PARKED", cart, null, label, promotions = promotions)
     }
 
-    private suspend fun save(saleId: String, status: String, cart: Cart, plan: PaymentPlan?, label: String?): String {
+    /**
+     * «Enviar a caja» (ADR 0015): la cuenta queda apartada y en la lista «Por cobrar en caja» de todos los teléfonos, con su nota (`label`). Sin método de
+     * pago ni vuelto: los decide quien cobra. Va por la cola de salida como cualquier cuenta apartada, así funciona sin conexión.
+     */
+    suspend fun sendToRegister(cart: Cart, note: String?, saleId: String = UUID.randomUUID().toString(),
+                               promotions: List<com.cuadra.caja.domain.AppliedPromotion> = emptyList()): String {
+        require(!cart.isEmpty) { "No hay nada que enviar" }
+        return save(saleId, "PARKED", cart, null, note, sendToRegister = true, promotions = promotions)
+    }
+
+    /**
+     * Una cuenta por cobrar en caja que se había retomado vuelve a la lista sin cambios (p. ej. «Vaciar» en la caja: anularla pide motivo y se hace desde su
+     * detalle). Suelta la reserva en el servidor si hay conexión.
+     */
+    suspend fun releaseToQueue(saleId: String) {
+        val sale = db.sales().get(saleId) ?: return
+        if (sale.status == "OPEN") db.sales().upsert(sale.copy(status = "PARKED"))
+        session.current().businessId?.let { b -> apiCall { api.unlockSale(b, saleId) } }
+    }
+
+    private suspend fun save(saleId: String, status: String, cart: Cart, plan: PaymentPlan?, label: String?, sendToRegister: Boolean? = null,
+                             promotions: List<com.cuadra.caja.domain.AppliedPromotion> = emptyList()): String {
+        val promoRows = promotions.map { com.cuadra.caja.data.remote.SalePromotionDto(it.promotionId.ifEmpty { null }, it.name.take(200), it.quantity, it.priceMinor, it.units, it.discountMinor) }
         val s = session.current()
         val register = db.directory().defaultRegister()?.id
         val time = now()
@@ -146,9 +180,14 @@ class SaleRepository(
             // Se cobra una cuenta que estaba apartada (retomada = OPEN en el teléfono): si otro teléfono ya la cobró o la descartó, el servidor guarda esta
             // aparte para revisar en vez de perderla.
             fromStatus = if (status == "COMPLETED" && existing != null && (existing.status == "OPEN" || existing.status == "PARKED") && existing.rev > 0) "PARKED" else null,
+            sendToRegister = sendToRegister?.takeIf { status == "PARKED" },
+            promotions = promoRows,
         )
+        // Cobro en caja: enviada ahora = hora y quién; sin indicarlo se conserva lo que tenía (al cobrarla queda quién la envió).
+        val sentAt = if (sendToRegister == true && status == "PARKED") time else if (sendToRegister == false) null else existing?.sentToRegisterAt
+        val sentBy = if (sendToRegister == true && status == "PARKED") s.memberName else if (sendToRegister == false) null else existing?.sentByName
         val discount = input.discountMinor
-        db.withTransaction {
+        db.inTransaction {
             db.sales().upsert(
                 SaleEntity(
                     id = saleId, status = status, label = cleanLabel, cashRegisterId = register, subtotalMinor = cart.subtotalMinor, discountMinor = discount,
@@ -156,13 +195,15 @@ class SaleRepository(
                     completedByMemberId = if (status == "COMPLETED") s.memberId else null,
                     createdByName = existing?.createdByName ?: s.memberName, completedByName = if (status == "COMPLETED") s.memberName else null,
                     completedAt = completedAt, editedByName = null, cancelledByName = null, cancelReason = null, lockedByDeviceId = null,
-                    createdAt = createdAt, updatedAt = time, rev = existing?.rev ?: 0,
+                    createdAt = createdAt, updatedAt = time, rev = existing?.rev ?: 0, sentToRegisterAt = sentAt, sentByName = sentBy,
                 ),
             )
             db.sales().deleteItems(saleId)
             db.sales().insertItems(cart.lines.mapIndexed { i, l ->
                 SaleItemEntity(saleId, l.id, l.productId, l.barcode, l.name, l.variant, l.unitPriceMinor, l.unitCostMinor, l.quantityMilli, l.discountMinor, i)
             })
+            db.sales().deletePromotions(saleId)
+            db.sales().insertPromotions(promoRows.mapIndexed { i, p -> com.cuadra.caja.data.local.SalePromotionEntity(saleId, i, p.promotionId, p.name, p.quantity, p.priceMinor, p.units, p.discountMinor) })
             db.sales().deletePayments(saleId)
             db.sales().insertPayments(payments.mapIndexed { i, p ->
                 SalePaymentEntity(saleId, p.id, p.method.name, p.otherLabel, p.amount, p.tendered?.takeIf { p.method == PayMethod.CASH },
@@ -198,14 +239,15 @@ class SaleRepository(
         val businessId = session.current().businessId
         if (businessId != null) {
             val lock = apiCall { api.lockSale(businessId, saleId) }.exceptionOrNull()
-            if (lock is ApiFailure.Http && lock.code == "SALE_LOCKED") return ResumeResult.Locked
+            if (lock is ApiFailure.Http && lock.code == "SALE_LOCKED") return ResumeResult.Locked(lock.memberName)
         }
         val cart = Cart(
-            lines = db.sales().items(saleId).map { CartLine(it.id, it.productId, it.barcode, it.name, it.variant, it.unitPriceMinor, it.unitCostMinor, it.quantityMilli, it.discountMinor) },
+            // El descuento de las líneas sale de las promociones: la caja lo vuelve a calcular con las de hoy.
+            lines = db.sales().items(saleId).map { CartLine(it.id, it.productId, it.barcode, it.name, it.variant, it.unitPriceMinor, it.unitCostMinor, it.quantityMilli) },
             discountMinor = sale.discountMinor,
         )
         db.sales().upsert(sale.copy(status = "OPEN"))
-        return ResumeResult.Ok(ResumedSale(saleId, cart, sale.label))
+        return ResumeResult.Ok(ResumedSale(saleId, cart, sale.label, pendingCheckout = sale.sentToRegisterAt != null))
     }
 
     /**
@@ -217,7 +259,7 @@ class SaleRepository(
         val who = session.current().memberName
         val time = now()
         val clean = reason?.trim()?.ifEmpty { null }
-        db.withTransaction {
+        db.inTransaction {
             if (sale != null) db.sales().upsert(sale.copy(status = "CANCELLED", cancelReason = clean, cancelledByName = who, cancelledAt = time, updatedAt = time))
             db.outbox().insert(OutboxEntity(opId = UUID.randomUUID().toString(), kind = "SALE_CANCEL", entityId = saleId,
                 payload = json.encodeToString(CancelBody(clean)), createdAt = time))
@@ -233,8 +275,10 @@ class SaleRepository(
                 db.sales().upsert(open.copy(status = "CANCELLED", cancelReason = "empty"))
                 continue
             }
+            // Se aparta tal como estaba (con sus promociones y el descuento ya repartido en las líneas).
             val cart = Cart(items.map { CartLine(it.id, it.productId, it.barcode, it.name, it.variant, it.unitPriceMinor, it.unitCostMinor, it.quantityMilli, it.discountMinor) }, open.discountMinor)
-            park(cart, open.label ?: "•", open.id)
+            val promos = db.sales().promotions(open.id).map { com.cuadra.caja.domain.AppliedPromotion(it.promotionId.orEmpty(), it.name, it.quantity, it.priceMinor, it.units / it.quantity.coerceAtLeast(1), it.discountMinor, emptyList()) }
+            park(cart, open.label ?: "•", open.id, promos)
         }
     }
 

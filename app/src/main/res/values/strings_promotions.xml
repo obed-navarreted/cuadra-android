@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Promociones por cantidad (PENDIENTES.md, «Promociones por cantidad»). -->
+    <string name="promo_title">Promociones</string>
+    <string name="promo_entry_hint">«3 por C$ 100» y similares: se aplican solas en la caja</string>
+    <string name="promo_empty">Aún no hay promociones. Crea una: elige los productos, cuántas unidades y el precio por todas.</string>
+    <string name="promo_new">Nueva promoción</string>
+    <string name="promo_edit">Editar promoción</string>
+    <string name="promo_name">Nombre</string>
+    <string name="promo_name_hint">Ej.: Cerveza 3 por C$ 100</string>
+    <string name="promo_quantity">Cantidad</string>
+    <string name="promo_price">Precio por esa cantidad</string>
+    <string name="promo_line">Promo %1$d por %2$s</string>
+    <string name="promo_rule">%1$d por %2$s</string>
+    <string name="promo_state_ACTIVE">Activa</string>
+    <string name="promo_state_PAUSED">Pausada</string>
+    <string name="promo_state_SCHEDULED">Programada</string>
+    <string name="promo_state_ENDED">Terminada</string>
+    <string name="promo_active">Activa</string>
+    <string name="promo_active_hint">Pausada no se aplica en la caja (se puede reanudar cuando quieras).</string>
+    <string name="promo_toggle">Activa o pausada: %1$s</string>
+    <string name="promo_products">Productos de la promoción</string>
+    <string name="promo_products_hint">Las unidades de estos productos se juntan: 2 Toña y 1 Victoria cuentan como 3. No entran productos por peso ni de precio abierto.</string>
+    <string name="promo_products_none">Agrega al menos un producto.</string>
+    <string name="promo_search">Buscar producto (nombre o código)</string>
+    <string name="promo_scan">Escanear productos</string>
+    <string name="promo_remove">Quitar %1$s</string>
+    <string name="promo_added">%1$s agregado</string>
+    <string name="promo_already">%1$s ya está en la lista</string>
+    <string name="promo_not_eligible">%1$s se vende por peso o con precio abierto: no entra</string>
+    <string name="promo_unknown_code">El código %1$s no está en el catálogo</string>
+    <string name="promo_no_results">Ningún producto coincide.</string>
+    <string name="promo_example">Ejemplo: %1$d × %2$s = %3$s</string>
+    <string name="promo_no_benefit">Con estos precios no hay descuento: el paquete cuesta lo mismo o más que las unidades sueltas.</string>
+    <string name="promo_dates">Fechas</string>
+    <string name="promo_dates_always">Siempre</string>
+    <string name="promo_dates_some">Con fechas</string>
+    <string name="promo_dates_hint">Según la jornada del negocio: vale desde el inicio del primer día hasta el final del último.</string>
+    <string name="promo_from">Desde: %1$s</string>
+    <string name="promo_until">Hasta: %1$s</string>
+    <string name="promo_no_end">sin fecha final</string>
+    <string name="promo_pick_date">Cambiar</string>
+    <string name="promo_clear_date">Quitar</string>
+    <string name="promo_date_title">Elige el día</string>
+    <string name="promo_error_name">Escribe un nombre.</string>
+    <string name="promo_error_quantity">De 2 a 999 unidades.</string>
+    <string name="promo_error_price">Escribe el precio.</string>
+    <string name="promo_error_dates">La fecha final es antes de la inicial.</string>
+    <string name="promo_delete">Borrar promoción</string>
+    <string name="promo_delete_confirm">¿Borrar «%1$s»? Las ventas que ya la usaron no cambian.</string>
+    <string name="promo_discounts">Descuentos por promociones</string>
+    <string name="att_what_promotion">Promoción «%1$s»</string>
+    <string name="att_what_promotion_plain">Cambio de una promoción</string>
+    <plurals name="promo_products_count">
+        <item quantity="one">%d producto</item>
+        <item quantity="other">%d productos</item>
+    </plurals>
+    <!-- Avisos al instante (Firebase): permiso de notificaciones de Android 13+, pedido una sola vez y con su motivo. -->
+    <string name="notif_perm_title">Avisos en este teléfono</string>
+    <string name="notif_perm_body">Para avisarte al instante (un cajero cambió un precio, un cierre con diferencia, existencias bajas), Android pide tu permiso. Puedes cambiarlo después en Más › Notificaciones.</string>
+    <string name="notif_perm_allow">Permitir avisos</string>
+    <string name="notif_perm_later">Ahora no</string>
+</resources>

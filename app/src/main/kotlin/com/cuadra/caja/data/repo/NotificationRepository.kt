@@ -1,7 +1,6 @@
 package com.cuadra.caja.data.repo
 
-import androidx.room.withTransaction
-import com.cuadra.caja.data.local.CuadraDatabase
+import com.cuadra.caja.data.local.Db
 import com.cuadra.caja.data.local.NotificationEntity
 import com.cuadra.caja.data.local.OutboxEntity
 import com.cuadra.caja.data.session.SessionStore
@@ -15,7 +14,7 @@ import kotlinx.serialization.json.Json
 
 /** Bandeja de la persona activa (y del teléfono). Marcar como leída se guarda al instante y se avisa al servidor con la cola de salida. */
 class NotificationRepository(
-    private val db: CuadraDatabase,
+    private val db: Db,
     private val session: SessionStore,
     private val requestSync: () -> Unit,
     private val now: () -> Long = System::currentTimeMillis,
@@ -31,7 +30,7 @@ class NotificationRepository(
     suspend fun markRead(id: String) {
         val n = db.notifications().get(id) ?: return
         if (n.readAt != null) return
-        db.withTransaction {
+        db.inTransaction {
             db.notifications().markRead(id, now())
             db.outbox().insert(OutboxEntity(opId = UUID.randomUUID().toString(), kind = "NOTIFICATION_READ", entityId = id, payload = "{}", createdAt = now()))
         }
@@ -42,7 +41,7 @@ class NotificationRepository(
         val member = session.current().memberId ?: return
         val unread = db.notifications().unread(member)
         if (unread.isEmpty()) return
-        db.withTransaction {
+        db.inTransaction {
             for (n in unread) {
                 db.notifications().markRead(n.id, now())
                 db.outbox().insert(OutboxEntity(opId = UUID.randomUUID().toString(), kind = "NOTIFICATION_READ", entityId = n.id, payload = "{}", createdAt = now()))

@@ -86,6 +86,9 @@ data class CreditsUi(
 )
 
 class CreditsViewModel(private val c: AppContainer) : ViewModel(), CreditsActions {
+
+    /** Refresco al abrir la pantalla, al volver al frente y al deslizar: sincroniza (sube lo pendiente y baja lo nuevo). */
+    val refresher = ScreenRefresh(viewModelScope) { c.pullNow() }
     private val _ui = MutableStateFlow(CreditsUi())
     val ui: StateFlow<CreditsUi> = _ui.asStateFlow()
 

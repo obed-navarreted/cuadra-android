@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -61,8 +62,9 @@ import com.cuadra.caja.ui.theme.CuadraColors
  * larga y los ordena con «Ordenar».
  */
 @OptIn(ExperimentalFoundationApi::class)
-internal fun LazyListScope.productsTab(ui: CajaUi, pane: ProductsPane, canManage: Boolean, actions: CajaActions) {
-    stickyHeader(key = "search") { SearchBar(ui.query, actions) }
+internal fun LazyListScope.productsTab(ui: CajaUi, pane: ProductsPane, canManage: Boolean, actions: CajaActions, strip: (@Composable () -> Unit)? = null) {
+    // El buscador y, pegada debajo, la tira de la última línea (su hueco está reservado aunque el recibo esté vacío: la lista no salta al agregar el primer producto).
+    stickyHeader(key = "search") { SearchBar(ui.query, actions, strip) }
     when {
         ui.query.isNotBlank() -> results(ui.query, pane.results, canManage, actions)
         ui.reordering && canManage -> reorder(pane.marked, actions)
@@ -71,9 +73,10 @@ internal fun LazyListScope.productsTab(ui: CajaUi, pane: ProductsPane, canManage
 }
 
 @Composable
-private fun SearchBar(query: String, actions: CajaActions) {
+private fun SearchBar(query: String, actions: CajaActions, strip: (@Composable () -> Unit)?) {
+    Column(Modifier.fillMaxWidth().testTag(TAG_STICKY).background(CuadraColors.Bg).padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
     Row(
-        Modifier.fillMaxWidth().testTag(TAG_STICKY).background(CuadraColors.Bg).padding(vertical = 4.dp),
+        Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
     ) {
         VoiceTextField(
@@ -82,6 +85,8 @@ private fun SearchBar(query: String, actions: CajaActions) {
         )
         val newLabel = stringResource(R.string.register_new_product)
         CuadraButton("+", actions::openDraft, Modifier.size(56.dp).semantics { contentDescription = newLabel })
+    }
+    strip?.invoke()
     }
 }
 
@@ -158,9 +163,10 @@ private fun PriceLine(p: ProductEntity) {
 
 @Composable
 private fun NewTile(modifier: Modifier, onClick: () -> Unit) {
-    CuadraCard(onClick = onClick, modifier = modifier.heightIn(min = 72.dp)) {
-        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("+  " + stringResource(R.string.register_new_product), fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center)
+    // Borde verde y letra verde para distinguirlo de los productos; el texto va centrado en los dos ejes.
+    CuadraCard(onClick = onClick, modifier = modifier, borderColor = CuadraColors.Green) {
+        Box(Modifier.fillMaxSize().heightIn(min = 48.dp), contentAlignment = Alignment.Center) {
+            Text("+  " + stringResource(R.string.register_new_product), color = CuadraColors.Green, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center)
         }
     }
 }

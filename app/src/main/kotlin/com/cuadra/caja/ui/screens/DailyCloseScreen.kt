@@ -44,7 +44,7 @@ import java.util.Locale
 fun DailyCloseScreen(vm: DailyCloseViewModel, onBack: () -> Unit) {
     val ui by vm.ui.collectAsState()
     val calendar by vm.calendar.collectAsState()
-    DailyCloseContent(ui, calendar, vm, onBack)
+    com.cuadra.caja.ui.common.Refreshing(vm.refresher, busy = ui.loading, showOffline = false) { DailyCloseContent(ui, calendar, vm, onBack) }
 }
 
 /** Cierre del día sin ViewModel (estado + acciones): es lo que dibuja la guardia de diseño. */
@@ -83,7 +83,8 @@ fun DailyCloseContent(ui: DailyCloseUi, calendar: BusinessCalendar?, actions: Da
                 }
             }
         }
-        if (ui.loading) item { Text(stringResource(R.string.close_loading), color = CuadraColors.Muted) }
+        // Al refrescar, las tarjetas de antes siguen a la vista (el indicador va arriba); «Cargando…» solo la primera vez.
+        if (ui.loading && ui.cards == null) item { Text(stringResource(R.string.close_loading), color = CuadraColors.Muted) }
         ui.cards?.let { cards -> items(cards, key = { it.date.toString() }) { DayCard(it, calendar, nowMillis) } }
         item { Column(Modifier.padding(bottom = 8.dp)) {} }
     }
@@ -105,12 +106,19 @@ private fun DayCard(d: DayCloseCard, calendar: BusinessCalendar?, nowMillis: Lon
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(heading, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
             window?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted) }
+            // Cobro en caja: cuentas enviadas a caja que seguían sin cobrar al terminar la jornada (no son ventas hasta cobrarse).
+            if (d.pendingCheckoutCount > 0) Text(
+                pluralStringResource(R.plurals.close_pending_checkout, d.pendingCheckoutCount.toInt(), d.pendingCheckoutCount.toInt(), money(d.pendingCheckoutMinor)),
+                color = CuadraColors.Orange, fontWeight = FontWeight.Bold,
+            )
             SplitRow(end = { MoneyText(money(d.salesMinor), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold) }) {
                 Column {
                     Text(stringResource(R.string.close_total_sales), fontWeight = FontWeight.Bold)
                     Text(pluralStringResource(R.plurals.close_sales_count, d.salesCount.toInt(), d.salesCount.toInt()), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted)
                 }
             }
+            // «Descuentos por promociones» (ya restados de las ventas del día).
+            if (d.promotionDiscountMinor > 0) SplitRow(end = { MoneyText("−" + money(d.promotionDiscountMinor), fontWeight = FontWeight.Bold, color = CuadraColors.Green) }) { Text(stringResource(R.string.promo_discounts)) }
             if (!d.hasAdjustments && d.salesCount == 0L && d.cancelledCount == 0L && d.collected.totalMinor == 0L && d.drawerExpensesMinor == 0L && d.otherExpensesMinor == 0L && d.withdrawalsMinor == 0L && d.depositsMinor == 0L) {
                 Text(stringResource(R.string.close_quiet_day), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted)
             } else {

@@ -77,6 +77,18 @@ object SyncScheduler {
         WorkManager.getInstance(context).enqueueUniqueWork(ONE_TIME, ExistingWorkPolicy.KEEP, req)
     }
 
+    private const val EXPEDITED = "cuadra-sync-push"
+
+    /**
+     * Llegó un aviso de Firebase con la app en segundo plano: un trabajo URGENTE (el sistema lo corre ya aunque la app esté cerrada; si no le quedan cupos de
+     * urgencia, como trabajo normal). Varios avisos seguidos comparten uno.
+     */
+    fun requestExpedited(context: Context) {
+        val req = OneTimeWorkRequestBuilder<SyncWorker>().setConstraints(online)
+            .setExpedited(androidx.work.OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST).build()
+        WorkManager.getInstance(context).enqueueUniqueWork(EXPEDITED, ExistingWorkPolicy.KEEP, req)
+    }
+
     fun schedulePeriodic(context: Context) {
         val req = PeriodicWorkRequestBuilder<SyncWorker>(30, TimeUnit.MINUTES).setConstraints(online).build()
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(PERIODIC, ExistingPeriodicWorkPolicy.KEEP, req)
@@ -84,6 +96,15 @@ object SyncScheduler {
 }
 
 class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+    /** Android 11 o menos corre un trabajo urgente como servicio en primer plano: necesita esta notificación discreta (canal de importancia mínima). */
+    override suspend fun getForegroundInfo(): androidx.work.ForegroundInfo {
+        val manager = applicationContext.getSystemService(android.app.NotificationManager::class.java)
+        manager?.createNotificationChannel(android.app.NotificationChannel("cuadra_sync", applicationContext.getString(com.cuadra.caja.R.string.sync_channel), android.app.NotificationManager.IMPORTANCE_MIN))
+        val n = androidx.core.app.NotificationCompat.Builder(applicationContext, "cuadra_sync").setSmallIcon(com.cuadra.caja.R.drawable.ic_stat_cuadra)
+            .setContentTitle(applicationContext.getString(com.cuadra.caja.R.string.sync_running)).setPriority(androidx.core.app.NotificationCompat.PRIORITY_MIN).setOngoing(true).build()
+        return androidx.work.ForegroundInfo(0x5C, n)
+    }
+
     override suspend fun doWork(): Result {
         val container = (applicationContext as CuadraApp).container
         return when (container.sync.run()) {

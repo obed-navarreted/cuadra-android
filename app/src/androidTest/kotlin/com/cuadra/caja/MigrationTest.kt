@@ -5,6 +5,8 @@ import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.platform.app.InstrumentationRegistry
 import com.cuadra.caja.data.local.CuadraDatabase
 import com.cuadra.caja.data.local.MIGRATION_1_2
+import com.cuadra.caja.data.local.MIGRATION_11_12
+import com.cuadra.caja.data.local.MIGRATION_12_13
 import com.cuadra.caja.data.local.MIGRATION_2_3
 import com.cuadra.caja.data.local.MIGRATION_3_4
 import com.cuadra.caja.data.local.MIGRATION_4_5
@@ -192,7 +194,47 @@ class MigrationTest {
         db.query("SELECT COUNT(*) FROM outbox_discarded").use { c -> c.moveToFirst(); assertEquals(1, c.getInt(0)) }
     }
 
+    @Test
+    fun migration11To12KeepsSalesAndPendingOperationsAndAddsRegisterCheckout() {
+        helper.createDatabase(DB11, 11).apply {
+            execSQL("INSERT INTO business (id, name, country, currency, timezone, defaultLocale, dayCutoff, inventoryMode, modulesJson, posViewsJson, creditRequiresCustomer, shiftRequired, dayRulesJson, creditOverdueDays, creditLimitEnforced, accessCode, currencyLocked) VALUES ('b1', 'Tienda', 'NI', 'NIO', 'America/Managua', 'es', '02:00', 'OFF', '{}', '[]', 1, 0, '[]', 30, 0, '13085', 0)")
+            execSQL("INSERT INTO sales (id, status, label, subtotalMinor, discountMinor, totalMinor, createdAt, updatedAt, rev, returnedMinor) VALUES ('s1', 'PARKED', 'Mesa 4', 100, 0, 100, 1, 1, 5, 0)")
+            execSQL("INSERT INTO sync_state (id, cursor, businessId) VALUES (1, 777, 'b1')")
+            execSQL("INSERT INTO outbox (opId, kind, entityId, payload, createdAt, attempts, nextAttemptAt, state, lastCode, businessId) VALUES ('op1', 'SALE_UPSERT', 's1', '{}', 1000, 0, 0, 'PENDING', NULL, 'b1')")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(DB11, 12, true, MIGRATION_11_12)
+        db.query("SELECT label, sentToRegisterAt, sentByName FROM sales WHERE id = 's1'").use { c -> c.moveToFirst(); assertEquals("Mesa 4", c.getString(0)); assertEquals(true, c.isNull(1)); assertEquals(true, c.isNull(2)) }
+        db.query("SELECT registerCheckout FROM business WHERE id = 'b1'").use { c -> c.moveToFirst(); assertEquals(0, c.getInt(0)) }
+        db.query("SELECT COUNT(*) FROM outbox").use { c -> c.moveToFirst(); assertEquals(1, c.getInt(0)) }
+        db.query("SELECT cursor FROM sync_state WHERE id = 1").use { c -> c.moveToFirst(); assertEquals(0L, c.getLong(0)) }
+    }
+
+    @Test
+    fun migration12To13KeepsSalesAndTheQueueAndAddsPromotions() {
+        helper.createDatabase(DB12, 12).apply {
+            execSQL("INSERT INTO business (id, name, country, currency, timezone, defaultLocale, dayCutoff, inventoryMode, modulesJson, posViewsJson, creditRequiresCustomer, shiftRequired, dayRulesJson, creditOverdueDays, creditLimitEnforced, accessCode, currencyLocked, registerCheckout) VALUES ('b1', 'Bar', 'NI', 'NIO', 'America/Managua', 'es', '02:00', 'OFF', '{}', '[]', 1, 0, '[]', 30, 0, '13085', 0, 0)")
+            execSQL("INSERT INTO sales (id, status, label, subtotalMinor, discountMinor, totalMinor, createdAt, updatedAt, rev, returnedMinor) VALUES ('s1', 'COMPLETED', NULL, 31500, 0, 31500, 1, 1, 5, 0)")
+            execSQL("INSERT INTO sale_items (saleId, id, productId, barcode, name, variant, unitPriceMinor, unitCostMinor, quantityMilli, discountMinor, position, returnedMilli) VALUES ('s1', 'l1', 'p1', NULL, 'Toña', NULL, 4500, NULL, 7000, 0, 0, 0)")
+            execSQL("INSERT INTO sync_state (id, cursor, businessId) VALUES (1, 777, 'b1')")
+            execSQL("INSERT INTO outbox (opId, kind, entityId, payload, createdAt, attempts, nextAttemptAt, state, lastCode, businessId) VALUES ('op1', 'SALE_UPSERT', 's1', '{}', 1000, 0, 0, 'PENDING', NULL, 'b1')")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(DB12, 13, true, MIGRATION_12_13)
+        db.query("SELECT totalMinor FROM sales WHERE id = 's1'").use { c -> c.moveToFirst(); assertEquals(31500L, c.getLong(0)) }
+        db.query("SELECT COUNT(*) FROM sale_items WHERE saleId = 's1'").use { c -> c.moveToFirst(); assertEquals(1, c.getInt(0)) }
+        db.query("SELECT COUNT(*) FROM outbox").use { c -> c.moveToFirst(); assertEquals(1, c.getInt(0)) }
+        db.query("SELECT cursor FROM sync_state WHERE id = 1").use { c -> c.moveToFirst(); assertEquals(0L, c.getLong(0)) }
+        // Las tablas nuevas existen y aceptan filas.
+        db.execSQL("INSERT INTO promotions (id, name, quantity, priceMinor, active, startsOn, endsOn, rev) VALUES ('pr1', 'Cerveza 3 por C$ 100', 3, 10000, 1, NULL, NULL, 9)")
+        db.execSQL("INSERT INTO promotion_products (promotionId, productId) VALUES ('pr1', 'p1')")
+        db.execSQL("INSERT INTO sale_promotions (saleId, position, promotionId, name, quantity, priceMinor, units, discountMinor) VALUES ('s1', 0, 'pr1', 'Cerveza 3 por C$ 100', 3, 10000, 6, 7000)")
+        db.query("SELECT COUNT(*) FROM promotion_products WHERE productId = 'p1'").use { c -> c.moveToFirst(); assertEquals(1, c.getInt(0)) }
+    }
+
     private companion object {
+        const val DB12 = "migration-test-12"
+        const val DB11 = "migration-test-11"
         const val DB9 = "migration-test-9"
         const val DB8 = "migration-test-8"
         const val DB7 = "migration-test-7"

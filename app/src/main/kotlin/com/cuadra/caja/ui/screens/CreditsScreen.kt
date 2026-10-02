@@ -95,7 +95,7 @@ fun CreditsScreen(vm: CreditsViewModel, container: AppContainer) {
     val totals by vm.totals.collectAsState()
     val detail by vm.detail.collectAsState()
     val canManage by vm.canManage.collectAsState()
-    CreditsContent(ui, rows, customers, totals, detail, canManage, vm, shareDialog = { request, dismiss -> ShareDialog(container, request, dismiss) })
+    com.cuadra.caja.ui.common.Refreshing(vm.refresher) { CreditsContent(ui, rows, customers, totals, detail, canManage, vm, shareDialog = { request, dismiss -> ShareDialog(container, request, dismiss) }) }
 }
 
 /** La libreta sin ViewModel (estado + acciones): es lo que dibuja la guardia de diseño. */

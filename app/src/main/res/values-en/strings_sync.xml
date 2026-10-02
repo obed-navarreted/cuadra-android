@@ -29,7 +29,7 @@
     <string name="att_reason_CREDIT_CLOSED">That credit was already closed (written off or cancelled on another phone) and the customer has no other debts: the payment was not saved. Give the money back or record it another way.</string>
     <string name="att_reason_NO_OPEN_CREDITS">The customer no longer owed anything: the payment was not saved. Give the money back or record it another way.</string>
     <string name="att_reason_MEMBER_DISABLED">The person who did it was disabled before it was sent.</string>
-    <string name="att_reason_DEVICE_NOT_TRUSTED">This phone cannot act with the role of the person who did it. Ask the owner to do it from their phone or the web.</string>
+    <string name="att_reason_PIN_VERIFICATION_REQUIRED">The person who did it must confirm their PIN on this phone (online). Tap “Confirm PIN” and it is sent again.</string>
     <string name="att_reason_FORBIDDEN">The person who did it is not allowed to do this.</string>
     <string name="att_reason_PAYMENT_MISMATCH">The payments do not add up to the sale total.</string>
     <string name="att_reason_CUSTOMER_REQUIRED">The business requires a listed customer on every credit.</string>
@@ -81,4 +81,6 @@
     <string name="att_reason_UNDO_NOT_ALLOWED">It could no longer be undone: the 5 minutes had passed or it was not your last sale. The sale is still paid; ask the owner or an admin to delete it.</string>
     <string name="att_reason_RETURN_REJECTED">The return was not applied: more than what was left was returned, the credit no longer covered it, or it was not allowed.</string>
     <string name="att_reason_LATE_OP_REJECTED">It was made by someone who was deactivated and it is not credible that it happened before (too old, before the phone was linked, or everything had already been sent).</string>
+    <string name="sync_channel">Sync</string>
+    <string name="sync_running">Catching up with the business…</string>
 </resources>

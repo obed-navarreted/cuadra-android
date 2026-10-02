@@ -28,6 +28,8 @@ import kotlinx.coroutines.flow.stateIn
 
 data class SummaryData(
     val sales: SalesTotals, val methods: List<MethodAmountRow>, val profit: Profit, val top: List<TopProductRow>, val receivableMinor: Long, val lowStock: Int,
+    /** «Descuentos por promociones» del rango (ya restados de las ventas). */
+    val promotionDiscountMinor: Long = 0,
 )
 
 /** Lo que la pantalla de resumen le pide al ViewModel (y a la vista previa de la guardia de diseño). */
@@ -41,6 +43,9 @@ interface SummaryActions {
  * (zona, corte e historial de reglas), nunca de la zona del teléfono.
  */
 class SummaryViewModel(private val c: AppContainer, private val now: () -> Instant = Instant::now) : ViewModel(), SummaryActions {
+
+    /** Refresco al abrir la pantalla, al volver al frente y al deslizar: sincroniza (sube lo pendiente y baja lo nuevo). */
+    val refresher = ScreenRefresh(viewModelScope) { c.pullNow() }
     val choice = MutableStateFlow(RangeChoice())
     val business: StateFlow<BusinessEntity?> = c.db.directory().business().stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val calendar: StateFlow<BusinessCalendar?> = business.map { it?.calendar() }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -57,8 +62,8 @@ class SummaryViewModel(private val c: AppContainer, private val now: () -> Insta
         val core: Flow<Triple<SalesTotals, List<MethodAmountRow>, Profit>> = combine(r.salesTotals(from, to), r.byMethod(from, to), r.profitLines(from, to), r.expenseSplit(from, to)) { sales, methods, lines, split ->
             Triple(sales, methods, ProfitReport.compute(sales.totalMinor, lines, ExpenseSplit(split.operatingMinor, split.purchasesMinor)))
         }
-        combine(core, r.topProducts(from, to, 5), r.receivable(), c.inventory.reviewCount()) { (sales, methods, profit), top, receivable, low ->
-            SummaryData(sales, methods, profit, top, receivable, low)
+        combine(core, r.topProducts(from, to, 5), r.receivable(), c.inventory.reviewCount(), r.promotionDiscounts(from, to)) { (sales, methods, profit), top, receivable, low, promo ->
+            SummaryData(sales, methods, profit, top, receivable, low, promo)
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 }

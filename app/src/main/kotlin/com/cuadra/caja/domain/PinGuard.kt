@@ -22,6 +22,9 @@ class PinGuard(private val now: () -> Long = System::currentTimeMillis) {
         return true
     }
 
+    /** Al cerrar sesión o cambiar de negocio: el conteo de fallos era de otra sesión. */
+    fun reset() = recordSuccess()
+
     fun recordSuccess() {
         failures = 0
         lockedUntil = 0

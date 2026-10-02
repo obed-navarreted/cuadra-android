@@ -87,6 +87,11 @@ data class Weighing(val product: ProductEntity, val byAmount: Boolean = true, va
 
 data class CobroUi(
     val plan: PaymentPlan,
+    /**
+     * El recibo con las promociones tal como estaba al tocar «Cobrar»: el cobro, el vuelto y lo que se guarda usan ESTE total aunque una promoción cambie
+     * mientras tanto (llega una pausa por la sincronización): lo que la persona vio y cobró es lo que queda.
+     */
+    val priced: com.cuadra.caja.domain.PricedCart? = null,
     val tenderedText: String = "",
     val debtor: String = "",
     val debtorPhone: String = "",
@@ -114,6 +119,13 @@ data class CobroUi(
     val doneSaleId: String? = null,
     /** Cuándo se cobró (reloj de este teléfono): «Anular esta venta» se ofrece los primeros 5 minutos. */
     val doneAtMillis: Long? = null,
+    /** Cobro en caja (ADR 0015) encendido en el negocio: arriba se elige «Cobrar ahora» o «Enviar a caja». */
+    val registerCheckout: Boolean = false,
+    /** «Enviar a caja» elegido: sin método de pago ni vuelto, solo una nota opcional. */
+    val toRegister: Boolean = false,
+    val registerNote: String = "",
+    /** Ya enviada a caja: destello corto y venta nueva con el aviso «Enviada a caja · nota». */
+    val sent: Boolean = false,
 ) {
     /** ¿Una regla del negocio impide fiar así? (cliente obligatorio o límite de crédito que bloquea). Nulo si no hay fiado o todo está bien. */
     val creditBlock: com.cuadra.caja.domain.CreditRules.Block?
@@ -124,7 +136,15 @@ data class CobroUi(
 }
 
 /** El aviso flotante que queda en la venta nueva tras cobrar («Vuelto C$ X · Anular» / «Venta cobrada · C$ X · Anular»); `undone`: «Venta anulada». */
-data class SaleNoticeUi(val saleId: String, val totalMinor: Long, val changeMinor: Long, val doneAtMillis: Long, val undone: Boolean = false)
+data class SaleNoticeUi(val saleId: String, val totalMinor: Long, val changeMinor: Long, val doneAtMillis: Long, val undone: Boolean = false,
+                        /** «Enviada a caja · nota» (cobro en caja): no es una venta, no ofrece «Anular». */
+                        val sent: Boolean = false, val note: String? = null)
+
+/** El detalle de una cuenta «Por cobrar en caja» abierto desde la lista de la caja. */
+data class QueueDetailUi(val sale: SaleEntity, val items: List<com.cuadra.caja.data.local.SaleItemEntity>, val promotions: List<com.cuadra.caja.data.local.SalePromotionEntity> = emptyList())
+
+/** «Anular esta cuenta» (por cobrar en caja): motivo obligatorio (5 letras o más). */
+data class QueueCancelUi(val saleId: String, val label: String?, val totalMinor: Long, val reason: String = "")
 
 /** La hoja «Anular esta venta» abierta desde el aviso: el motivo que se escribe y si ya pasó el plazo al confirmar. */
 data class SaleUndoUi(val saleId: String, val doneAtMillis: Long, val reason: String = "", val tooLate: Boolean = false)
@@ -143,7 +163,8 @@ sealed interface Notice {
     /** Código que no está en el catálogo: se ofrece crearlo. `checksumOk = false`: parece EAN/UPC pero no pasa la verificación (lectura dudosa). */
     data class CodeUnknown(val code: String, val checksumOk: Boolean = true) : Notice
     data object CodeUnknownOffline : Notice
-    data object TicketLocked : Notice
+    /** La cuenta está abierta en otro teléfono; `by`: quién («La está cobrando Ana»), si se sabe. */
+    data class TicketLocked(val by: String? = null) : Notice
     data object InvalidProduct : Notice
     /** El código que se quiso guardar ya lo tiene otro producto. */
     data class BarcodeInUse(val owner: String) : Notice
@@ -157,12 +178,19 @@ data class CajaUi(
     val query: String = "",
     val resumedId: String? = null,
     val resumedLabel: String? = null,
+    /** La cuenta retomada estaba «Por cobrar en caja»: «Vaciar» la devuelve a la lista (anularla pide motivo y se hace desde su detalle). */
+    val resumedPending: Boolean = false,
+    /** Detalle y anulación de una cuenta por cobrar en caja (ADR 0015). */
+    val queueDetail: QueueDetailUi? = null,
+    val queueCancel: QueueCancelUi? = null,
     val weighing: Weighing? = null,
     val openPrice: OpenPricing? = null,
     val cobro: CobroUi? = null,
     val draft: ProductDraft? = null,
     val parking: Boolean = false,
     val showParked: Boolean = false,
+    /** «Por cobrar en caja» / Apartadas se está refrescando (lo de antes sigue a la vista). */
+    val queueRefreshing: Boolean = false,
     val notice: Notice? = null,
     val scanning: Boolean = false,
     val scanAdded: Int = 0,
@@ -190,8 +218,29 @@ data class CajaUi(
     val productMenu: ProductEntity? = null,
     /** Pestaña Productos en modo «Ordenar frecuentes». */
     val reordering: Boolean = false,
+    /** La línea que muestra la tira «última línea» (la última agregada o tocada); `null` = la última del recibo (ver `LastLine.of`). */
+    val lastLineId: String? = null,
+    /** Promociones por cantidad del negocio (todas: el motor se queda con las que valen en `promoDay`), cómo se vende cada producto y la jornada de hoy. */
+    val promotions: List<com.cuadra.caja.domain.PromotionRule> = emptyList(),
+    val pricingById: Map<String, String> = emptyMap(),
+    val promoDay: java.time.LocalDate = java.time.LocalDate.of(2000, 1, 1),
 ) {
-    val undo: UndoEntry? get() = if (undoShown) undoStack.lastOrNull() else null
+    /**
+     * El recibo con las promociones aplicadas (se recalcula con cada cambio del recibo, de las promociones o del día): su total es el que se cobra; sus líneas
+     * llevan el descuento repartido. `cart` sigue siendo el recibo sin descuentos (así sumar el mismo producto agrupa y deshacer funciona igual).
+     */
+    val priced: com.cuadra.caja.domain.PricedCart by lazy {
+        com.cuadra.caja.domain.PromotionEngine.price(cart, promotions, promoDay) { pricingById[it] }
+    }
+
+    /**
+     * El aviso flotante «Deshacer»: solo para lo que se QUITA (línea eliminada, recibo vaciado). Agregar ya no abre aviso: la tira de la última línea
+     * lleva su propio − / ✕, así que ese popup sobraba (y tapaba el hueco donde ahora vive la tira).
+     */
+    val undo: UndoEntry? get() = if (undoShown) undoStack.lastOrNull()?.takeIf { it !is UndoEntry.Added } else null
+
+    /** La línea de la tira «última línea», o `null` con el recibo vacío. */
+    val lastLine get() = com.cuadra.caja.domain.LastLine.of(priced.cart, lastLineId)
     val editingLine get() = editingLineId?.let { id -> cart.lines.firstOrNull { it.id == id } }
 }
 
@@ -199,13 +248,20 @@ data class CajaUi(
 enum class HardwareScanRoute { ADD, EDITOR, IGNORE }
 
 fun CajaUi.hardwareScanRoute(): HardwareScanRoute = when {
-    cobro != null || saleUndo != null || weighing != null || openPrice != null || receiptOpen || editingLineId != null || parking || showParked || notice != null || share != null || productMenu != null -> HardwareScanRoute.IGNORE
+    cobro != null || saleUndo != null || queueDetail != null || queueCancel != null || weighing != null || openPrice != null || receiptOpen || editingLineId != null || parking || showParked || notice != null || share != null || productMenu != null -> HardwareScanRoute.IGNORE
     draft != null -> HardwareScanRoute.EDITOR
     else -> HardwareScanRoute.ADD
 }
 
 class CajaViewModel(private val c: AppContainer) : ViewModel(), CajaActions {
+
+    /** «Por cobrar en caja» y Apartadas: al abrirlas, al volver al frente, al deslizar y cada 15 s mientras están a la vista (llegan cuentas de otros teléfonos). */
+    val refresher = ScreenRefresh(viewModelScope) { c.pullNow() }
     private val _ui = MutableStateFlow(CajaUi())
+
+    init {
+        viewModelScope.launch { refresher.refreshing.collect { busy -> _ui.update { it.copy(queueRefreshing = busy) } } }
+    }
     val ui: StateFlow<CajaUi> = _ui.asStateFlow()
 
     val business: StateFlow<BusinessEntity?> = c.db.directory().business().stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -235,15 +291,37 @@ class CajaViewModel(private val c: AppContainer) : ViewModel(), CajaActions {
 
     val parked: StateFlow<List<SaleEntity>> = c.sales.parked().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    val parkedLineCounts: StateFlow<Map<String, Int>> = c.sales.parkedLineCounts().stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    /** Cobro en caja (ADR 0015) encendido en este negocio. */
+    val registerCheckout: StateFlow<Boolean> = business.map { it?.registerCheckout == true }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     /** Lo vendido en la jornada actual según lo que este teléfono conoce (efectivo, fiado, etc.). */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val soldToday: StateFlow<Long> = business.flatMapLatest { b ->
-        if (b == null) flowOf(0L) else {
-            val cal = b.calendar()
-            val day = cal.day(cal.dateOf(Instant.now()))
-            c.sales.dayTotals(day.startMillis, day.endMillis).map { it.total }
-        }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
+    val soldToday: StateFlow<Long> = combine(business, c.sessionStore.flow.map { com.cuadra.caja.domain.SoldToday.memberFilter(it.memberRole, it.memberId) }.distinctUntilChanged()) { b, member -> b to member }
+        .flatMapLatest { (b, member) ->
+            if (b == null) flowOf(0L) else {
+                val cal = b.calendar()
+                val day = cal.day(cal.dateOf(Instant.now()))
+                // Un cajero ve solo lo que cobró él; dueño y admins, todo el negocio (`SoldToday`).
+                (if (member == null) c.sales.dayTotals(day.startMillis, day.endMillis) else c.sales.dayTotalsBy(day.startMillis, day.endMillis, member)).map { it.total }
+            }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
+
+    init {
+        // Promociones: las del negocio, cómo se vende cada producto de ellas (por peso y precio abierto no entran) y la jornada de hoy (cambia sola a medianoche
+        // del negocio: se revisa cada minuto).
+        val day = kotlinx.coroutines.flow.flow {
+            while (true) {
+                emit(business.value?.calendar()?.dateOf(Instant.now()))
+                kotlinx.coroutines.delay(60_000)
+            }
+        }.distinctUntilChanged()
+        combine(c.promotions.rules(), catalog, business, day) { rules, (all, _), b, d ->
+            val wanted = rules.flatMapTo(HashSet()) { it.productIds }
+            Triple(rules, all.filter { it.id in wanted }.associate { it.id to it.pricing }, d ?: b?.calendar()?.dateOf(Instant.now()))
+        }.onEach { (rules, pricing, d) -> _ui.update { it.copy(promotions = rules, pricingById = pricing, promoDay = d ?: it.promoDay) } }.launchIn(viewModelScope)
+    }
 
     init {
         // El indicador de la impresora sigue al estado de la conexión (solo existe con la opción activada).
@@ -264,7 +342,7 @@ class CajaViewModel(private val c: AppContainer) : ViewModel(), CajaActions {
     private fun edit(f: (CartWithUndo) -> CartWithUndo) = _ui.update { s ->
         val next = f(CartWithUndo(s.cart, s.undoStack))
         s.copy(
-            cart = next.cart, undoStack = next.stack, saleNotice = null,
+            cart = next.cart, undoStack = next.stack, saleNotice = null, lastLineId = com.cuadra.caja.domain.LastLine.pick(s.lastLineId, s.cart, next.cart),
             undoShown = if (next.pushed) true else s.undoShown && next.stack.isNotEmpty(), undoTick = if (next.pushed) s.undoTick + 1 else s.undoTick,
         )
     }
@@ -411,9 +489,11 @@ class CajaViewModel(private val c: AppContainer) : ViewModel(), CajaActions {
      */
     override fun clearCart() {
         val resumed = _ui.value.resumedId
+        val pending = _ui.value.resumedPending
         edit { it.clear() }
-        _ui.update { it.copy(resumedId = null, resumedLabel = null) }
-        if (resumed != null) viewModelScope.launch { c.sales.cancel(resumed, null) }
+        _ui.update { it.copy(resumedId = null, resumedLabel = null, resumedPending = false) }
+        // Una cuenta por cobrar en caja no se descarta al vaciar: vuelve a la lista tal como estaba (se anula con motivo desde su detalle).
+        if (resumed != null) viewModelScope.launch { if (pending) c.sales.releaseToQueue(resumed) else c.sales.cancel(resumed, null) }
     }
 
     // ---------- «deshacer» y hoja del recibo ----------
@@ -469,28 +549,93 @@ class CajaViewModel(private val c: AppContainer) : ViewModel(), CajaActions {
     override fun askPark() = _ui.update { if (it.cart.isEmpty) it else it.copy(parking = true, receiptOpen = false, undoShown = false) }
     override fun cancelPark() = _ui.update { it.copy(parking = false) }
     override fun toggleParked(show: Boolean) = _ui.update { it.copy(showParked = show) }
+    override fun refreshQueue(trigger: com.cuadra.caja.domain.RefreshTrigger) { refresher.request(trigger) }
 
     override fun park(label: String) {
         val s = _ui.value
         if (s.cart.isEmpty) return
         viewModelScope.launch {
-            c.sales.park(s.cart, label.ifBlank { s.resumedLabel }, s.resumedId ?: java.util.UUID.randomUUID().toString())
-            _ui.update { it.copy(cart = Cart(), resumedId = null, resumedLabel = null, parking = false, entry = AmountEntry(), description = "", undoStack = emptyList(), undoShown = false) }
+            c.sales.park(s.priced.cart, label.ifBlank { s.resumedLabel }, s.resumedId ?: java.util.UUID.randomUUID().toString(), s.priced.promo.applied)
+            _ui.update { it.copy(cart = Cart(), resumedId = null, resumedLabel = null, resumedPending = false, parking = false, entry = AmountEntry(), description = "", undoStack = emptyList(), undoShown = false, lastLineId = null) }
         }
     }
 
     override fun resume(saleId: String) {
-        viewModelScope.launch {
-            // Lo que había en pantalla se aparta antes de retomar otra cuenta: nunca se pierde (PLAN: ARMarket 2.2).
-            val current = _ui.value
-            when (val r = c.sales.resume(saleId)) {
-                is ResumeResult.Ok -> {
-                    if (!current.cart.isEmpty) c.sales.park(current.cart, current.resumedLabel, current.resumedId ?: java.util.UUID.randomUUID().toString())
-                    _ui.update { it.copy(cart = r.sale.cart, resumedId = r.sale.saleId, resumedLabel = r.sale.label, showParked = false, undoStack = emptyList(), undoShown = false) }
-                }
-                ResumeResult.Locked -> _ui.update { it.copy(notice = Notice.TicketLocked) }
-                ResumeResult.NotFound -> Unit
+        viewModelScope.launch { resumeNow(saleId) }
+    }
+
+    /** Retoma la cuenta en la caja; `false` si no se pudo (abierta en otro teléfono: avisa quién la tiene). */
+    private suspend fun resumeNow(saleId: String): Boolean {
+        // Lo que había en pantalla se aparta antes de retomar otra cuenta: nunca se pierde (PLAN: ARMarket 2.2).
+        val current = _ui.value
+        when (val r = c.sales.resume(saleId)) {
+            is ResumeResult.Ok -> {
+                if (!current.cart.isEmpty) c.sales.park(current.priced.cart, current.resumedLabel, current.resumedId ?: java.util.UUID.randomUUID().toString(), current.priced.promo.applied)
+                _ui.update { it.copy(cart = r.sale.cart, resumedId = r.sale.saleId, resumedLabel = r.sale.label, resumedPending = r.sale.pendingCheckout, showParked = false, queueDetail = null,
+                    undoStack = emptyList(), undoShown = false, lastLineId = null) }
+                return true
             }
+            is ResumeResult.Locked -> { _ui.update { it.copy(notice = Notice.TicketLocked(r.by)) }; return false }
+            ResumeResult.NotFound -> return false
+        }
+    }
+
+    // ---------- cobro en caja (ADR 0015) ----------
+    override fun openQueueTicket(saleId: String) {
+        viewModelScope.launch {
+            val (sale, items, _) = c.sales.detail(saleId) ?: return@launch
+            val promos = c.sales.promotionsOf(saleId)
+            _ui.update { it.copy(queueDetail = QueueDetailUi(sale, items.sortedBy { i -> i.position }, promos)) }
+        }
+    }
+
+    override fun closeQueueTicket() = _ui.update { it.copy(queueDetail = null) }
+
+    /** «Cobrar»: la carga en la caja (con la reserva del servidor: otro cajero no la cobra a la vez) y abre «Cobrar» con método y vuelto por decidir. */
+    override fun chargeQueued(saleId: String) {
+        viewModelScope.launch {
+            if (resumeNow(saleId)) {
+                _ui.update { it.copy(queueDetail = null, showParked = false) }
+                startCobro()
+                updateCobro { it.copy(toRegister = false) }
+            }
+        }
+    }
+
+    /** «Agregar productos»: la carga en la caja para sumar líneas; después se vuelve a enviar a caja o se cobra. */
+    override fun addToQueued(saleId: String) {
+        viewModelScope.launch { if (resumeNow(saleId)) _ui.update { it.copy(queueDetail = null, showParked = false) } }
+    }
+
+    override fun askCancelQueued(saleId: String) = _ui.update { s ->
+        val d = s.queueDetail?.sale?.takeIf { it.id == saleId }
+        s.copy(queueCancel = QueueCancelUi(saleId, d?.label, d?.totalMinor ?: 0))
+    }
+
+    override fun setQueueCancelReason(text: String) = _ui.update { s -> s.copy(queueCancel = s.queueCancel?.copy(reason = text.take(com.cuadra.caja.domain.SaleDeletion.MAX_REASON))) }
+    override fun closeQueueCancel() = _ui.update { it.copy(queueCancel = null) }
+
+    override fun confirmCancelQueued() {
+        val q = _ui.value.queueCancel ?: return
+        val reason = com.cuadra.caja.domain.SaleDeletion.clean(q.reason) ?: return
+        _ui.update { it.copy(queueCancel = null, queueDetail = null) }
+        viewModelScope.launch { c.sales.cancel(q.saleId, reason) }
+    }
+
+    override fun setCobroMode(toRegister: Boolean) = updateCobro { if (!it.registerCheckout) it else it.copy(toRegister = toRegister) }
+    override fun setRegisterNote(text: String) = updateCobro { it.copy(registerNote = text.take(com.cuadra.caja.domain.RegisterQueue.NOTE_MAX)) }
+
+    /** «Enviar a caja»: sin método ni vuelto. Va por la cola (sin conexión también) y aparece en «Por cobrar en caja» de todos los teléfonos. */
+    override fun confirmSendToRegister() {
+        val s = _ui.value
+        val cobro = s.cobro ?: return
+        if (!cobro.registerCheckout || !cobro.toRegister || cobro.saving || s.cart.isEmpty) return
+        _ui.update { it.copy(cobro = cobro.copy(saving = true)) }
+        viewModelScope.launch {
+            val note = com.cuadra.caja.domain.RegisterQueue.cleanNote(cobro.registerNote)
+            val priced = cobro.priced ?: s.priced
+            val saleId = c.sales.sendToRegister(priced.cart, note, s.resumedId ?: java.util.UUID.randomUUID().toString(), priced.promo.applied)
+            _ui.update { it.copy(cobro = cobro.copy(saving = false, sent = true, registerNote = note.orEmpty(), doneSaleId = saleId, doneAtMillis = System.currentTimeMillis())) }
         }
     }
 
@@ -500,19 +645,21 @@ class CajaViewModel(private val c: AppContainer) : ViewModel(), CajaActions {
 
     // ---------- cobro ----------
     override fun startCobro() = _ui.update {
-        if (it.cart.isEmpty || it.cart.totalMinor <= 0) it
+        val priced = it.priced
+        if (it.cart.isEmpty || priced.totalMinor <= 0) it
         else it.copy(
             cobro = CobroUi(
-                PaymentPlan.cash(it.cart.totalMinor), requiresCustomer = business.value?.creditRequiresCustomer == true, limitEnforced = business.value?.creditLimitEnforced == true,
+                PaymentPlan.cash(priced.totalMinor), priced = priced, requiresCustomer = business.value?.creditRequiresCustomer == true, limitEnforced = business.value?.creditLimitEnforced == true,
                 availableMethods = PaymentMethods.available(business.value?.let { b -> runCatching { b.modules() }.getOrNull() }.orEmpty()),
                 offerWhatsApp = c.display.offerWhatsApp.value,
+                registerCheckout = business.value?.registerCheckout == true, registerNote = it.resumedLabel.orEmpty(),
             ),
             receiptOpen = false, undoShown = false, editingLineId = null, saleNotice = null,
         )
     }
     override fun cancelCobro() = _ui.update { it.copy(cobro = null) }
 
-    private fun updateCobro(f: (CobroUi) -> CobroUi) = _ui.update { s -> s.cobro?.takeIf { it.doneChangeMinor == null }?.let { s.copy(cobro = f(it)) } ?: s }
+    private fun updateCobro(f: (CobroUi) -> CobroUi) = _ui.update { s -> s.cobro?.takeIf { it.doneChangeMinor == null && !it.sent }?.let { s.copy(cobro = f(it)) } ?: s }
 
     /**
      * Lo escrito en "Recibido" manda sobre el efectivo entregado: tras cualquier cambio del reparto se vuelve a aplicar al plan (así el vuelto
@@ -607,7 +754,8 @@ class CajaViewModel(private val c: AppContainer) : ViewModel(), CajaActions {
                 }
             }
             val saleId = s.resumedId ?: java.util.UUID.randomUUID().toString()
-            c.sales.complete(s.cart, plan, saleId, s.resumedLabel)
+            val priced = cobro.priced ?: s.priced
+            c.sales.complete(priced.cart, plan, saleId, s.resumedLabel, priced.promo.applied)
             val creditShare = credit?.let { cr ->
                 val creditId = c.db.credits().idBySale(saleId)
                 val credited = plan.effective.filter { it.method == PayMethod.CREDIT }.sumOf { it.amountMinor }
@@ -616,12 +764,12 @@ class CajaViewModel(private val c: AppContainer) : ViewModel(), CajaActions {
                 val phone = (PhoneNumbers.normalize(cobro.debtorPhone, country) as? PhoneResult.Valid)?.digits ?: customer?.phone
                 ShareRequest.CreditNew(
                     creditId, customer?.id ?: cr.customerId, name, phone, credited, paidNow,
-                    s.cart.lines.map { l -> (l.name + if (l.quantityMilli != 1000L) " ×" + com.cuadra.caja.ui.screens.qtyText(l.quantityMilli) else "") to l.totalMinor },
+                    shareLines(priced),
                 )
             }
             // WhatsApp al terminar es OPCIONAL (Más › Preferencias de este teléfono, apagado por omisión): apagado, ni botón ni diálogo automático (tampoco con fiado).
             // Encendido: con fiado el detalle se abre solo (si la persona lo dejó marcado); una venta normal ofrece «Enviar comprobante» con un botón, nunca por sí sola.
-            val ticket = ShareRequest.Ticket(s.cart.lines.map { l -> (l.name + if (l.quantityMilli != 1000L) " ×" + com.cuadra.caja.ui.screens.qtyText(l.quantityMilli) else "") to l.totalMinor }, plan.totalMinor)
+            val ticket = ShareRequest.Ticket(shareLines(priced), plan.totalMinor)
             _ui.update { it.copy(cobro = cobro.copy(plan = plan, saving = false, doneChangeMinor = plan.changeMinor, doneShare = WhatsAppOffer.doneShare(cobro.offerWhatsApp, creditShare, ticket), doneSaleId = saleId, doneAtMillis = System.currentTimeMillis()), share = WhatsAppOffer.autoShare(cobro.offerWhatsApp, cobro.sendWhatsApp, creditShare)) }
             // Impresora: la venta YA está cobrada y la pantalla lista; imprimir (con su reconexión) va aparte y nunca la retrasa ni la bloquea.
             val printerSettings = c.printer.settings.value
@@ -630,7 +778,7 @@ class CajaViewModel(private val c: AppContainer) : ViewModel(), CajaActions {
     }
 
     // ---------- «Anular esta venta» (la última propia, primeros 5 minutos), desde el aviso de la venta nueva ----------
-    override fun askUndoSale() = _ui.update { s -> s.saleNotice?.takeIf { !it.undone }?.let { s.copy(saleUndo = SaleUndoUi(it.saleId, it.doneAtMillis)) } ?: s }
+    override fun askUndoSale() = _ui.update { s -> s.saleNotice?.takeIf { !it.undone && !it.sent }?.let { s.copy(saleUndo = SaleUndoUi(it.saleId, it.doneAtMillis)) } ?: s }
     override fun setUndoReason(text: String) = _ui.update { s -> s.copy(saleUndo = s.saleUndo?.copy(reason = text.take(com.cuadra.caja.domain.SaleDeletion.MAX_REASON))) }
     override fun closeUndo() = _ui.update { it.copy(saleUndo = null) }
     override fun hideSaleNotice() = _ui.update { if (it.saleUndo != null) it else it.copy(saleNotice = null) }
@@ -656,8 +804,26 @@ class CajaViewModel(private val c: AppContainer) : ViewModel(), CajaActions {
     override fun finishCobro() = _ui.update { s ->
         val done = s.cobro
         val saleId = done?.doneSaleId ?: return@update s
-        val notice = done.doneAtMillis?.let { SaleNoticeUi(saleId, done.plan.totalMinor, done.doneChangeMinor ?: 0, it) }
-        CajaUi(tab = s.tab, printer = s.printer, reordering = s.reordering, printNotice = s.printNotice, printTick = s.printTick, saleNotice = notice)
+        val notice = done.doneAtMillis?.let {
+            if (done.sent) SaleNoticeUi(saleId, done.plan.totalMinor, 0, it, sent = true, note = done.registerNote.ifBlank { null })
+            else SaleNoticeUi(saleId, done.plan.totalMinor, done.doneChangeMinor ?: 0, it)
+        }
+        CajaUi(tab = s.tab, printer = s.printer, reordering = s.reordering, printNotice = s.printNotice, printTick = s.printTick, saleNotice = notice,
+            promotions = s.promotions, pricingById = s.pricingById, promoDay = s.promoDay)
+    }
+
+    /**
+     * Las líneas del comprobante de WhatsApp: cada producto a su precio de siempre y, debajo de la última línea que tocó, «Promo 3 por C$ 100: -C$ 70» (el
+     * total ya es el de la promoción).
+     */
+    private fun shareLines(priced: com.cuadra.caja.domain.PricedCart): List<Pair<String, Long>> {
+        val b = business.value
+        val fmt = b?.let { com.cuadra.caja.ui.common.MoneyFormat.of(it.currency, it.country) } ?: com.cuadra.caja.ui.common.MoneyFormat.Default
+        val language = com.cuadra.caja.core.i18n.AppLocale.current().tag ?: java.util.Locale.getDefault().language
+        return com.cuadra.caja.domain.PromoText.ticketLines(
+            priced.cart.lines.map { l -> Triple(l.id, l.name + if (l.quantityMilli != 1000L) " ×" + com.cuadra.caja.ui.screens.qtyText(l.quantityMilli) else "", SaleMath.lineTotal(l.unitPriceMinor, l.quantityMilli)) },
+            priced.promo.applied.map { a -> Triple(a.lineIds, com.cuadra.caja.domain.PromoText.label(a.quantity, fmt.format(a.priceMinor), language), a.discountMinor) },
+        )
     }
 
     // ---------- impresora ----------

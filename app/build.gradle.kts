@@ -8,6 +8,11 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+// Firebase (avisos al instante, FCM): `google-services.json` (proyecto cuentiva-eedb9, paquete com.cuadra.caja) vive fuera de git. Sin él (CI, otra persona)
+// la app compila igual: el plugin no se aplica, Firebase no se inicia y los teléfonos se ponen al día con la sincronización frecuente.
+val hasFirebaseConfig = file("google-services.json").exists()
+if (hasFirebaseConfig) apply(plugin = "com.google.gms.google-services")
+
 base {
     // Nombre de los archivos que salen: cuentiva-0.1.0-release.apk / .aab
     archivesName.set("cuentiva-0.1.0")
@@ -32,6 +37,8 @@ android {
         // Se pasan con -PGOOGLE_WEB_CLIENT_ID=... y -PCUADRA_API_URL=...; sin ellos la app compila pero el acceso con Google avisa que falta configurar.
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${providers.gradleProperty("GOOGLE_WEB_CLIENT_ID").getOrElse("")}\"")
         buildConfigField("String", "API_URL", "\"${providers.gradleProperty("CUADRA_API_URL").getOrElse("http://10.0.2.2:8086")}\"") // depuración: emulador; release: ver abajo
+        // ¿Se compiló con la configuración de Firebase? (sin ella no se intenta registrar el token).
+        buildConfigField("boolean", "HAS_FIREBASE", hasFirebaseConfig.toString())
     }
 
     // Firma de release: keystore/release.properties (no versionado). Sin él se firma con la clave debug.
@@ -135,6 +142,8 @@ dependencies {
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
     implementation(libs.mlkit.barcode.scanning)
+    // Avisos al instante: mensajes de datos «sincroniza ya» y avisos de la bandeja (ver `data/push`).
+    implementation(libs.firebase.messaging)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     androidTestImplementation(libs.androidx.room.testing)

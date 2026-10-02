@@ -1,8 +1,7 @@
 package com.cuadra.caja.data.repo
 
-import androidx.room.withTransaction
 import com.cuadra.caja.data.local.CategoryEntity
-import com.cuadra.caja.data.local.CuadraDatabase
+import com.cuadra.caja.data.local.Db
 import com.cuadra.caja.data.local.OutboxEntity
 import com.cuadra.caja.data.local.ProductEntity
 import com.cuadra.caja.data.remote.ApiFailure
@@ -26,7 +25,7 @@ sealed interface ScanLookup {
 }
 
 class ProductRepository(
-    private val db: CuadraDatabase,
+    private val db: Db,
     private val api: CuadraApi,
     private val session: SessionStore,
     private val requestSync: () -> Unit,
@@ -51,7 +50,7 @@ class ProductRepository(
     suspend fun createCategory(name: String): CategoryEntity {
         val clean = name.trim()
         val entity = CategoryEntity(UUID.randomUUID().toString(), clean, true, 0)
-        db.withTransaction {
+        db.inTransaction {
             db.products().upsertCategory(entity)
             db.outbox().insert(OutboxEntity(opId = UUID.randomUUID().toString(), kind = "CATEGORY_UPSERT", entityId = entity.id,
                 payload = json.encodeToString(CategoryInputDto(clean, true)), createdAt = now()))
@@ -88,13 +87,13 @@ class ProductRepository(
     /** Varios cambios de productos juntos (ordenar frecuentes): una sola transacción, cada uno con su PRODUCT_UPSERT. */
     suspend fun saveAll(changes: List<Pair<String, ProductInputDto>>) {
         if (changes.isEmpty()) return
-        db.withTransaction { changes.forEach { (id, input) -> write(id, input) } }
+        db.inTransaction { changes.forEach { (id, input) -> write(id, input) } }
         requestSync()
     }
 
     /** Crea o edita un producto: se guarda en el teléfono y se encola para el servidor en la misma transacción. */
     suspend fun save(id: String?, input: ProductInputDto): ProductEntity {
-        val entity = db.withTransaction { write(id ?: UUID.randomUUID().toString(), input) }
+        val entity = db.inTransaction { write(id ?: UUID.randomUUID().toString(), input) }
         requestSync()
         return entity
     }

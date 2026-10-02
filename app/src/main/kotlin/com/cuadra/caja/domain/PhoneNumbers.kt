@@ -21,6 +21,12 @@ object PhoneNumbers {
         "DO" to 10, "ES" to 9, "US" to 10,
     )
 
+    /** Código de país para marcar («505» para Nicaragua) o `null` si no se conoce. */
+    fun callingCode(country: String?): String? = CALLING[country?.uppercase().orEmpty()]
+
+    /** Cuántas cifras tiene un número nacional del país (sin el código), o `null` si no se conoce. */
+    fun nationalLength(country: String?): Int? = NATIONAL_LENGTH[country?.uppercase().orEmpty()]
+
     fun normalize(raw: String?, country: String?): PhoneResult {
         if (raw.isNullOrBlank()) return PhoneResult.None
         val trimmed = raw.trim()

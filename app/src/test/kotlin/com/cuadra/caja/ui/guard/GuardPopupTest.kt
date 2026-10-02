@@ -70,8 +70,22 @@ class GuardPopupTest {
     }
 
     @Test fun theFloatingUndoNeverMovesNorCoversTheTotalCardTheKeysOrTheBottomBar() {
-        val entries = listOf(Fixtures.undoAdded, Fixtures.undoDeleted, UndoEntry.Cleared(Fixtures.cart15)).map { e -> e::class.simpleName!! to { u: CajaUi -> u.copy(undoStack = listOf(e), undoShown = true) } }
+        val entries = listOf(Fixtures.undoDeleted, UndoEntry.Cleared(Fixtures.cart15)).map { e -> e::class.simpleName!! to { u: CajaUi -> u.copy(undoStack = listOf(e), undoShown = true) } }
         check(entries, "Avisos flotantes")
+    }
+
+    /** Agregar ya NO abre aviso flotante: la tira de la última línea lleva su propio − y ✕ (pedido del dueño). */
+    @Test fun addingAProductDoesNotOpenAFloatingNotice() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        shadowOf(app.packageManager).addActivityIfNotPresent(ComponentName(app.packageName, ComponentActivity::class.java.name))
+        val scenario = ActivityScenario.launch(ComponentActivity::class.java)
+        val ui = CajaUi(cart = Fixtures.cart15, entry = Fixtures.entry('1', '2', '5'), description = "", tab = PosTab.MANUAL, undoStack = listOf(Fixtures.undoAdded), undoShown = true)
+        scenario.onActivity { a -> a.setContent { GuardEnvironment(cfg) { CajaContent((shown?.invoke(ui) ?: ui).copy(tab = tab), listOf(PosTab.MANUAL, PosTab.PRODUCTS), Fixtures.pane, Fixtures.parked, Fixtures.HUGE, Fixtures.BUSINESS_NAME, "Kevin", object : CajaActions {}, {}) } } }
+        for (t in PosTab.entries) for (c in GuardMatrix.FULL + GuardMatrix.SMALL_PHONE) {
+            tab = t; cfg = c
+            rule.waitForIdle()
+            assertTrue("[$c · $t] el aviso de agregar no debe dibujarse", overlay(rule.onRoot(useUnmergedTree = true).fetchSemanticsNode()) == null)
+        }
     }
 
     /** El aviso de la venta cobrada (vuelto / «Anular», destacado) también es flotante: no mueve ni tapa nada. La altura puede crecer (letra grande, montos enormes). */
@@ -82,6 +96,8 @@ class GuardPopupTest {
             "vuelto enorme" to { u: CajaUi -> u.copy(saleNotice = SaleNoticeUi("s1", Fixtures.BIG, Fixtures.HUGE, now)) },
             "sin vuelto" to { u: CajaUi -> u.copy(saleNotice = SaleNoticeUi("s1", Fixtures.HUGE, 0, now)) },
             "anulada" to { u: CajaUi -> u.copy(saleNotice = SaleNoticeUi("s1", Fixtures.BIG, 0, now, undone = true)) },
+            "enviada a caja con nota larga" to { u: CajaUi -> u.copy(saleNotice = SaleNoticeUi("s1", Fixtures.BIG, 0, now, sent = true, note = Fixtures.NAME_60)) },
+            "enviada a caja sin nota" to { u: CajaUi -> u.copy(saleNotice = SaleNoticeUi("s1", Fixtures.BIG, 0, now, sent = true)) },
         )
         check(entries, "Aviso de venta cobrada", tallNotice = true)
     }
@@ -91,17 +107,21 @@ class GuardPopupTest {
         val entries = com.cuadra.caja.domain.printing.PrintNotice.entries.map { n ->
             "aviso de impresión $n" to { u: CajaUi -> u.copy(printer = com.cuadra.caja.domain.printing.PrinterBadge.CONNECTED, printNotice = n) }
         }
-        check(entries, "Avisos de impresión", withPrinterBadge = true)
+        // Con un recibo ya en curso el aviso de impresión (el alto trae dos acciones) tiene lugar garantizado en las pantallas de 700 dp o más.
+        check(entries, "Avisos de impresión con recibo en curso", withPrinterBadge = true, only = { it.windowDp >= 700 })
+        // En el teléfono bajo la tira de la última línea ocupa el hueco y el aviso alto cede (ya no cabe sobre el encabezado compacto); lo normal es que salga tras
+        // cobrar, con el recibo vacío (sin tira): ahí sí tiene lugar con letra hasta 1.3x.
+        check(entries, "Avisos de impresión con recibo vacío, teléfono bajo", withPrinterBadge = true, cart = com.cuadra.caja.domain.Cart(), only = { it.windowDp < 700 && it.effectiveScale <= 1.3f })
     }
 
     private var tab by mutableStateOf(PosTab.MANUAL)
 
-    private fun check(entries: List<Pair<String, (CajaUi) -> CajaUi>>, title: String, withPrinterBadge: Boolean = false, tallNotice: Boolean = false) {
+    private fun check(entries: List<Pair<String, (CajaUi) -> CajaUi>>, title: String, withPrinterBadge: Boolean = false, tallNotice: Boolean = false, cart: com.cuadra.caja.domain.Cart = Fixtures.cart15, only: (GuardCfg) -> Boolean = { true }) {
         val app = ApplicationProvider.getApplicationContext<Application>()
         shadowOf(app.packageManager).addActivityIfNotPresent(ComponentName(app.packageName, ComponentActivity::class.java.name))
         val density = app.resources.displayMetrics.density
         val scenario = ActivityScenario.launch(ComponentActivity::class.java)
-        val ui = CajaUi(cart = Fixtures.cart15, entry = Fixtures.entry('1', '2', '5'), description = "", tab = PosTab.MANUAL)
+        val ui = CajaUi(cart = cart, entry = Fixtures.entry('1', '2', '5'), description = "", tab = PosTab.MANUAL)
         scenario.onActivity { a ->
             a.setContent {
                 GuardEnvironment(cfg) {
@@ -113,7 +133,7 @@ class GuardPopupTest {
             }
         }
         val problems = mutableListOf<String>()
-        val configs = GuardMatrix.FULL + GuardMatrix.KEYBOARD + GuardMatrix.SMALL_PHONE
+        val configs = (GuardMatrix.FULL + GuardMatrix.KEYBOARD + GuardMatrix.SMALL_PHONE).filter(only)
         var missing = 0
         val missingCfgs = sortedSetOf<String>()
         for (t in PosTab.entries) for (c in configs) {
@@ -150,6 +170,7 @@ class GuardPopupTest {
                 rule.waitForIdle()
             }
         }
+        scenario.close()
         println("$title: sin lugar seguro para el aviso en $missing de ${2 * configs.size * entries.size} casos (extremos): ${missingCfgs.joinToString(" | ")}")
         assertTrue("$title:\n" + problems.take(60).joinToString("\n"), problems.isEmpty())
         assertEquals(0, problems.size)

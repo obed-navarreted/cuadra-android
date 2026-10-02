@@ -102,5 +102,5 @@
     </plurals>
     <string name="sale_notice_change">Change %1$s</string>
     <string name="sale_notice_sold">Sale complete · %1$s</string>
-    <string name="sale_notice_undo">Undo sale</string>
+    <string name="sale_notice_undo">Undo</string>
 </resources>

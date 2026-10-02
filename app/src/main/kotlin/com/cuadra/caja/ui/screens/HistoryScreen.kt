@@ -76,22 +76,46 @@ internal fun methodName(method: String, other: String? = null): String = when (m
  * del periodo; sin conexión, las de este teléfono. Tocar una venta abre su detalle; solo dueño y admin pueden eliminarla (con motivo).
  */
 @Composable
-fun HistoryScreen(vm: HistoryViewModel) {
+fun HistoryScreen(vm: HistoryViewModel, container: com.cuadra.caja.AppContainer? = null) {
     val ui by vm.ui.collectAsState()
     val local by vm.local.collectAsState()
     val manager by vm.manager.collectAsState()
     val role by vm.role.collectAsState()
     val calendar by vm.calendar.collectAsState()
     val members by vm.members.collectAsState()
-    HistoryContent(ui, local, manager, role, calendar, members, vm)
+    val refreshing by vm.refresher.refreshing.collectAsState()
+    val offline by vm.refresher.offline.collectAsState()
+    com.cuadra.caja.ui.common.RefreshOnShow(vm::onShown)
+    HistoryContent(
+        ui, local, manager, role, calendar, members, vm, refreshing = refreshing, offlineLocal = offline && !manager,
+        whatsApp = { sale, dismiss -> container?.let { WhatsAppNumberDialog(it, ticketOf(sale, com.cuadra.caja.ui.common.LocalMoney.current, androidx.compose.ui.platform.LocalConfiguration.current.locales[0].language), dismiss) } },
+    )
 }
+
+/**
+ * El comprobante de una venta para WhatsApp: cada línea (con su cantidad si no es 1) y el total. Con promociones, cada línea a su precio de siempre y al final
+ * «Promo 3 por C$ 100: -C$ 70» (`money` y `language` para armar ese texto).
+ */
+fun ticketOf(s: SaleView, money: com.cuadra.caja.ui.common.MoneyFormat = com.cuadra.caja.ui.common.MoneyFormat.Default, language: String? = null) = com.cuadra.caja.ui.ShareRequest.Ticket(
+    if (s.promotions.isEmpty()) s.items.map { l -> (l.name + if (l.quantityMilli != 1000L) " ×" + qtyText(l.quantityMilli) else "") to l.lineTotalMinor }
+    else com.cuadra.caja.domain.PromoText.ticketLines(
+        s.items.map { l -> Triple(l.id, l.name + if (l.quantityMilli != 1000L) " ×" + qtyText(l.quantityMilli) else "", l.lineTotalMinor + l.discountMinor) },
+        s.promotions.map { p -> Triple(emptyList(), com.cuadra.caja.domain.PromoText.label(p.quantity, money.format(p.priceMinor), language), p.discountMinor) },
+    ),
+    s.totalMinor,
+)
 
 /** Ventas sin ViewModel (estado + acciones): es lo que dibuja la guardia de diseño. */
 @Composable
 fun HistoryContent(
     ui: HistoryUi, local: List<SaleView>, manager: Boolean, role: String?, calendar: BusinessCalendar?, members: List<MemberEntity>, actions: HistoryActions,
     nowMillis: Long = System.currentTimeMillis(), initialMoreFilters: Boolean = false,
+    /** «Enviar por WhatsApp» desde el detalle (cualquier venta, sin depender de la preferencia): la hoja con el número. */
+    whatsApp: @Composable (SaleView, () -> Unit) -> Unit = { _, _ -> },
+    /** Refrescando: lo de antes sigue a la vista con el indicador pequeño. `offlineLocal`: la lista de este teléfono no se pudo sincronizar. */
+    refreshing: Boolean = false, offlineLocal: Boolean = false,
 ) {
+    var waSale by remember { mutableStateOf<SaleView?>(null) }
     val zone = calendar?.zone ?: ZoneId.of("UTC")
     // El idioma se lee de la configuración de Compose: al cambiarlo desde la app, las fechas se vuelven a dar formato.
     val locale: Locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
@@ -99,6 +123,7 @@ fun HistoryContent(
     val serverList = manager && !ui.offline && ui.error == null
     val rows = if (serverList) ui.sales else local
     var moreFilters by remember { mutableStateOf(initialMoreFilters) }
+    com.cuadra.caja.ui.common.RefreshBox(refreshing || ui.loading, actions::pullRefresh, Modifier.fillMaxSize(), offline = offlineLocal) {
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item { Text(stringResource(R.string.history_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 16.dp, bottom = 2.dp)) }
         if (manager) {
@@ -125,7 +150,8 @@ fun HistoryContent(
                 }
             }
         }
-        if (ui.loading) item { Text(stringResource(R.string.sales_loading), color = CuadraColors.Muted) }
+        // Mientras se refresca, lo de antes sigue a la vista (el indicador va arriba); «Cargando…» solo si aún no hay nada.
+        if (ui.loading && rows.isEmpty()) item { Text(stringResource(R.string.sales_loading), color = CuadraColors.Muted) }
         if (rows.isEmpty() && !ui.loading) item {
             Box(Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
                 Text(stringResource(if (serverList) R.string.sales_empty_filtered else R.string.history_empty), color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
@@ -136,10 +162,12 @@ fun HistoryContent(
         }
         item { Box(Modifier.padding(bottom = 8.dp)) {} }
     }
+    }
     ui.detail?.let { d ->
         SaleDetailSheet(d, time, SaleDeletion.canDelete(role, d.status), actions, ui.printer, ui.printNotice, canReturn = ui.canReturn, undoable = ui.undoable && !SaleDeletion.canDelete(role, d.status),
-            lastReturn = ui.lastReturn, nowMillis = nowMillis)
+            lastReturn = ui.lastReturn, nowMillis = nowMillis, onWhatsApp = { waSale = d })
     }
+    waSale?.let { s -> whatsApp(s) { waSale = null } }
     ui.returnDraft?.let { ReturnSheet(it, actions) }
     ui.delete?.let { DeleteSaleSheet(it.reason, actions, undo = it.undo, tooLate = it.tooLate) }
 }
@@ -186,7 +214,10 @@ private fun SaleRow(s: SaleView, time: DateTimeFormatter, actions: HistoryAction
         SplitRow(end = { MoneyText(money(s.totalMinor), fontWeight = FontWeight.ExtraBold, textDecoration = if (s.cancelled) TextDecoration.LineThrough else null) }) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(time.format(Instant.ofEpochMilli(s.atMillis)), fontWeight = FontWeight.ExtraBold)
-                s.soldBy?.let { Text(stringResource(R.string.history_by, it), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, ellipsize = true) }
+                // Cobro en caja: «Atendió: Kevin · Cobró: Ana» cuando la tomó una persona y la cobró otra.
+                val pair = com.cuadra.caja.domain.RegisterQueue.takenAndCharged(s.takenBy, s.soldBy)
+                if (pair != null) Text(stringResource(R.string.sale_taken_charged, pair.first, pair.second), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 3, ellipsize = true)
+                else s.soldBy?.let { Text(stringResource(R.string.history_by, it), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, ellipsize = true) }
                 TagRow {
                     if (s.cancelled) Tag(stringResource(R.string.history_cancelled), CuadraColors.Red, CuadraColors.RedSoft)
                     else Tag(stringResource(R.string.history_completed), CuadraColors.Green, CuadraColors.GreenSoft)
@@ -216,6 +247,8 @@ private fun ReviewTags(s: SaleView) {
 fun SaleDetailSheet(
     s: SaleView, time: DateTimeFormatter, canDelete: Boolean, actions: HistoryActions, printer: PrinterBadge = PrinterBadge.OFF, printNotice: PrintNotice? = null,
     canReturn: Boolean = false, undoable: Boolean = false, lastReturn: com.cuadra.caja.domain.SaleReturnView? = null, nowMillis: Long = System.currentTimeMillis(),
+    /** «Enviar por WhatsApp» (siempre disponible para una venta con líneas; la app nunca envía sola). */
+    onWhatsApp: (() -> Unit)? = null,
 ) {
     Sheet(actions::closeDetail, actions = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -233,6 +266,7 @@ fun SaleDetailSheet(
             if (undoable) CuadraButton(stringResource(R.string.sale_undo_action), { actions.askUndo(s.id) }, Modifier.share(1.2f), kind = ButtonKind.DANGER)
             else if (canDelete && s.returnedMinor == 0L) CuadraButton(stringResource(R.string.sale_delete), { actions.askDelete(s.id) }, Modifier.share(1.2f), kind = ButtonKind.DANGER)
         }
+        if (onWhatsApp != null && s.items.isNotEmpty() && !s.cancelled) CuadraButton(stringResource(R.string.sale_send_whatsapp), onWhatsApp, Modifier.fillMaxWidth(), kind = ButtonKind.WHATSAPP)
         ButtonRow {
             CuadraButton(stringResource(R.string.close), actions::closeDetail, Modifier.share(1f))
             // Solo con la impresora activada. Una venta eliminada también se puede imprimir: sale con el aviso «ANULADA».
@@ -256,7 +290,11 @@ fun SaleDetailSheet(
             }
         }
         if (undoable) Text(pluralStringResource(R.plurals.undo_minutes_left, com.cuadra.caja.domain.SaleUndo.minutesLeft(s.completedAtMillis, nowMillis), com.cuadra.caja.domain.SaleUndo.minutesLeft(s.completedAtMillis, nowMillis)), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Orange)
-        s.soldBy?.let { Text(stringResource(R.string.sale_sold_by, it), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted) }
+        val pair = com.cuadra.caja.domain.RegisterQueue.takenAndCharged(s.takenBy, s.soldBy)
+        if (pair != null) Text(stringResource(R.string.sale_taken_charged, pair.first, pair.second), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted)
+        else s.soldBy?.let { Text(stringResource(R.string.sale_sold_by, it), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted) }
+        // Pasó por «Por cobrar en caja»: quién la envió y cuándo.
+        if (s.sentBy != null && s.sentAtMillis != null) Text(stringResource(R.string.sale_sent_to_register, s.sentBy, time.format(Instant.ofEpochMilli(s.sentAtMillis))), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted)
         s.editedBy?.let { who ->
             Text(s.editedAtMillis?.let { stringResource(R.string.sale_edited, who, time.format(Instant.ofEpochMilli(it))) } ?: stringResource(R.string.sale_edited_unknown, who), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted)
         }
@@ -274,7 +312,8 @@ fun SaleDetailSheet(
         if (s.items.isNotEmpty()) {
             SectionLabel(stringResource(R.string.sale_lines))
             s.items.forEach { l ->
-                SplitRow(end = { MoneyText(money(l.lineTotalMinor), fontWeight = FontWeight.Bold) }) {
+                // Con promociones cada línea va a su precio de siempre y la promoción, en su propia línea debajo.
+                SplitRow(end = { MoneyText(money(if (s.promotions.isEmpty()) l.lineTotalMinor else l.lineTotalMinor + l.discountMinor), fontWeight = FontWeight.Bold) }) {
                     Column {
                         Text(listOfNotNull(l.name, l.variant?.takeIf { it.isNotBlank() }).joinToString(" · "), fontWeight = FontWeight.Bold, maxLines = 3, ellipsize = true)
                         MoneyText(stringResource(R.string.sale_line_qty, qtyText(l.quantityMilli), money(l.unitPriceMinor)), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted)
@@ -282,6 +321,7 @@ fun SaleDetailSheet(
                     }
                 }
             }
+            s.promotions.forEach { p -> PromoLineRow(p.quantity, p.priceMinor, p.discountMinor) }
             if (s.discountMinor > 0) SplitRow(end = { MoneyText("−" + money(s.discountMinor), color = CuadraColors.Green) }) { Text(stringResource(R.string.sale_discount)) }
             SplitRow(end = { MoneyText(money(s.totalMinor), fontWeight = FontWeight.ExtraBold) }) { Text(stringResource(R.string.sale_total), fontWeight = FontWeight.ExtraBold) }
             if (s.returnedMinor > 0) SplitRow(end = { MoneyText("−" + money(s.returnedMinor), fontWeight = FontWeight.Bold, color = CuadraColors.Orange) }) { Text(stringResource(R.string.sale_returned_total)) }

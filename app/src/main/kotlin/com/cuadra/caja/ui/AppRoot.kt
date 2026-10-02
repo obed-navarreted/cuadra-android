@@ -47,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cuadra.caja.AppContainer
+import com.cuadra.caja.data.session.Session
 import com.cuadra.caja.BuildConfig
 import com.cuadra.caja.domain.AppUpdate
 import com.cuadra.caja.domain.UpdateNeed
@@ -98,7 +99,10 @@ import kotlinx.coroutines.launch
 private enum class Section { REGISTER, CREDITS, EXPENSES, SALES, MORE }
 
 /** Pantallas que se abren desde Más y cubren el contenido (la barra de secciones sigue). */
-private enum class Overlay { ATTENTION, INVENTORY, PURCHASES, CATALOG, NOTIFICATIONS, SCHEDULES, SUMMARY, DAILY_CLOSE, READER, TEAM, DEVICES, ACCOUNT, SETTINGS, SUPPORT, ACTIVITY, HELP, TEMPLATES, TEXT_SIZE, PRINTER }
+private enum class Overlay { PROMOTIONS, PIN_CONFIRM, ATTENTION, INVENTORY, PURCHASES, CATALOG, NOTIFICATIONS, SCHEDULES, SUMMARY, DAILY_CLOSE, READER, TEAM, DEVICES, ACCOUNT, SETTINGS, SUPPORT, ACTIVITY, HELP, TEMPLATES, TEXT_SIZE, PRINTER }
+
+/** Pantallas de administración: con el PIN de la persona activa sin confirmar en este teléfono, en su lugar va «Confirma tu PIN» (ADR 0012, 2026-10-01). */
+private val ADMIN_OVERLAYS = setOf(Overlay.PROMOTIONS, Overlay.INVENTORY, Overlay.PURCHASES, Overlay.SUMMARY, Overlay.SETTINGS, Overlay.ACTIVITY, Overlay.TEMPLATES, Overlay.TEAM, Overlay.DEVICES, Overlay.DAILY_CLOSE, Overlay.SCHEDULES)
 
 /**
  * Turnos y cierre de caja manuales: FUERA DE VISTA por decisión del propietario (el cierre es automático por jornada: «Cierre del día»). El código de turnos
@@ -111,10 +115,32 @@ private fun teamTab(tab: TeamTab) = when (tab) { TeamTab.PEOPLE -> Overlay.TEAM;
 private inline fun <reified T : androidx.lifecycle.ViewModel> factory(crossinline make: () -> T) =
     viewModelFactory { initializer { make() } }
 
+/**
+ * Todo lo que una pantalla recuerda en memoria (listas del servidor, filtros, borradores, la lista de negocios de la cuenta de Google…) vive en un
+ * `ViewModelStore` que SOLO dura mientras la sesión sea la misma (ADR 0014): al cerrar sesión, entrar con otra cuenta o cambiar de negocio se descarta
+ * entero y las pantallas nacen vacías. Antes los ViewModel vivían lo que la Activity y la pantalla de ventas del negocio nuevo mostraba la lista del anterior.
+ * Cambiar de persona (PIN) dentro del mismo negocio NO lo descarta: la venta en curso no se pierde.
+ */
+@Composable
+internal fun SessionScope(session: Session?, content: @Composable () -> Unit) {
+    val key = session?.let { listOf(it.userToken?.hashCode(), it.deviceToken?.hashCode(), it.deviceId, it.businessId) }
+    androidx.compose.runtime.key(key) {
+        val owner = remember { object : androidx.lifecycle.ViewModelStoreOwner { override val viewModelStore = androidx.lifecycle.ViewModelStore() } }
+        androidx.compose.runtime.DisposableEffect(owner) { onDispose { owner.viewModelStore.clear() } }
+        androidx.compose.runtime.CompositionLocalProvider(androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner provides owner, content = content)
+    }
+}
+
 /** Decide qué pantalla toca según el acceso del teléfono: entrar → negocio → elegir persona → caja. */
 @Composable
 fun AppRoot(container: AppContainer) {
     val root: RootViewModel = viewModel(factory = factory { RootViewModel(container) })
+    val sessionNow by root.session.collectAsState()
+    SessionScope(sessionNow) { AppRootBody(container, root) }
+}
+
+@Composable
+private fun AppRootBody(container: AppContainer, root: RootViewModel) {
     val auth: AuthViewModel = viewModel(factory = factory { AuthViewModel(container) })
     val session by root.session.collectAsState()
     val business by root.business.collectAsState()
@@ -180,7 +206,7 @@ fun AppRoot(container: AppContainer) {
                     // La persona que atendía fue dada de baja: se avisa una vez.
                     session?.disabledMemberNotice?.let { DisabledMemberNotice(it, root::dismissDisabledNotice) }
                 }
-                else -> Main(container, root, business, session?.memberName.orEmpty(), session?.memberRole.orEmpty(), language, onLanguage)
+                else -> Main(container, root, business, session?.memberName.orEmpty(), session?.memberRole.orEmpty(), session?.memberRealRole, language, onLanguage)
             }
         }
     }
@@ -198,9 +224,14 @@ private suspend fun handleGoogle(context: Context, auth: AuthViewModel) {
 
 @Composable
 private fun Main(
-    container: AppContainer, root: RootViewModel, business: com.cuadra.caja.data.local.BusinessEntity?, memberName: String, role: String,
+    container: AppContainer, root: RootViewModel, business: com.cuadra.caja.data.local.BusinessEntity?, memberName: String, actingRole: String,
+    /** Su rol real si aún no confirmó el PIN en este teléfono (mientras tanto actúa con `actingRole`, el rol base del teléfono). */
+    realRole: String?,
     language: AppLanguage, onLanguage: (AppLanguage) -> Unit,
 ) {
+    // Qué pantallas existen lo decide su rol REAL (las de administración piden confirmar el PIN); lo que se puede hacer dentro, el rol con que actúa.
+    val role = realRole ?: actingRole
+    val pinPending = realRole != null
     val businessName = business?.name.orEmpty()
     val timezone = business?.timezone.orEmpty()
     val appCfg by container.appConfig.state.collectAsState(initial = null)
@@ -223,9 +254,12 @@ private fun Main(
     val isManager = role == "OWNER" || role == "ADMIN"
     val hasInventory = modules["inventory"] == true && isManager
     // El catálogo es independiente del inventario: se puede vender sin llevar existencias. Con inventario encendido, esa pantalla ya trae todo.
-    val hasCatalog = modules["catalog"] != false && !hasInventory && com.cuadra.caja.domain.ProductPermissions.canEdit(role)
+    val hasCatalog = modules["catalog"] != false && !hasInventory && com.cuadra.caja.domain.ProductPermissions.canEdit(actingRole)
     var overlay by rememberSaveable { mutableStateOf<Overlay?>(null) }
+    /** De dónde se abrió «Promociones» (Productos o Inventario): atrás vuelve ahí. */
+    var promotionsFrom by rememberSaveable { mutableStateOf<Overlay?>(Overlay.CATALOG) }
     val inventory: InventoryViewModel = viewModel(factory = factory { InventoryViewModel(container) })
+    val promotionsVm: PromotionsViewModel = viewModel(factory = factory { PromotionsViewModel(container) })
     val purchasesVm: PurchasesViewModel = viewModel(factory = factory { PurchasesViewModel(container) })
     val notifVm: NotificationsViewModel = viewModel(factory = factory { NotificationsViewModel(container) })
     val unread by notifVm.unread.collectAsState()
@@ -242,6 +276,10 @@ private fun Main(
     val helpVm: HelpViewModel = viewModel(factory = factory { HelpViewModel(container) })
     val templatesVm: TemplatesViewModel = viewModel(factory = factory { TemplatesViewModel(container) })
     val attentionVm: AttentionViewModel = viewModel(factory = factory { AttentionViewModel(container) })
+    val pinConfirmVm: PinConfirmViewModel = viewModel(factory = factory { PinConfirmViewModel(container) })
+    // Entró sin poder confirmar su PIN: se avisa una vez por persona (se puede cerrar); tocarlo abre «Confirma tu PIN».
+    var pendingNoticeClosedFor by rememberSaveable { mutableStateOf<String?>(null) }
+    val activeMemberId = sessionNow?.memberId
     // Programar avisos se abre desde la bandeja: atrás vuelve a ella.
     androidx.activity.compose.BackHandler(enabled = overlay != null) { overlay = if (overlay == Overlay.SCHEDULES) Overlay.NOTIFICATIONS else null }
     if ((overlay == Overlay.INVENTORY || overlay == Overlay.PURCHASES) && !hasInventory) overlay = null
@@ -249,6 +287,9 @@ private fun Main(
     if ((overlay == Overlay.TEAM || overlay == Overlay.DEVICES) && !hasTeam) overlay = null
     if ((overlay == Overlay.SCHEDULES || overlay == Overlay.SUMMARY || overlay == Overlay.DAILY_CLOSE || overlay == Overlay.SETTINGS || overlay == Overlay.TEMPLATES) && !isManager) overlay = null
     if (overlay == Overlay.ACTIVITY && !isOwner) overlay = null
+    if (overlay == Overlay.PROMOTIONS && !(isManager && (hasCatalog || hasInventory))) overlay = null
+    // Al confirmarse el PIN, «Confirma tu PIN» (abierta desde el aviso) ya no tiene nada que hacer.
+    if (overlay == Overlay.PIN_CONFIRM && !pinPending) overlay = null
     var section by rememberSaveable { mutableStateOf(Section.REGISTER) }
     val cash: CashViewModel = viewModel(factory = factory { CashViewModel(container) })
     val cashUi by cash.ui.collectAsState()
@@ -284,14 +325,28 @@ private fun Main(
         }
     }
 
+    // Abrir la caja pone al día lo del negocio (promociones, precios, cuentas por cobrar en caja), con o sin avisos de Firebase.
+    LaunchedEffect(section) { if (section == Section.REGISTER) container.foreground.kick() }
+
     androidx.compose.runtime.CompositionLocalProvider(com.cuadra.caja.ui.common.LocalModules provides modules) {
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         NoticeBanners(container)
+        com.cuadra.caja.ui.screens.NotificationPermissionAsk(container, hasMember = activeMemberId != null)
+        if (pinPending && pendingNoticeClosedFor != activeMemberId && overlay != Overlay.PIN_CONFIRM) {
+            com.cuadra.caja.ui.screens.Banner(
+                stringResource(R.string.pinconfirm_pending_notice), CuadraColors.OrangeSoft, CuadraColors.Orange,
+                onClick = { cash.showShift(false); section = Section.MORE; overlay = Overlay.PIN_CONFIRM }, onDismiss = { pendingNoticeClosedFor = activeMemberId },
+            )
+        }
         Box(Modifier.weight(1f)) {
             when {
+                pinPending && section == Section.MORE && (overlay == Overlay.PIN_CONFIRM || overlay in ADMIN_OVERLAYS) ->
+                    com.cuadra.caja.ui.screens.PinConfirmScreen(pinConfirmVm) { overlay = if (overlay == Overlay.SCHEDULES) Overlay.NOTIFICATIONS else null }
                 overlay == Overlay.ATTENTION && section == Section.MORE -> com.cuadra.caja.ui.screens.AttentionScreen(attentionVm) { overlay = null }
-                overlay == Overlay.INVENTORY && section == Section.MORE -> InventoryScreen(inventory, timezone) { overlay = null }
-                overlay == Overlay.CATALOG && section == Section.MORE -> InventoryScreen(inventory, timezone, catalogOnly = true) { overlay = null }
+                overlay == Overlay.INVENTORY && section == Section.MORE -> InventoryScreen(inventory, timezone, onPromotions = if (isManager) ({ promotionsFrom = Overlay.INVENTORY; overlay = Overlay.PROMOTIONS }) else null) { overlay = null }
+                overlay == Overlay.CATALOG && section == Section.MORE -> InventoryScreen(inventory, timezone, catalogOnly = true, onPromotions = if (isManager) ({ promotionsFrom = Overlay.CATALOG; overlay = Overlay.PROMOTIONS }) else null) { overlay = null }
+                // Productos › Promociones: atrás vuelve a Productos.
+                overlay == Overlay.PROMOTIONS && section == Section.MORE && isManager -> com.cuadra.caja.ui.screens.PromotionsScreen(promotionsVm) { overlay = promotionsFrom }
                 overlay == Overlay.PURCHASES && section == Section.MORE -> PurchasesScreen(purchasesVm, timezone) { overlay = null }
                 overlay == Overlay.SUMMARY && section == Section.MORE && isManager -> SummaryScreen(summaryVm, onBack = { overlay = null }, onYesterdayClose = { dailyCloseVm.open(com.cuadra.caja.domain.RangePreset.YESTERDAY); overlay = Overlay.DAILY_CLOSE })
                 overlay == Overlay.READER && section == Section.MORE -> ReaderScreen(readerVm) { overlay = null }
@@ -316,10 +371,10 @@ private fun Main(
                 overlay == Overlay.NOTIFICATIONS && section == Section.MORE -> NotificationsScreen(notifVm, canSchedule = isManager, onSchedules = { overlay = Overlay.SCHEDULES }, onRoute = { container.pendingRoute.value = it }) { overlay = null }
                 cashUi.showShift || mustOpenShift -> ShiftScreen(cash, timezone, required = mustOpenShift, onBack = { cash.showShift(false) })
                 else -> when (section) {
-                Section.REGISTER -> CajaScreen(caja, container, businessName, memberName, onLock = root::lock, canManageFrequents = com.cuadra.caja.domain.ProductPermissions.canEdit(role))
+                Section.REGISTER -> CajaScreen(caja, container, businessName, memberName, onLock = root::lock, canManageFrequents = com.cuadra.caja.domain.ProductPermissions.canEdit(actingRole))
                 Section.CREDITS -> CreditsScreen(credits, container)
                 Section.EXPENSES -> ExpensesScreen(cash, hasShifts) { cash.showShift(true) }
-                Section.SALES -> HistoryScreen(history)
+                Section.SALES -> HistoryScreen(history, container)
                 Section.MORE -> MoreScreen(
                     businessName, memberName, status, pending, failed, language, unread,
                     MoreActions(

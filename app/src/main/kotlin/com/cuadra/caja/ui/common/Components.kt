@@ -43,6 +43,9 @@ import java.util.Locale
 /** Moneda y país del negocio: el formato del dinero sigue al país donde se vende, no al idioma de la persona (PLAN.md 7.2). */
 data class MoneyFormat(val currency: Currency, val locale: Locale) {
     fun format(minor: Long): String = Money(minor).format(currency, locale)
+
+    /** Con el signo delante del símbolo en los negativos («-C$ 70.00»): las líneas de promoción del comprobante. */
+    fun signed(minor: Long): String = if (minor < 0) "-" + format(-minor) else format(minor)
     val decimals: Int get() = currency.decimals
 
     companion object {

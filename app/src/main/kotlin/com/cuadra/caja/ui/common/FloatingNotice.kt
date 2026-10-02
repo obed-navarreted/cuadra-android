@@ -6,6 +6,9 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -57,13 +60,16 @@ fun FloatingNotice(
     secondLabel: String? = null, onSecond: () -> Unit = {},
     /** Aviso destacado (el vuelto tras cobrar): letra más grande y en negrita, hasta 2 líneas y el monto nunca se corta con «…». */
     large: Boolean = false,
+    /** La acción es destructiva (Anular): se dibuja como píldora roja con letra blanca para que destaque sobre el fondo oscuro. */
+    actionDanger: Boolean = false,
 ) {
     val tall = LocalDensity.current.fontScale > 1.3f || secondLabel != null || large
-    val lines = if (tall) 2 else 1
+    // El aviso destacado va en UNA línea: primero se achica la letra (hasta 70 %) y la píldora roja es compacta; solo baja de línea si ni así cabe.
+    val lines = if (large) 1 else if (tall) 2 else 1
     val style = if (large) MaterialTheme.typography.titleMedium else MaterialTheme.typography.labelMedium
     val weight = if (large) FontWeight.ExtraBold else null
     val ellipsis = ellipsize && !large
-    Box(modifier.fillMaxWidth(0.9f), contentAlignment = Alignment.TopCenter) {
+    Box(modifier.fillMaxWidth(if (large) 0.95f else 0.9f), contentAlignment = Alignment.TopCenter) {
         Box(Modifier.widthIn(min = 48.dp).testTag(TAG_OVERLAY).semantics { liveRegion = LiveRegionMode.Polite }) {
             // La píldora visible (36 dp) va detrás; el contenido mide 48 dp como mínimo para que «Deshacer» se pueda tocar sin apuntar fino.
             Surface(Modifier.matchParentSize().padding(vertical = 6.dp), shape = if (secondLabel != null || large) RoundedCornerShape(22.dp) else RoundedCornerShape(50), color = CuadraColors.Ink, shadowElevation = 6.dp) {}
@@ -81,8 +87,8 @@ fun FloatingNotice(
                 CappedFontScale(LARGE_NOTICE_FONT_CAP) {
                     Row(Modifier.heightIn(min = 48.dp).padding(start = 16.dp, end = if (actionLabel == null) 16.dp else 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         if (icon != null) Icon(painterResource(icon), contentDescription = null, tint = iconTint, modifier = Modifier.padding(end = 8.dp).size(18.dp))
-                        Text(text, Modifier.weight(1f, fill = false).padding(vertical = 8.dp), color = CuadraColors.Bg, style = style, fontWeight = weight, maxLines = lines, ellipsize = ellipsis)
-                        if (actionLabel != null) LinkAction(actionLabel, onAction, color = CuadraColors.GreenSoft, style = style)
+                        Text(text, Modifier.weight(1f, fill = false).padding(vertical = 8.dp), color = CuadraColors.Bg, style = style, fontWeight = weight, maxLines = lines, ellipsize = ellipsis, minScale = 0.5f)
+                        if (actionLabel != null) NoticeAction(actionLabel, onAction, actionDanger, MaterialTheme.typography.labelLarge)
                     }
                 }
             } else if (secondLabel == null) {
@@ -93,7 +99,7 @@ fun FloatingNotice(
                         text, Modifier.weight(1f, fill = false).padding(vertical = 8.dp), color = CuadraColors.Bg, style = style, fontWeight = weight,
                         maxLines = lines, ellipsize = ellipsis,
                     )
-                    if (actionLabel != null) LinkAction(actionLabel, onAction, color = CuadraColors.GreenSoft, style = style)
+                    if (actionLabel != null) NoticeAction(actionLabel, onAction, actionDanger, style)
                     else Box(Modifier.width(12.dp))
                 }
             } else {
@@ -101,7 +107,7 @@ fun FloatingNotice(
                 FlowRow(Modifier.heightIn(min = 48.dp).padding(start = 16.dp, end = if (actionLabel == null) 16.dp else 4.dp), verticalArrangement = Arrangement.Center, itemVerticalAlignment = Alignment.CenterVertically) {
                     body()
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (actionLabel != null) LinkAction(actionLabel, onAction, color = CuadraColors.GreenSoft, style = style)
+                        if (actionLabel != null) NoticeAction(actionLabel, onAction, actionDanger, style)
                         if (secondLabel != null) LinkAction(secondLabel, onSecond, color = CuadraColors.Line, style = MaterialTheme.typography.labelMedium)
                     }
                 }
@@ -134,14 +140,38 @@ fun PrintNoticePopup(notice: PrintNotice, onRetry: () -> Unit, onLater: () -> Un
  * el de «Deshacer». Con el comprobante ya impreso lleva el ícono de la impresora. «Anular» solo mientras siga el plazo de 5 minutos. Flotante: no ocupa lugar.
  */
 @Composable
+private fun NoticeAction(label: String, onClick: () -> Unit, danger: Boolean, style: androidx.compose.ui.text.TextStyle) {
+    if (!danger) {
+        LinkAction(label, onClick, color = CuadraColors.GreenSoft, style = style)
+        return
+    }
+    // Área tocable de 48 dp; la píldora roja va dentro, con margen, para que no se pegue al borde del aviso.
+    androidx.compose.foundation.layout.Box(
+        Modifier.heightIn(min = 48.dp).defaultMinSize(minWidth = 48.dp).clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onClick).padding(horizontal = 4.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label, Modifier.background(CuadraColors.Red, RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 4.dp),
+            color = Color.White, style = style, fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraBold, maxLines = 1,
+        )
+    }
+}
+
+@Composable
 fun SaleNoticePopup(content: com.cuadra.caja.domain.SaleNoticeContent, printed: Boolean, onUndo: () -> Unit, modifier: Modifier = Modifier) {
     val text = when (content.kind) {
         com.cuadra.caja.domain.SaleNoticeContent.Kind.CHANGE -> stringResource(R.string.sale_notice_change, money(content.changeMinor))
         com.cuadra.caja.domain.SaleNoticeContent.Kind.SOLD -> stringResource(R.string.sale_notice_sold, money(content.totalMinor))
         com.cuadra.caja.domain.SaleNoticeContent.Kind.UNDONE -> stringResource(R.string.pay_undone)
+        com.cuadra.caja.domain.SaleNoticeContent.Kind.SENT -> content.note?.let { stringResource(R.string.sale_notice_sent, it) } ?: stringResource(R.string.pay_register_sent)
+    }
+    // «Enviada a caja · nota»: la nota la escribe la persona y puede ser larga; va como aviso común (hasta 2 líneas, termina en «…» si no cabe).
+    if (content.kind == com.cuadra.caja.domain.SaleNoticeContent.Kind.SENT) {
+        FloatingNotice(text, null, {}, modifier, ellipsize = true)
+        return
     }
     FloatingNotice(
-        text, if (content.canUndo) stringResource(R.string.sale_notice_undo) else null, onUndo, modifier, large = true,
+        text, if (content.canUndo) stringResource(R.string.sale_notice_undo) else null, onUndo, modifier, large = true, actionDanger = true,
         icon = if (printed) R.drawable.ic_printer else null,
     )
 }

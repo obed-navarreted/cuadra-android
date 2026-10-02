@@ -26,6 +26,8 @@ data class BusinessDto(
     val accessCode: String? = null,
     /** La moneda ya no se puede cambiar: hay actividad registrada en ella (antes de la primera venta, sí). */
     val currencyLocked: Boolean = false,
+    /** Cobro en caja (ADR 0015). */
+    val registerCheckout: Boolean = false,
 )
 
 /** Un país con la moneda, zona horaria e idioma que sugiere al crear un negocio (`GET /api/config/countries`). */
@@ -51,6 +53,13 @@ data class MemberDto(
     val pinMustChange: Boolean, val color: String? = null, val pinHash: String? = null,
 )
 @Serializable data class PinBody(val pin: String, val mustChangePin: Boolean = false)
+
+/** Elevación por PIN verificado (ADR 0012, 2026-10-01): el servidor confirma el PIN de una persona en este teléfono. */
+@Serializable data class VerifyPinBody(val pin: String)
+@Serializable data class VerifiedPinDto(val memberId: String, val role: String, val baseRole: String? = null, val grantedAt: String? = null, val expiresAt: String)
+@Serializable data class DeviceGrantDto(val memberId: String, val grantedAt: String? = null, val expiresAt: String)
+/** `GET /api/devices/me`: el rol base del teléfono (el de quien lo vinculó) y los permisos de PIN vigentes. */
+@Serializable data class DeviceSelfDto(val deviceId: String, val businessId: String, val kind: String? = null, val baseRole: String? = null, val grants: List<DeviceGrantDto> = emptyList())
 
 // ---------- Equipo: personas y teléfonos (solo en línea) ----------
 
@@ -125,6 +134,30 @@ data class SaleDto(
     /** LATE_AFTER_DISABLE | CLOCK_ADJUSTED (para revisar). */
     val reviewFlag: String? = null,
     val returnedMinor: Long = 0, val returns: List<ReturnDto> = emptyList(),
+    /** Cobro en caja (ADR 0015): cuándo y quién la envió a caja; quién la tiene abierta ahora. */
+    val sentToRegisterAt: String? = null, val sentBy: MemberRefDto? = null, val lockedBy: MemberRefDto? = null, val pendingCheckout: Boolean = false,
+    /** Promociones por cantidad que aplicó (su descuento ya está en las líneas). */
+    val promotions: List<SalePromotionDto> = emptyList(), val promotionDiscountMinor: Long = 0,
+)
+
+/** Una promoción aplicada en una venta: «3 por C$ 100», unidades en paquetes y descuento (lo cobrado; el servidor no lo recalcula). */
+@Serializable
+data class SalePromotionDto(
+    val promotionId: String? = null, val name: String, val quantity: Int, val priceMinor: Long, val units: Long, val discountMinor: Long,
+)
+
+/** Promoción por cantidad del negocio (sincronización y `GET /promotions`). `deleted`: se quita del teléfono. */
+@Serializable
+data class PromotionDto(
+    val id: String, val name: String, val productIds: List<String> = emptyList(), val quantity: Int, val priceMinor: Long, val active: Boolean = true,
+    val startsOn: String? = null, val endsOn: String? = null, val deleted: Boolean = false, val state: String? = null, val rev: Long = 0,
+)
+
+/** Cuerpo de PROMOTION_UPSERT (cola) y de `PUT /promotions/{id}`. */
+@Serializable
+data class PromotionInputDto(
+    val name: String, val productIds: List<String>, val quantity: Int, val priceMinor: Long, val active: Boolean = true,
+    val startsOn: String? = null, val endsOn: String? = null,
 )
 
 /** Cuerpo de SALE_UPSERT. */
@@ -134,6 +167,10 @@ data class SaleInputDto(
     val completedAt: String? = null, val items: List<SaleItemInputDto> = emptyList(), val payments: List<SalePaymentInputDto> = emptyList(),
     /** "PARKED" al cobrar una cuenta apartada retomada: si ya se cobró o descartó en otro teléfono, el servidor la guarda aparte en vez de perderla. */
     val fromStatus: String? = null,
+    /** Cobro en caja (ADR 0015), solo con PARKED: true = «Enviar a caja»; nulo = no cambia (no se envía). */
+    val sendToRegister: Boolean? = null,
+    /** Promociones aplicadas (su descuento ya va en las líneas). */
+    val promotions: List<SalePromotionDto> = emptyList(),
 )
 @Serializable
 data class SaleItemInputDto(
@@ -268,6 +305,8 @@ data class UpdateBusinessBody(
     val clearCreditDefaultDueDays: Boolean? = null,
     /** Solo antes de la primera venta (el servidor responde CURRENCY_LOCKED después). */
     val currency: String? = null, val country: String? = null,
+    /** Cobro en caja (ADR 0015). */
+    val registerCheckout: Boolean? = null,
 ) {
     /** ¿No cambia nada? (para no llamar al servidor con un cuerpo vacío). */
     val isEmpty: Boolean get() = this == UpdateBusinessBody()
@@ -390,6 +429,8 @@ data class ProductHistoryEntryDto(
 @Serializable data class SalesTotalsDto(
     val count: Long, val totalMinor: Long, val discountMinor: Long = 0, val averageTicketMinor: Long = 0, val cancelledCount: Long = 0,
     val returnsCount: Long = 0, val returnsMinor: Long = 0, val priorCancelledCount: Long = 0, val priorCancelledMinor: Long = 0, val netMinor: Long? = null,
+    /** «Descuentos por promociones» del periodo (ya restados del total). */
+    val promotionDiscountMinor: Long = 0,
 )
 @Serializable data class SalesReportDto(val sales: SalesTotalsDto, val byMethod: List<MethodAmountDto> = emptyList())
 
@@ -406,6 +447,10 @@ data class DayCloseDto(
     val netSalesMinor: Long? = null,
     /** Gastos, abonos, retiros y entradas de días anteriores anulados en esta jornada. */
     val laterVoids: List<LaterVoidDto> = emptyList(),
+    /** Cobro en caja (ADR 0015): cuentas que seguían por cobrar en caja al terminar la jornada (no son ventas). */
+    val pendingCheckoutCount: Long = 0, val pendingCheckoutMinor: Long = 0,
+    /** «Descuentos por promociones» de la jornada (ya restados de las ventas). */
+    val promotionDiscountMinor: Long = 0,
 )
 @Serializable data class LaterVoidDto(val kind: String, val count: Long, val amountMinor: Long, val cashEffectMinor: Long)
 /** Un teléfono del negocio con operaciones sin enviar o sin sincronizar hace más de una hora. */

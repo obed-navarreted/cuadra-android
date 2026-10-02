@@ -51,7 +51,7 @@ fun DevicesScreen(vm: DevicesViewModel, onTab: (TeamTab) -> Unit, onBack: () -> 
     LaunchedEffect(Unit) { vm.enter() }
     val ui by vm.ui.collectAsState()
     val business by vm.business.collectAsState()
-    DevicesContent(ui, business?.timezone.orEmpty(), vm, onTab, onBack)
+    com.cuadra.caja.ui.common.Refreshing(vm.refresher, busy = ui.loading) { DevicesContent(ui, business?.timezone.orEmpty(), vm, onTab, onBack) }
 }
 
 /** Teléfonos sin ViewModel (estado + acciones): es lo que dibuja la guardia de diseño. */

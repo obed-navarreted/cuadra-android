@@ -83,6 +83,15 @@ class GuardMiscTest {
                 GuardCase("Lector de códigos: lector apagado", full) { Reader(ReaderUi(env = ReaderEnv(true, true, true), settings = ScannerSettings(useReader = false, beep = false))) },
                 GuardCase("Requiere atención: rechazadas y para revisar", full) { Attention(Fixtures.attention) },
                 GuardCase("Requiere atención: vacía", full) { Attention(emptyList()) },
+                GuardCase("Requiere atención: confirmar el PIN de quien la hizo", full) { Attention(Fixtures.attention, confirming = Fixtures.attention.first { it.canConfirmPin }) },
+                GuardCase("Requiere atención: confirmar PIN sin conexión", full) {
+                    Attention(Fixtures.attention, confirming = Fixtures.attention.first { it.canConfirmPin }, confirm = com.cuadra.caja.ui.PinConfirmUi(pin = "12", offline = true))
+                },
+                GuardCase("Confirma tu PIN: pantalla de administración", full) { PinConfirm(com.cuadra.caja.ui.PinConfirmUi()) },
+                GuardCase("Confirma tu PIN: sin conexión", full) { PinConfirm(com.cuadra.caja.ui.PinConfirmUi(pin = "123", offline = true)) },
+                GuardCase("Confirma tu PIN: comprobando", full) { PinConfirm(com.cuadra.caja.ui.PinConfirmUi(pin = "12345", busy = true)) },
+                GuardCase("Confirma tu PIN: incorrecto y bloqueado", full) { PinConfirm(com.cuadra.caja.ui.PinConfirmUi(wrong = true, lockedMillis = 899_000)) },
+                GuardCase("Confirma tu PIN: el servidor no respondió", full) { PinConfirm(com.cuadra.caja.ui.PinConfirmUi(failed = true, offline = true)) },
                 GuardCase("Requiere atención: confirmar descartar", full) { Attention(Fixtures.attention, discarding = Fixtures.attention.first()) },
                 GuardCase("Requiere atención: confirmar quitar una para revisar", full) { Attention(Fixtures.attention, discarding = Fixtures.attention.first { it.review }) },
                 GuardCase("Acceso desactivado: enviando lo pendiente", full) { com.cuadra.caja.ui.screens.AccessDisabledScreen(Fixtures.BUSINESS_120, 12_345, 99, {}, {}) },
@@ -120,6 +129,7 @@ class GuardMiscTest {
                     Editor(com.cuadra.caja.domain.ScheduleDraft(title = "", body = "", whenMode = ScheduleWhen.ONCE, date = "2026-12-31", time = "23:59"), com.cuadra.caja.domain.DraftError.TITLE, null, true, Fixtures.members, object : SchedulesActions {})
                 },
                 GuardCase("Resumen: hoy", full) { Summary(SummaryData0(), RangeChoice(RangePreset.TODAY)) },
+                GuardCase("Resumen: con descuentos por promociones", full) { Summary(SummaryData0().copy(promotionDiscountMinor = Fixtures.HUGE), RangeChoice(RangePreset.TODAY)) },
                 GuardCase("Resumen: ayer con atajo al cierre", full) { Summary(SummaryData0(), RangeChoice(RangePreset.YESTERDAY), yesterday = true) },
                 GuardCase("Resumen: rango personalizado", full) { Summary(SummaryData0(), RangeChoice(RangePreset.CUSTOM, LocalDate.of(2025, 1, 1) to LocalDate.of(2026, 12, 31))) },
                 GuardCase("Resumen: mes pasado", full) { Summary(SummaryData0(), RangeChoice(RangePreset.LAST_MONTH)) },
@@ -130,8 +140,14 @@ class GuardMiscTest {
         runner.assertClean()
     }
 
-    @Composable private fun Attention(items: List<com.cuadra.caja.domain.Attention.Item>, discarding: com.cuadra.caja.domain.Attention.Item? = null) =
-        com.cuadra.caja.ui.screens.AttentionContent(com.cuadra.caja.ui.AttentionUi(loading = false, items = items, discarding = discarding), object : com.cuadra.caja.ui.AttentionActions {}, {}, java.time.ZoneOffset.UTC)
+    @Composable private fun Attention(
+        items: List<com.cuadra.caja.domain.Attention.Item>, discarding: com.cuadra.caja.domain.Attention.Item? = null,
+        confirming: com.cuadra.caja.domain.Attention.Item? = null, confirm: com.cuadra.caja.ui.PinConfirmUi = com.cuadra.caja.ui.PinConfirmUi(),
+    ) = com.cuadra.caja.ui.screens.AttentionContent(
+        com.cuadra.caja.ui.AttentionUi(loading = false, items = items, discarding = discarding, confirming = confirming, confirm = confirm), object : com.cuadra.caja.ui.AttentionActions {}, {}, java.time.ZoneOffset.UTC,
+    )
+
+    @Composable private fun PinConfirm(ui: com.cuadra.caja.ui.PinConfirmUi) = com.cuadra.caja.ui.screens.PinConfirmContent(ui, object : com.cuadra.caja.ui.PinConfirmActions {}, {})
 
     private fun SummaryData0() = Fixtures.summary
 

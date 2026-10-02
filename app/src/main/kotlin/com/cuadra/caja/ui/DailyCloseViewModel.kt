@@ -60,7 +60,12 @@ class DailyCloseViewModel(private val c: AppContainer, private val now: () -> Lo
         retry()
     }
 
-    override fun retry() {
+    /** Refresco al abrir, al volver al frente y al deslizar: el mismo rango, otra vez del servidor (lo de antes sigue a la vista). */
+    val refresher = ScreenRefresh(viewModelScope) { reload()?.join(); if (_ui.value.needsConnection) RefreshResult.OFFLINE else RefreshResult.DONE }
+
+    override fun retry() { reload() }
+
+    private fun reload(): kotlinx.coroutines.Job? {
         job?.cancel()
         _ui.update { it.copy(loading = true, error = null, needsConnection = false) }
         job = viewModelScope.launch {
@@ -74,6 +79,7 @@ class DailyCloseViewModel(private val c: AppContainer, private val now: () -> Lo
                 },
             )
         }
+        return job
     }
 
     init {

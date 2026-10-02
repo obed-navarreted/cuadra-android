@@ -62,9 +62,24 @@ interface CajaActions {
     fun askPark() {}
     fun cancelPark() {}
     fun toggleParked(show: Boolean) {}
+    /** «Por cobrar en caja» y Apartadas: refrescar (al abrir, al volver al frente, con «Actualizar» y cada 15 s mientras están a la vista). */
+    fun refreshQueue(trigger: com.cuadra.caja.domain.RefreshTrigger) {}
     fun park(label: String) {}
     fun resume(saleId: String) {}
     fun discardParked(saleId: String) {}
+    // Cobro en caja (ADR 0015): la lista «Por cobrar en caja», su detalle y lo que se hace con cada cuenta.
+    fun openQueueTicket(saleId: String) {}
+    fun closeQueueTicket() {}
+    fun chargeQueued(saleId: String) {}
+    fun addToQueued(saleId: String) {}
+    fun askCancelQueued(saleId: String) {}
+    fun setQueueCancelReason(text: String) {}
+    fun closeQueueCancel() {}
+    fun confirmCancelQueued() {}
+    /** En «Cobrar», con el ajuste: «Cobrar ahora» (false) o «Enviar a caja» (true). */
+    fun setCobroMode(toRegister: Boolean) {}
+    fun setRegisterNote(text: String) {}
+    fun confirmSendToRegister() {}
     fun startCobro() {}
     fun cancelCobro() {}
     fun toggleMethod(m: PayMethod) {}

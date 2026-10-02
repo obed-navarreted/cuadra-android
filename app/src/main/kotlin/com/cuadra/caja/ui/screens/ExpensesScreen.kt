@@ -89,7 +89,7 @@ fun ExpensesScreen(vm: CashViewModel, hasShifts: Boolean, onShift: () -> Unit) {
     val shift by vm.currentShift.collectAsState()
     val categories by vm.categories.collectAsState()
     val calendar by vm.calendar.collectAsState()
-    ExpensesContent(ui, totals, rows, canManage, shift, categories, calendar, hasShifts, vm, onShift)
+    com.cuadra.caja.ui.common.Refreshing(vm.refresher) { ExpensesContent(ui, totals, rows, canManage, shift, categories, calendar, hasShifts, vm, onShift) }
 }
 
 /** Gastos sin ViewModel (estado + acciones): es lo que dibuja la guardia de diseño. */

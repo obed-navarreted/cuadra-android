@@ -278,6 +278,14 @@ fun RegisterFrame(
     overlay: (@Composable () -> Unit)? = null,
     /** El aviso flotante es el destacado (vuelto tras cobrar: letra más grande, hasta 2 líneas): se reserva su alto mayor. */
     overlayLarge: Boolean = false,
+    /**
+     * La tira de la última línea (solo «Manual», donde el cuerpo son las pestañas y queda un hueco hasta la calculadora): va justo debajo de las pestañas. Recibe
+     * `compact` (solo la fila de controles, sin el nombre) cuando no hay alto para la tira completa; si ni así cabe, o si el aviso flotante necesita el hueco y no
+     * hay para los dos, no se compone.
+     */
+    strip: (@Composable (compact: Boolean) -> Unit)? = null,
+    /** En «Productos» la tira vive dentro de la lista (no la compone el marco): aquí solo se reserva el alto del cuerpo que necesita (con ella), haciendo que el encabezado ceda sus líneas «Atiende» y «Vendido hoy». 0 = sin reserva. */
+    reserveForStrip: Dp = 0.dp,
 ) {
     SubcomposeLayout(modifier) { constraints ->
         val w = constraints.maxWidth
@@ -305,7 +313,9 @@ fun RegisterFrame(
         val lineH = 20.sp.toPx()
         val fullEstimate = (HEADER_ROW.toPx() + 2 * lineH + 2 * HEADER_GAP.toPx() + 2 * HEADER_LINE_GAP.toPx()).toInt()
         val headerP = if (bodyOk && headerRoom >= HEADER_MIN.roundToPx()) {
-            val full = headerRoom >= fullEstimate
+            // Las líneas «Atiende» y «Vendido hoy» ceden ante la tira de la última línea (Manual): sin lugar para las dos cosas, el encabezado queda compacto.
+            val stripReserve = if (strip != null && bodyNatural && hasDock) STRIP_ROW_HEIGHT.roundToPx() + 2 * g else if (!bodyNatural) (reserveForStrip.roundToPx() - bodyMin).coerceAtLeast(0) else 0
+            val full = headerRoom - stripReserve >= fullEstimate
             subcompose(Slot.HEADER) { Box(Modifier.verticalScroll(rememberScrollState())) { header(full) } }.map { it.measure(Constraints(maxWidth = w, maxHeight = headerRoom)) }
         } else emptyList()
         val headerH = headerP.sumOf { it.height }
@@ -328,15 +338,42 @@ fun RegisterFrame(
         val slack = if (bodyNatural && hasDock) dockTop - bodyBottom else 0
         val noticeEstimate = if (overlayLarge) maxOf(48.dp.toPx(), 2 * 22.sp.toPx() * minOf(fontScale, LARGE_NOTICE_FONT_CAP) / fontScale + 16.dp.toPx()).toInt() else maxOf(48.dp.toPx(), (if (fontScale > 1.3f) 2 else 1) * 16.sp.toPx() + 16.dp.toPx()).toInt()
         val tabsReserve = (TABS_RESERVE.toPx() + g).toInt()
-        fun zone(oh: Int): Int? = when {
-            slack >= oh + 2 * g -> bodyBottom + (slack - oh) / 2
+        // La tira de la última línea: completa (nombre y controles), compacta (solo controles) o nada, según el alto del hueco (y el aviso flotante, que comparte el hueco).
+        val stripRowEst = STRIP_ROW_HEIGHT.toPx().toInt()
+        val stripFullEst = STRIP_FULL_HEIGHT.toPx().toInt()
+        fun stripEst(choice: Int) = if (choice == 2) stripFullEst else stripRowEst
+        fun zone(oh: Int, slackLeft: Int, from: Int): Int? = when {
+            slackLeft >= oh + 2 * g -> from + (slackLeft - oh) / 2
             // «Productos»: al pie de la lista, justo arriba de la barra (como un aviso normal), lejos de las pestañas.
             !bodyNatural && bodyH >= oh + tabsReserve -> bodyBottom - oh
             headerH >= oh -> headerH - oh   // tapa las líneas centradas (lo menos necesario), no la fila del negocio
             else -> null
         }
-        val overlayP = if (overlay != null && zone(noticeEstimate) != null) one(Slot.OVERLAY, open, overlay) else emptyList()
-        val overlayY = overlayP.maxOfOrNull { it.height }?.let { zone(it) }
+        var stripChoice = when {
+            strip == null || !bodyNatural || !hasDock -> 0
+            slack - 2 * g >= stripFullEst -> 2
+            slack - 2 * g >= stripRowEst -> 1
+            else -> 0
+        }
+        if (stripChoice > 0 && overlay != null) {
+            // El aviso flotante (transitorio) tiene prioridad sobre la tira si no caben los dos en el hueco: primero baja la tira a compacta; luego, si el aviso
+            // puede ir sobre el encabezado, la tira se queda; y si no, la tira cede el hueco entero.
+            var c = stripChoice
+            while (c > 0 && slack - (stripEst(c) + g) < noticeEstimate + 2 * g) c--
+            stripChoice = when {
+                c > 0 -> c
+                headerH >= noticeEstimate -> stripChoice
+                slack >= noticeEstimate + 2 * g -> 0
+                else -> stripChoice
+            }
+        }
+        val stripP = if (stripChoice > 0) subcompose(Slot.STRIP) { Box { strip!!(stripChoice == 1) } }.map { it.measure(Constraints(maxWidth = w)) } else emptyList()
+        val stripH = stripP.sumOf { it.height }
+        val stripY = bodyBottom + g
+        val bodyBottomEff = if (stripH > 0) stripY + stripH else bodyBottom
+        val slackEff = if (bodyNatural && hasDock) dockTop - bodyBottomEff else 0
+        val overlayP = if (overlay != null && zone(noticeEstimate, slackEff, bodyBottomEff) != null) one(Slot.OVERLAY, open, overlay) else emptyList()
+        val overlayY = overlayP.maxOfOrNull { it.height }?.let { zone(it, slackEff, bodyBottomEff) }
         layout(w, total) {
             // Abajo primero (footer y dock pegados al fondo); arriba después: si algo se traslapara en un extremo, el total queda por encima.
             var y = total - footerH
@@ -345,13 +382,23 @@ fun RegisterFrame(
             if (hasDock) { y -= dockH; dockP.forEach { it.placeRelative(0, y) } }
             headerP.forEach { it.placeRelative(0, 0) }
             bodyP.forEach { it.placeRelative(0, top + heroH + g) }
+            stripP.forEach { it.placeRelative(0, stripY) }
             heroP.forEach { it.placeRelative(0, top, zIndex = 1f) }
             if (overlayY != null) overlayP.forEach { it.placeRelative((w - it.width) / 2, overlayY, zIndex = 2f) }
         }
     }
 }
 
-private enum class Slot { HEADER, HERO, BODY, DOCK, FOOTER, OVERLAY }
+private enum class Slot { HEADER, HERO, BODY, DOCK, FOOTER, OVERLAY, STRIP }
+
+/** Alto de la tira de la última línea de UNA fila (− cantidad + · subtotal · ✕, todo de 48 dp, más margen y borde). Ver `LastLineStrip`. */
+val STRIP_ROW_HEIGHT = 58.dp
+
+/** Alto de la tira completa (nombre arriba y controles abajo). En «Productos» el hueco reservado mide lo mismo, así la lista no salta al agregar el primer producto. */
+val STRIP_FULL_HEIGHT = 86.dp
+
+/** Tope de la letra dentro de la tira de la última línea (igual que el total y la barra): el − / + y la cantidad caben siempre en un teléfono angosto. */
+const val STRIP_FONT_CAP = 1.3f
 
 /** Alto mínimo reservado al cuerpo de la caja (una fila de pestañas). */
 private val BODY_MIN = 48.dp

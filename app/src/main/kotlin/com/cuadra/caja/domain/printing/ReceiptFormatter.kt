@@ -16,6 +16,8 @@ data class ReceiptLabels(
     /** Comprobante de devolución. */
     val returnTitle: String = "COMPROBANTE DE DEVOLUCION", val returnTotal: String = "DEVUELTO", val returnReason: String = "Motivo: %s",
     val creditNote: String = "Nota de credito (fiado)", val ofSale: String = "Venta %s", val returnTicket: String = "Comprobante de devolucion",
+    /** Promoción por cantidad aplicada: «Promo 3 por C$ 100» (cantidad, precio del paquete ya formateado). */
+    val promo: String = "Promo %d por %s",
 ) {
     fun method(m: String, otherLabel: String?): String = when (m) {
         "CASH" -> cash; "TRANSFER" -> transfer; "CARD" -> card; "CREDIT" -> credit
@@ -29,7 +31,7 @@ data class ReceiptLabels(
             cash = "Efectivo", transfer = "Transferencia", card = "Tarjeta", credit = "Fiado", other = "Otro",
             months = listOf("ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"),
             returnTitle = "DEVOLUCIÓN", returnTotal = "DEVUELTO", returnReason = "Motivo: %s", creditNote = "Nota de crédito (fiado)", ofSale = "Venta %s",
-            returnTicket = "Comprobante de devolución",
+            returnTicket = "Comprobante de devolución", promo = "Promo %d por %s",
         )
         val EN = ReceiptLabels(
             servedBy = "Served by: %s", total = "TOTAL", subtotal = "Subtotal", discount = "Discount", received = "Received", change = "Change", cancelled = "VOID",
@@ -37,7 +39,7 @@ data class ReceiptLabels(
             cash = "Cash", transfer = "Transfer", card = "Card", credit = "On credit", other = "Other",
             months = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"),
             returnTitle = "RETURN", returnTotal = "REFUNDED", returnReason = "Reason: %s", creditNote = "Credit note (on credit)", ofSale = "Sale %s",
-            returnTicket = "Return receipt",
+            returnTicket = "Return receipt", promo = "Promo %d for %s",
         )
 
         fun of(language: String?): ReceiptLabels = if (language?.lowercase()?.startsWith("en") == true) EN else ES
@@ -50,6 +52,9 @@ data class ReceiptItem(
     val unit: String? = null,
 )
 
+/** Una promoción aplicada en la venta: «Promo 3 por C$ 100: -C$ 70». */
+data class ReceiptPromotion(val quantity: Int, val priceMinor: Long, val discountMinor: Long)
+
 data class ReceiptPayment(val method: String, val otherLabel: String?, val amountMinor: Long, val tenderedMinor: Long?, val changeMinor: Long?, val customer: String?)
 
 /** Todo lo que el recibo necesita, sin depender de Android: ya con el dinero formateado por quien llama (`money`). */
@@ -58,6 +63,8 @@ data class ReceiptData(
     val saleId: String, val atMillis: Long, val zone: ZoneId, val cashier: String?,
     val items: List<ReceiptItem>, val subtotalMinor: Long, val discountMinor: Long, val totalMinor: Long, val payments: List<ReceiptPayment>,
     val cancelled: Boolean, val footer: String, val labels: ReceiptLabels, val money: (Long) -> String,
+    /** Promociones por cantidad: con ellas cada línea va a su precio de siempre y debajo, «Promo 3 por C$ 100: -C$ 70». */
+    val promotions: List<ReceiptPromotion> = emptyList(),
 )
 
 /** Lo que lleva el comprobante de una devolución: cada línea devuelta con su monto, el total y cómo se devolvió el dinero. */
@@ -173,6 +180,7 @@ object ReceiptFormatter {
             lines(leftRight("  $qty x ${money(i.unitPriceMinor)}", money(i.totalMinor), w))
             if (i.discountMinor > 0) lines(leftRight("  ${l.discount}", "-" + money(i.discountMinor), w))
         }
+        for (p in d.promotions) lines(leftRight(l.promo.format(p.quantity, money(p.priceMinor)) + ":", "-" + money(p.discountMinor), w))
         rule()
 
         if (d.discountMinor > 0) {

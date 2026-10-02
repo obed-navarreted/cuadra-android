@@ -52,6 +52,13 @@ class GuardCreditsTest {
             listOf(
                 GuardCase("Fiados: lista", GuardMatrix.FULL) { Credits(CreditsUi(), Fixtures.ledgerRows) },
                 GuardCase("Fiados: lista vacía", GuardMatrix.FULL) { Credits(CreditsUi(), emptyList()) },
+                // Al abrir la pantalla se refresca: lo de antes sigue a la vista con el indicador arriba; sin conexión, la nota (no un error).
+                GuardCase("Fiados: refrescando con la lista de antes", GuardMatrix.FULL) {
+                    com.cuadra.caja.ui.common.RefreshBox(true, {}, androidx.compose.ui.Modifier) { Credits(CreditsUi(), Fixtures.ledgerRows) }
+                },
+                GuardCase("Fiados: sin conexión al refrescar", GuardMatrix.FULL) {
+                    com.cuadra.caja.ui.common.RefreshBox(false, {}, androidx.compose.ui.Modifier, offline = true) { Credits(CreditsUi(), Fixtures.ledgerRows) }
+                },
                 GuardCase("Fiados: clientes", GuardMatrix.FULL) { Credits(CreditsUi(mode = LedgerMode.CUSTOMERS, query = "Ma"), Fixtures.ledgerRows) },
                 GuardCase("Fiados: pagados", GuardMatrix.FULL) { Credits(CreditsUi(filter = CreditFilter.PAID), Fixtures.ledgerRows) },
                 GuardCase("Fiados: detalle de cliente", GuardMatrix.FULL) { Credits(CreditsUi(openCustomerId = "c1"), Fixtures.ledgerRows, detail = Fixtures.detail, manage = true) },

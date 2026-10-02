@@ -92,7 +92,7 @@ object Fixtures {
             com.cuadra.caja.domain.Attention.Item(2, com.cuadra.caja.domain.Attention.What.SALE, BIG, null, NOW, PERSON_LONG, com.cuadra.caja.domain.Attention.Reason.CONFLICT_COPY, "SALE_CONFLICT_COPY", review = true),
             com.cuadra.caja.domain.Attention.Item(3, com.cuadra.caja.domain.Attention.What.SALE, MID, null, NOW, null, com.cuadra.caja.domain.Attention.Reason.ALREADY_CLOSED_ELSEWHERE, "SALE_STALE", review = true),
             com.cuadra.caja.domain.Attention.Item(4, com.cuadra.caja.domain.Attention.What.CREDIT_PAYMENT, HUGE, null, NOW, PERSON_LONG, com.cuadra.caja.domain.Attention.Reason.CREDIT_CLOSED, "CREDIT_CLOSED"),
-            com.cuadra.caja.domain.Attention.Item(5, com.cuadra.caja.domain.Attention.What.WITHDRAWAL, HUGE, null, NOW, PERSON_LONG, com.cuadra.caja.domain.Attention.Reason.DEVICE_NOT_TRUSTED, "DEVICE_NOT_TRUSTED"),
+            com.cuadra.caja.domain.Attention.Item(5, com.cuadra.caja.domain.Attention.What.WITHDRAWAL, HUGE, null, NOW, PERSON_LONG, com.cuadra.caja.domain.Attention.Reason.PIN_VERIFICATION_REQUIRED, "PIN_VERIFICATION_REQUIRED", memberId = "m1"),
             com.cuadra.caja.domain.Attention.Item(6, com.cuadra.caja.domain.Attention.What.PRODUCT, null, NAME_200, NOW, PERSON_LONG, com.cuadra.caja.domain.Attention.Reason.CODE_IN_USE, "BARCODE_IN_USE"),
             com.cuadra.caja.domain.Attention.Item(7, com.cuadra.caja.domain.Attention.What.OTHER, null, null, NOW, PERSON_LONG, com.cuadra.caja.domain.Attention.Reason.OTHER, CODE_LONG),
             com.cuadra.caja.domain.Attention.Item(8, com.cuadra.caja.domain.Attention.What.EXPENSE, BIG, NAME_120, NOW, PERSON_LONG, com.cuadra.caja.domain.Attention.Reason.MEMBER_DISABLED, "MEMBER_NOT_ACTIVE"),
@@ -170,7 +170,28 @@ object Fixtures {
     val cart15 = Cart(lines + CartLine("l15", "p15", null, "Cuajada", null, 2_500, null, 15_000))
     val undoAdded = UndoEntry.Added("l15", NAME_200, 1000, BIG, false)
     val undoDeleted = UndoEntry.Deleted(lines[0], 0)
+    // Tira de la última línea: el recibo termina en la línea que se prueba (la tira toma la última del recibo).
+    val stripShort = CartLine("s1", "ps1", null, "Cola", null, 2_500, null, 6000)
+    val stripLongName = CartLine("s2", "ps2", null, NAME_200, "Botella 3 L", 2_500, null, 6000)
+    val stripWeighed = CartLine("s3", "ps3", null, "Queso fresco", null, 8_000, null, 2_750, byWeight = true)
+    val stripBigAmount = CartLine("s4", "ps4", null, NAME_60, null, HUGE, null, 1000)
+    val strip999 = CartLine("s5", "ps5", null, "Fósforos", null, 500, null, 999_000)
+    val stripBigQty = CartLine("s6", "ps6", null, LONG_WORD, null, 12_345, null, 12_345_678, byWeight = true)
+    val stripManual = CartLine("s7", null, null, "Varios", null, 3_500, null, 2000)
+    fun cartEndingIn(line: CartLine) = Cart(lines.take(3) + line)
     val oneLineCart = Cart(listOf(CartLine("x1", "p2", null, "Refresco", null, 3_500, null, 2000)))
+
+    // ---------- promociones por cantidad ----------
+    val promoDay: java.time.LocalDate = java.time.LocalDate.of(2026, 10, 1)
+    val promoRules = listOf(
+        com.cuadra.caja.domain.PromotionRule("pr1", NAME_120, 3, 10_000, setOf("pb1", "pb2")),
+        com.cuadra.caja.domain.PromotionRule("pr2", "Grande", 2, HUGE, setOf("p1", "p3")),
+    )
+    /** Un recibo con promociones: 7 cervezas de dos marcas (dos paquetes) y líneas de precio enorme que forman paquetes de 2 por un precio enorme. */
+    val promoCart = Cart(lines.take(3).map { it.copy(quantityMilli = 3_000) } + listOf(
+        CartLine("b1", "pb1", null, "Toña", null, 4_500, null, 4000), CartLine("b2", "pb2", null, NAME_200, "Lata", 4_500, null, 3000),
+    ))
+    fun promoUi(tab: PosTab = PosTab.MANUAL, cart: Cart = promoCart) = cajaUi(tab, cart).copy(promotions = promoRules, pricingById = (1..20).associate { "p$it" to "FIXED" } + mapOf("pb1" to "FIXED", "pb2" to "FIXED"), promoDay = promoDay)
 
     fun entry(vararg keys: Char) = keys.fold(AmountEntry()) { e, c -> e.digit(c, 2) }
     val bigEntry = AmountEntry("99999999", "123456", true)
@@ -181,6 +202,15 @@ object Fixtures {
     )
 
     val parked = listOf(sale(1, NAME_120), sale(2, "Mesa 4"), sale(3, null, total = HUGE))
+
+    /** Cobro en caja (ADR 0015): cuentas enviadas a caja (nota larguísima, corta y sin nota) junto a las apartadas comunes. */
+    val queued = listOf(
+        sale(4, NAME_200, total = HUGE).copy(sentToRegisterAt = NOW - 3_600_000, sentByName = PERSON_LONG),
+        sale(5, "Mesa 4").copy(sentToRegisterAt = NOW - 600_000, sentByName = "Kevin"),
+        sale(6, null, total = BIG).copy(sentToRegisterAt = NOW - 60_000, sentByName = "Ana"),
+    )
+    val queueCounts = mapOf("s4" to 999, "s5" to 1, "s6" to 12)
+    val queueItems = lines.mapIndexed { i, l -> com.cuadra.caja.data.local.SaleItemEntity("s4", l.id, l.productId, l.barcode, l.name, l.variant, l.unitPriceMinor, l.unitCostMinor, l.quantityMilli, l.discountMinor, i) }
     val sales = (1..12).map { sale(it, status = if (it % 4 == 0) "CANCELLED" else "COMPLETED", total = if (it % 2 == 0) HUGE else BIG) }
 
     // ---------- días, ventas del servidor y cierre del día ----------
@@ -211,6 +241,8 @@ object Fixtures {
         if (edited) PERSON_LONG else null, if (edited) NOW - i * DAY / 48 else null,
         if (cancelled) PERSON_LONG else null, if (cancelled) NOW - i * DAY / 96 else null, if (cancelled) NAME_200 else null, saleLines, salePayments,
     )
+    /** Atendió una persona y cobró otra (cobro en caja): nombres larguísimos. */
+    val servedAndCharged = saleView(2).copy(id = "v99", takenBy = NAME_120, soldBy = PERSON_LONG, sentBy = NAME_120, sentAtMillis = NOW - DAY / 12)
     val serverSales = (1..8).map { saleView(it, cancelled = it % 3 == 0, edited = it % 2 == 0) }.mapIndexed { i, v ->
         // Algunas para revisar: en conflicto, llegó después de la baja, hora corregida, con devolución.
         when (i) { 0 -> v.copy(conflict = true, returnedMinor = BIG); 1 -> v.copy(reviewFlag = "LATE_AFTER_DISABLE"); 3 -> v.copy(reviewFlag = "CLOCK_ADJUSTED", conflict = true); else -> v }
@@ -257,8 +289,8 @@ object Fixtures {
 
     fun cajaUi(
         tab: PosTab = PosTab.MANUAL, cart: Cart = Cart(), entry: AmountEntry = AmountEntry(), cobro: CobroUi? = null, query: String = "",
-        undo: UndoEntry? = null, hint: Boolean = false, editing: String? = null,
-    ) = CajaUi(cart = cart, entry = entry, description = "", tab = tab, query = query, cobro = cobro, undoStack = listOfNotNull(undo), undoShown = undo != null, swipeHint = hint, editingLineId = editing)
+        undo: UndoEntry? = null, hint: Boolean = false, editing: String? = null, last: String? = null,
+    ) = CajaUi(cart = cart, entry = entry, description = "", tab = tab, query = query, cobro = cobro, undoStack = listOfNotNull(undo), undoShown = undo != null, swipeHint = hint, editingLineId = editing, lastLineId = last)
 
     fun cobro(total: Long, vararg entries: PaymentEntry, tendered: String = "", debtor: String = "", phone: String = "", matches: List<CustomerEntity> = emptyList(), suggestions: List<String> = emptyList(), done: Long? = null, other: String = "") =
         CobroUi(PaymentPlan(total, entries.toList()), tenderedText = tendered, debtor = debtor, debtorPhone = phone, customerMatches = matches, nameSuggestions = suggestions, doneChangeMinor = done, otherLabel = other)

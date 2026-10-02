@@ -70,6 +70,16 @@ fun AttentionContent(ui: AttentionUi, actions: AttentionActions, onBack: () -> U
             items(ui.items, key = { it.seq }) { AttentionCard(it, time, actions) }
         }
     }
+    ui.confirming?.let { item ->
+        val keys = object : com.cuadra.caja.ui.PinConfirmActions {
+            override fun digit(d: Char) = actions.confirmDigit(d)
+            override fun backspace() = actions.confirmBackspace()
+        }
+        Sheet(actions::cancelConfirmPin, actions = { CuadraButton(stringResource(R.string.cancel), actions::cancelConfirmPin, Modifier.fillMaxWidth()) }) {
+            Text(stringResource(R.string.pinconfirm_title), style = MaterialTheme.typography.headlineMedium)
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { PinConfirmBody(ui.confirm, keys, item.byName ?: "") }
+        }
+    }
     ui.discarding?.let { item ->
         Sheet(actions::cancelDiscard, actions = {
             ButtonRow {
@@ -96,7 +106,8 @@ private fun AttentionCard(item: Attention.Item, time: DateTimeFormatter, actions
             }
             Text(reasonText(item), color = if (item.review) CuadraColors.Ink else CuadraColors.Red, style = MaterialTheme.typography.bodyMedium)
             ButtonRow {
-                if (item.canRetry) CuadraButton(stringResource(R.string.att_retry), { actions.retry(item) }, Modifier.share(1f), kind = ButtonKind.DARK)
+                if (item.canConfirmPin) CuadraButton(stringResource(R.string.pinconfirm_action), { actions.askConfirmPin(item) }, Modifier.share(1.2f), kind = ButtonKind.DARK)
+                else if (item.canRetry) CuadraButton(stringResource(R.string.att_retry), { actions.retry(item) }, Modifier.share(1f), kind = ButtonKind.DARK)
                 CuadraButton(stringResource(if (item.review) R.string.att_dismiss_review else R.string.att_discard), { actions.askDiscard(item) }, Modifier.share(1f))
             }
         }
@@ -117,6 +128,7 @@ private fun whatText(item: Attention.Item): String {
         Attention.What.DEPOSIT -> amount?.let { stringResource(R.string.att_what_deposit, it) } ?: stringResource(R.string.att_what_other)
         Attention.What.PRODUCT -> item.name?.let { stringResource(R.string.att_what_product, it) } ?: stringResource(R.string.att_what_product_plain)
         Attention.What.CUSTOMER -> item.name?.let { stringResource(R.string.att_what_customer, it) } ?: stringResource(R.string.att_what_other)
+        Attention.What.PROMOTION -> item.name?.let { stringResource(R.string.att_what_promotion, it) } ?: stringResource(R.string.att_what_promotion_plain)
         Attention.What.OTHER -> stringResource(R.string.att_what_other)
     }
 }
@@ -131,7 +143,7 @@ private fun reasonText(item: Attention.Item): String = when (item.reason) {
     Attention.Reason.CREDIT_CLOSED -> stringResource(R.string.att_reason_CREDIT_CLOSED)
     Attention.Reason.NO_OPEN_CREDITS -> stringResource(R.string.att_reason_NO_OPEN_CREDITS)
     Attention.Reason.MEMBER_DISABLED -> stringResource(R.string.att_reason_MEMBER_DISABLED)
-    Attention.Reason.DEVICE_NOT_TRUSTED -> stringResource(R.string.att_reason_DEVICE_NOT_TRUSTED)
+    Attention.Reason.PIN_VERIFICATION_REQUIRED -> stringResource(R.string.att_reason_PIN_VERIFICATION_REQUIRED)
     Attention.Reason.FORBIDDEN -> stringResource(R.string.att_reason_FORBIDDEN)
     Attention.Reason.PAYMENT_MISMATCH -> stringResource(R.string.att_reason_PAYMENT_MISMATCH)
     Attention.Reason.CUSTOMER_REQUIRED -> stringResource(R.string.att_reason_CUSTOMER_REQUIRED)

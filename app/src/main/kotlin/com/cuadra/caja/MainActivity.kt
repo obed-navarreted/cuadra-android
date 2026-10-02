@@ -17,6 +17,8 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val container = (application as CuadraApp).container
+        // El permiso de notificaciones nunca se pide en el primer arranque: se cuentan las aperturas.
+        if (savedInstanceState == null) container.pushPrefs.countLaunch()
         handle(intent)
         com.cuadra.caja.data.debug.DebugHooks.apply(container, intent)
         setContent {
@@ -36,9 +38,12 @@ class MainActivity : AppCompatActivity() {
         runCatching { c.scanner.firstRun() }
         // Impresora (solo trabaja si la persona la activó): se conecta sola mientras la app está a la vista.
         runCatching { c.printer.attach() }
+        // Al volver a la app: se sincroniza y empieza el respaldo periódico (cada 30 s sin avisos de Firebase).
+        runCatching { c.foreground.onForeground() }
     }
 
     override fun onStop() {
+        runCatching { (application as CuadraApp).container.foreground.onBackground() }
         runCatching { (application as CuadraApp).container.scanner.detach() }
         runCatching { (application as CuadraApp).container.printer.detach() }
         super.onStop()

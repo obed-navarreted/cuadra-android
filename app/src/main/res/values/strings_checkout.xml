@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cobro en caja (docs/adr/0015) y comprobante por WhatsApp con número. -->
+<resources>
+    <string name="register_queue_chip">Por cobrar en caja</string>
+    <string name="queue_title">Por cobrar en caja</string>
+    <string name="queue_empty">No hay cuentas por cobrar en caja.</string>
+    <plurals name="queue_count">
+        <item quantity="one">%d cuenta esperando</item>
+        <item quantity="other">%d cuentas esperando</item>
+    </plurals>
+    <plurals name="queue_items">
+        <item quantity="one">%d producto</item>
+        <item quantity="other">%d productos</item>
+    </plurals>
+    <string name="queue_row_by">Atendió %1$s · %2$s</string>
+    <string name="queue_no_note">Sin nota</string>
+    <string name="queue_detail_title">Cuenta por cobrar</string>
+    <string name="queue_taken_by">Atendió: %1$s</string>
+    <string name="queue_sent_by">Envió a caja: %1$s a las %2$s</string>
+    <string name="queue_charge">Cobrar %1$s</string>
+    <string name="queue_add">Agregar productos</string>
+    <string name="queue_cancel">Anular</string>
+    <string name="queue_not_a_sale">Todavía no es una venta: cuenta cuando se cobra.</string>
+    <string name="queue_cancel_title">Anular esta cuenta</string>
+    <string name="queue_cancel_help">Se quita de la lista en todos los teléfonos. No es una venta, pero queda en la actividad con quién, cuándo y tu motivo.</string>
+    <string name="queue_cancel_confirm">Anular cuenta</string>
+    <string name="parked_locked_by">La está cobrando %1$s.</string>
+    <string name="pay_mode_label">Esta cuenta</string>
+    <string name="pay_mode_now">Cobrar ahora</string>
+    <string name="pay_mode_register">Enviar a caja</string>
+    <string name="pay_register_hint">Sin método de pago ni vuelto: los decide quien cobra en caja.</string>
+    <string name="pay_register_note">Nota (opcional)</string>
+    <string name="pay_register_note_hint">Mesa 4, Juan</string>
+    <string name="pay_register_send">Enviar a caja</string>
+    <string name="pay_register_sent">Enviada a caja</string>
+    <string name="sale_notice_sent">Enviada a caja · %1$s</string>
+    <string name="sale_taken_charged">Atendió: %1$s · Cobró: %2$s</string>
+    <string name="sale_sent_to_register">Enviada a caja por %1$s, %2$s</string>
+    <plurals name="close_pending_checkout">
+        <item quantity="one">Queda %1$d cuenta por cobrar en caja (%2$s)</item>
+        <item quantity="other">Quedan %1$d cuentas por cobrar en caja (%2$s)</item>
+    </plurals>
+    <string name="set_register_checkout">Cobro en caja</string>
+    <string name="set_register_checkout_help">Quien atiende arma la cuenta y la envía a caja; cualquiera la cobra después. Para restaurantes y bares.</string>
+    <string name="wa_title">Enviar comprobante por WhatsApp</string>
+    <string name="wa_number">Número de WhatsApp</string>
+    <string name="wa_number_hint">Con el código del país. No se guarda.</string>
+    <string name="wa_number_invalid">Revisa el número.</string>
+    <string name="wa_pick_contact">Elegir de contactos</string>
+    <string name="wa_open">Abrir WhatsApp</string>
+    <string name="sale_send_whatsapp">Enviar por WhatsApp</string>
+</resources>

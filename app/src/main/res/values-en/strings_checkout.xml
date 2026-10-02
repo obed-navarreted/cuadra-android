@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Charge at the register (docs/adr/0015) and WhatsApp receipt with a number. -->
+<resources>
+    <string name="register_queue_chip">To charge at register</string>
+    <string name="queue_title">To charge at the register</string>
+    <string name="queue_empty">No tickets waiting at the register.</string>
+    <plurals name="queue_count">
+        <item quantity="one">%d ticket waiting</item>
+        <item quantity="other">%d tickets waiting</item>
+    </plurals>
+    <plurals name="queue_items">
+        <item quantity="one">%d item</item>
+        <item quantity="other">%d items</item>
+    </plurals>
+    <string name="queue_row_by">Served by %1$s · %2$s</string>
+    <string name="queue_no_note">No note</string>
+    <string name="queue_detail_title">Ticket to charge</string>
+    <string name="queue_taken_by">Served by: %1$s</string>
+    <string name="queue_sent_by">Sent to the register: %1$s at %2$s</string>
+    <string name="queue_charge">Charge %1$s</string>
+    <string name="queue_add">Add products</string>
+    <string name="queue_cancel">Void</string>
+    <string name="queue_not_a_sale">Not a sale yet: it counts once it is charged.</string>
+    <string name="queue_cancel_title">Void this ticket</string>
+    <string name="queue_cancel_help">It leaves the list on every phone. It is not a sale, but the activity log keeps who, when and your reason.</string>
+    <string name="queue_cancel_confirm">Void ticket</string>
+    <string name="parked_locked_by">%1$s is charging it.</string>
+    <string name="pay_mode_label">This ticket</string>
+    <string name="pay_mode_now">Charge now</string>
+    <string name="pay_mode_register">Send to register</string>
+    <string name="pay_register_hint">No payment method or change: whoever charges at the register decides.</string>
+    <string name="pay_register_note">Note (optional)</string>
+    <string name="pay_register_note_hint">Table 4, John</string>
+    <string name="pay_register_send">Send to register</string>
+    <string name="pay_register_sent">Sent to the register</string>
+    <string name="sale_notice_sent">Sent to register · %1$s</string>
+    <string name="sale_taken_charged">Served by: %1$s · Charged by: %2$s</string>
+    <string name="sale_sent_to_register">Sent to the register by %1$s, %2$s</string>
+    <plurals name="close_pending_checkout">
+        <item quantity="one">%1$d ticket still to charge at the register (%2$s)</item>
+        <item quantity="other">%1$d tickets still to charge at the register (%2$s)</item>
+    </plurals>
+    <string name="set_register_checkout">Charge at the register</string>
+    <string name="set_register_checkout_help">Whoever serves builds the ticket and sends it to the register; anyone charges it later. For restaurants and bars.</string>
+    <string name="wa_title">Send receipt via WhatsApp</string>
+    <string name="wa_number">WhatsApp number</string>
+    <string name="wa_number_hint">Include the country code. It is not saved.</string>
+    <string name="wa_number_invalid">Check the number.</string>
+    <string name="wa_pick_contact">Pick from contacts</string>
+    <string name="wa_open">Open WhatsApp</string>
+    <string name="sale_send_whatsapp">Send via WhatsApp</string>
+</resources>

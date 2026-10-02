@@ -22,6 +22,7 @@ fun Throwable?.teamError(): ErrorMessage = when (this) {
         "INVALID_ACCESS_CODE" -> ErrorMessage(R.string.team_err_INVALID_ACCESS_CODE)
         "DEVICE_NOT_FOUND" -> ErrorMessage(R.string.team_err_DEVICE_NOT_FOUND)
         "INVALID_CASH_REGISTER" -> ErrorMessage(R.string.team_err_INVALID_CASH_REGISTER)
+        "PIN_VERIFICATION_REQUIRED" -> ErrorMessage(R.string.error_PIN_VERIFICATION_REQUIRED)
         "FORBIDDEN" -> ErrorMessage(R.string.team_err_FORBIDDEN)
         else -> errorMessage()
     }

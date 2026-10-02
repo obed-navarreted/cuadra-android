@@ -17,6 +17,7 @@
     <string name="error_generic">Something went wrong. Please try again.</string>
     <string name="error_INVALID_GOOGLE_TOKEN">We couldn\'t verify your Google account.</string>
     <string name="error_FORBIDDEN">Your role doesn\'t allow this.</string>
+    <string name="error_PIN_VERIFICATION_REQUIRED">Confirm your PIN on this phone to do this. The first time needs a connection.</string>
     <string name="language_label">Language</string>
     <string name="language_automatic">Automatic</string>
     <string name="language_es">Español</string>
@@ -26,7 +27,6 @@
     <string name="onboarding_start">Start selling</string>
     <string name="onboarding_your_businesses">Your businesses</string>
     <string name="onboarding_use_here">Use on this phone</string>
-    <string name="onboarding_cannot_link">Your role can\'t link phones with Google. Sign out and enter with the business code and your PIN.</string>
     <string name="onboarding_or">or</string>
     <string name="pin_who">Who is at the register?</string>
     <string name="pin_type_yours">Type your PIN</string>
@@ -41,6 +41,17 @@
     <string name="pin_submit">Enter</string>
     <string name="pin_loading">Loading the team…</string>
     <string name="pin_sign_out">Sign out</string>
+    <string name="refresh_offline">Offline: showing what is saved on this phone.</string>
+    <string name="refresh_now">Refresh</string>
+    <string name="refresh_running">Refreshing…</string>
+    <string name="pinconfirm_title">Confirm your PIN</string>
+    <string name="pinconfirm_body">To open this on this phone, the server confirms your PIN once. Meanwhile you can sell and charge.</string>
+    <string name="pinconfirm_body_for">Enter %1$s\'s PIN to confirm it with the server on this phone.</string>
+    <string name="pinconfirm_offline">Connect to confirm your PIN the first time on this phone.</string>
+    <string name="pinconfirm_action">Confirm PIN</string>
+    <string name="pinconfirm_checking">Confirming with the server…</string>
+    <string name="pinconfirm_failed">Could not confirm right now. Try again in a moment.</string>
+    <string name="pinconfirm_pending_notice">You entered offline: for now you can sell and charge. Connect to confirm your PIN and use everything your role allows.</string>
     <string name="role_OWNER">Owner</string>
     <string name="role_ADMIN">Admin</string>
     <string name="role_CASHIER">Cashier</string>

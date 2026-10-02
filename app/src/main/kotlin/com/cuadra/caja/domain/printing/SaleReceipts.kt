@@ -22,10 +22,15 @@ object SaleReceipts {
         sale: SaleView, businessName: String, zone: ZoneId, s: PrinterSettings, language: String?, money: (Long) -> String,
     ) = ReceiptData(
         businessName = businessName, address = s.address, phone = s.phone, taxId = s.taxId, saleId = sale.id, atMillis = sale.atMillis, zone = zone, cashier = sale.soldBy,
-        items = sale.items.map { ReceiptItem(it.name, it.variant, it.quantityMilli, it.unitPriceMinor, it.discountMinor, it.lineTotalMinor, if (it.quantityMilli % 1000L != 0L) "lb" else null) },
+        // Con promociones, cada línea a su precio de siempre (el descuento de la promoción va en su propia línea, debajo).
+        items = sale.items.map {
+            if (sale.promotions.isEmpty()) ReceiptItem(it.name, it.variant, it.quantityMilli, it.unitPriceMinor, it.discountMinor, it.lineTotalMinor, if (it.quantityMilli % 1000L != 0L) "lb" else null)
+            else ReceiptItem(it.name, it.variant, it.quantityMilli, it.unitPriceMinor, 0, it.lineTotalMinor + it.discountMinor, if (it.quantityMilli % 1000L != 0L) "lb" else null)
+        },
         subtotalMinor = sale.subtotalMinor, discountMinor = sale.discountMinor, totalMinor = sale.totalMinor,
         payments = sale.payments.map { ReceiptPayment(it.method, it.otherLabel, it.amountMinor, it.tenderedMinor, it.changeMinor, it.debtorLabel) },
         cancelled = sale.cancelled, footer = s.footer, labels = ReceiptLabels.of(language), money = money,
+        promotions = sale.promotions.map { ReceiptPromotion(it.quantity, it.priceMinor, it.discountMinor) },
     )
 
     fun receipt(sale: SaleView, businessName: String, zone: ZoneId, s: PrinterSettings, language: String?, money: (Long) -> String): Receipt =

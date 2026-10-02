@@ -84,20 +84,25 @@ class TeamViewModel(private val c: AppContainer) : ViewModel(), TeamActions {
     /** Al abrir la pantalla: se descarta lo que quedó de otra persona o de otra vez y se pide el directorio. */
     override fun enter() {
         _ui.update { it.copy(notice = null, dialog = null, selected = null) }
-        refresh()
+        refresher.request(com.cuadra.caja.domain.RefreshTrigger.SHOWN)
     }
 
-    override fun refresh() {
+    /** Refresco al abrir, al volver al frente y al deslizar (con antirrebote): el directorio del servidor; lo de antes sigue a la vista. */
+    val refresher = ScreenRefresh(viewModelScope) { if (load()) RefreshResult.DONE else RefreshResult.OFFLINE }
+
+    override fun refresh() { viewModelScope.launch { load() } }
+
+    /** Devuelve false sin conexión. */
+    private suspend fun load(): Boolean {
         _ui.update { it.copy(loading = true) }
-        viewModelScope.launch {
-            c.team.refresh().fold(
-                onSuccess = { _ui.update { it.copy(loading = false, offline = false, loadError = null) } },
-                onFailure = { e ->
-                    val offline = e is ApiFailure.Offline
-                    _ui.update { it.copy(loading = false, offline = offline, loadError = if (offline) null else e.teamError()) }
-                },
-            )
-        }
+        return c.team.refresh().fold(
+            onSuccess = { _ui.update { it.copy(loading = false, offline = false, loadError = null) }; true },
+            onFailure = { e ->
+                val offline = e is ApiFailure.Offline
+                _ui.update { it.copy(loading = false, offline = offline, loadError = if (offline) null else e.teamError()) }
+                !offline
+            },
+        )
     }
 
     override fun open(m: MemberEntity) = _ui.update { it.copy(selected = m, notice = null) }

@@ -1,7 +1,6 @@
 package com.cuadra.caja.data.repo
 
-import androidx.room.withTransaction
-import com.cuadra.caja.data.local.CuadraDatabase
+import com.cuadra.caja.data.local.Db
 import com.cuadra.caja.data.local.OutboxEntity
 import com.cuadra.caja.data.local.SyncStateEntity
 import com.cuadra.caja.data.session.SessionStore
@@ -15,7 +14,7 @@ import kotlinx.coroutines.flow.Flow
  *   abono, un gasto…), para que la caja del teléfono y la del servidor vuelvan a coincidir; después baja todo de nuevo.
  */
 class AttentionRepository(
-    private val db: CuadraDatabase,
+    private val db: Db,
     private val session: SessionStore,
     private val requestSync: () -> Unit,
     private val now: () -> Long = System::currentTimeMillis,
@@ -31,7 +30,7 @@ class AttentionRepository(
     suspend fun discard(seq: Long): Boolean {
         val op = db.outbox().get(seq) ?: return false
         val s = session.current()
-        db.withTransaction {
+        db.inTransaction {
             db.outbox().discard(seq, now(), s.memberId, s.memberName)
             if (op.state == OutboxEntity.STATE_FAILED) revertLocal(op)
             // Lo que el teléfono tenía de ese registro puede no coincidir con el servidor: se baja todo otra vez (lo pendiente se respeta).

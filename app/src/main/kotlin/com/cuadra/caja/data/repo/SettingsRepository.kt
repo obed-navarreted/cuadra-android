@@ -1,7 +1,7 @@
 package com.cuadra.caja.data.repo
 
 import com.cuadra.caja.data.local.BusinessEntity
-import com.cuadra.caja.data.local.CuadraDatabase
+import com.cuadra.caja.data.local.Db
 import com.cuadra.caja.data.remote.CuadraApi
 import com.cuadra.caja.data.remote.NotificationSettingsDto
 import com.cuadra.caja.data.remote.UpdateBusinessBody
@@ -16,10 +16,12 @@ import kotlinx.coroutines.withContext
  * lo que cambia se guarda también en Room, así el resto de la app (Caja, Fiados, Cierre del día) reacciona de inmediato sin esperar a la sincronización.
  */
 class SettingsRepository(
-    private val db: CuadraDatabase,
+    private val db: Db,
     private val api: CuadraApi,
     private val session: SessionStore,
     private val schedules: ScheduleRepository,
+    /** Para borrar la base del negocio (negocio eliminado o acceso desactivado). Nulo en pruebas con una sola base. */
+    private val databases: com.cuadra.caja.data.local.BusinessDatabases? = null,
 ) {
     private suspend fun <T> call(block: suspend (String) -> T): Result<T> {
         val b = session.current().businessId ?: return Result.failure(IllegalStateException("no business"))
@@ -47,8 +49,10 @@ class SettingsRepository(
         return r
     }
 
+    /** Olvida el acceso y BORRA la base de este negocio en el teléfono (con lo que tuviera sin enviar: ya no tiene a dónde ir). */
     suspend fun wipeLocal() {
+        val business = session.current().businessId
         session.clearAccess()
-        withContext(Dispatchers.IO) { db.clearAllTables() }
+        if (business != null) withContext(Dispatchers.IO) { databases?.delete(business) }
     }
 }

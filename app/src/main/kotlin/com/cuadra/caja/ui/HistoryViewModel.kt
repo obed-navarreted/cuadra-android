@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
@@ -89,6 +90,8 @@ interface HistoryActions {
     fun setMethod(method: String?) {}
     fun setMember(memberId: String?) {}
     fun refresh() {}
+    /** Deslizar hacia abajo: refresca a propósito (sin antirrebote de tiempo). */
+    fun pullRefresh() {}
     fun loadMore() {}
     fun open(sale: SaleView) {}
     fun closeDetail() {}
@@ -132,16 +135,40 @@ class HistoryViewModel(private val c: AppContainer, private val now: () -> Long 
      * guarde más (p. ej. las que bajó un admin que usó este mismo teléfono).
      */
     val local: StateFlow<List<SaleView>> = combine(c.sales.recent(100), role, memberId) { list: List<SaleEntity>, r, me ->
-        list.filter { r != "CASHIER" || it.createdByMemberId == me }.map { it.toView(emptyList(), emptyList()) }
+        // Un cajero ve las que tomó y las que cobró (cobro en caja: puede cobrar la de otra persona).
+        list.filter { r != "CASHIER" || it.createdByMemberId == me || it.completedByMemberId == me }.map { it.toView(emptyList(), emptyList()) }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private var job: Job? = null
     private var nextPage = 0
 
+    /**
+     * Refresco al abrir Ventas, al volver la app al frente, al cambiar de persona y al deslizar: sincroniza (lo de este teléfono) y, para dueño y admin,
+     * vuelve a pedir la lista del servidor con el MISMO filtro (p. ej. «Hoy»). Lo de antes sigue a la vista mientras tanto.
+     */
+    val refresher = ScreenRefresh(viewModelScope) { _ ->
+        kotlinx.coroutines.coroutineScope {
+            val synced = async { c.pullNow() }
+            if (manager.value) load(reset = true)?.join()
+            val r = synced.await()
+            if (manager.value && _ui.value.offline) RefreshResult.OFFLINE else r
+        }
+    }
+
+    fun onShown(trigger: com.cuadra.caja.domain.RefreshTrigger) { refresher.request(trigger) }
+    override fun pullRefresh() { refresher.request(com.cuadra.caja.domain.RefreshTrigger.PULLED) }
+
     /** Eliminaciones ya pedidas que el servidor todavía no confirma: la lista las muestra anuladas aunque la respuesta sea anterior. */
     private val pendingCancels = mutableMapOf<String, SaleView>()
 
     init {
+        // Si la persona activa cambia (otro cajero/dueño en el mismo teléfono), la lista del servidor de la anterior no se queda a la vista.
+        memberId.drop(1).onEach { id ->
+            _ui.update { it.copy(sales = emptyList(), totals = null, detail = null, delete = null, returnDraft = null) }
+            if (id != null) refresher.request(com.cuadra.caja.domain.RefreshTrigger.PERSON_CHANGED)
+        }.launchIn(viewModelScope)
+        // Con el PIN recién confirmado (o al bajar al rol base), la lista que corresponde es otra.
+        manager.drop(1).onEach { refresher.request(com.cuadra.caja.domain.RefreshTrigger.PERSON_CHANGED) }.launchIn(viewModelScope)
         c.printer.badge.onEach { b -> _ui.update { it.copy(printer = b) } }.launchIn(viewModelScope)
         viewModelScope.launch {
             combine(manager, calendar) { m, cal -> m && cal != null }.filter { it }.first()
@@ -169,15 +196,15 @@ class HistoryViewModel(private val c: AppContainer, private val now: () -> Long 
         refresh()
     }
 
-    override fun refresh() = load(reset = true)
+    override fun refresh() { load(reset = true) }
 
     override fun loadMore() {
         if (_ui.value.hasMore && !_ui.value.loadingMore && !_ui.value.loading) load(reset = false)
     }
 
-    private fun load(reset: Boolean) {
-        val cal = calendar.value ?: return
-        if (!manager.value) return
+    private fun load(reset: Boolean): Job? {
+        val cal = calendar.value ?: return null
+        if (!manager.value) return null
         val state = _ui.value
         val range = RangePresets.resolve(state.range, cal, now())
         val page = if (reset) 0 else nextPage
@@ -200,6 +227,7 @@ class HistoryViewModel(private val c: AppContainer, private val now: () -> Long 
                 s.copy(loading = false, loadingMore = false, offline = false, error = null, sales = visible(merged, s.query), hasMore = fetched.any { !it.last }, totals = totals)
             }
         }
+        return job
     }
 
     /** Una venta que se acaba de eliminar sale de la lista si el filtro no incluye las eliminadas. */

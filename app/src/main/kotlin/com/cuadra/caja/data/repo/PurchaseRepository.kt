@@ -1,7 +1,6 @@
 package com.cuadra.caja.data.repo
 
-import androidx.room.withTransaction
-import com.cuadra.caja.data.local.CuadraDatabase
+import com.cuadra.caja.data.local.Db
 import com.cuadra.caja.data.local.ExpenseEntity
 import com.cuadra.caja.data.local.OutboxEntity
 import com.cuadra.caja.data.local.PurchaseEntity
@@ -38,7 +37,7 @@ data class PurchaseLine(val id: String, val productId: String?, val name: String
  * Una compra no se edita: se anula y se registra de nuevo.
  */
 class PurchaseRepository(
-    private val db: CuadraDatabase,
+    private val db: Db,
     private val session: SessionStore,
     private val requestSync: () -> Unit,
     private val now: () -> Long = System::currentTimeMillis,
@@ -63,7 +62,7 @@ class PurchaseRepository(
             PhoneResult.Invalid -> return null
         }
         val entity = SupplierEntity(supplierId, clean, normalized, notes?.trim()?.ifEmpty { null }, true, db.inventory().supplier(supplierId)?.rev ?: 0)
-        db.withTransaction {
+        db.inTransaction {
             db.inventory().upsertSupplier(entity)
             db.outbox().insert(OutboxEntity(opId = UUID.randomUUID().toString(), kind = "SUPPLIER_UPSERT", entityId = supplierId,
                 payload = json.encodeToString(SupplierInputDto(clean, normalized, entity.notes, true)), createdAt = now()))
@@ -89,7 +88,7 @@ class PurchaseRepository(
             lines = lines.map { PurchaseLineInputDto(it.id, it.productId, it.name, it.quantityMilli, it.unitCostMinor) },
             paidMinor = paidMinor.takeIf { it > 0 }, paidSource = paidSource.takeIf { paidMinor > 0 }, note = cleanNote, occurredAt = Instant.ofEpochMilli(time).toString(),
         )
-        db.withTransaction {
+        db.inTransaction {
             db.inventory().upsertPurchase(purchase)
             db.inventory().insertItems(lines.mapIndexed { i, l -> PurchaseItemEntity(id, l.id, l.productId, l.name, l.quantityMilli, l.unitCostMinor, l.totalMinor, i) })
             for (l in lines) {
@@ -112,7 +111,7 @@ class PurchaseRepository(
         val id = UUID.randomUUID().toString()
         val time = now()
         val cleanNote = note?.trim()?.ifEmpty { null }
-        db.withTransaction {
+        db.inTransaction {
             recordPayment(id, purchaseId, purchase.supplierId, purchase.supplierName, amountMinor, source, cleanNote, time)
             db.outbox().insert(OutboxEntity(opId = UUID.randomUUID().toString(), kind = "SUPPLIER_PAYMENT", entityId = id,
                 payload = json.encodeToString(SupplierPaymentInputDto(purchaseId, amountMinor, source, cleanNote, Instant.ofEpochMilli(time).toString())), createdAt = time))
@@ -136,7 +135,7 @@ class PurchaseRepository(
     suspend fun voidPayment(paymentId: String, reason: String?) {
         val p = db.inventory().payment(paymentId) ?: return
         if (p.voided) return
-        db.withTransaction {
+        db.inTransaction {
             voidPaymentRows(p, reason)
             db.outbox().insert(OutboxEntity(opId = UUID.randomUUID().toString(), kind = "SUPPLIER_PAYMENT_VOID", entityId = paymentId, payload = json.encodeToString(ReasonBody(reason?.trim()?.ifEmpty { null })), createdAt = now()))
         }
@@ -149,7 +148,7 @@ class PurchaseRepository(
         if (purchase.voided) return
         val s = session.current()
         val time = now()
-        db.withTransaction {
+        db.inTransaction {
             db.inventory().upsertPurchase(purchase.copy(voided = true, voidReason = reason?.trim()?.ifEmpty { null }))
             for (l in db.inventory().items(purchaseId)) {
                 val p = l.productId?.let { db.products().get(it) } ?: continue

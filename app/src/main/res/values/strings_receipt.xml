@@ -30,7 +30,12 @@
     <string name="qty_save">Guardar</string>
     <string name="qty_remove">Eliminar línea</string>
     <string name="undo_added">%1$s ×%2$s · %3$s</string>
-    <string name="undo_deleted">Línea eliminada</string>
+    <string name="undo_deleted">Línea quitada</string>
     <string name="undo_cleared">Recibo vaciado</string>
     <string name="undo_action">Deshacer</string>
+    <!-- Tira de la última línea (Manual y Productos) -->
+    <string name="strip_remove">Quitar esta línea</string>
+    <string name="strip_qty">Cantidad %1$s. Toca para escribir otra</string>
+    <string name="strip_empty">Aquí verás el último producto que agregues</string>
+    <string name="strip_label">Última línea</string>
 </resources>

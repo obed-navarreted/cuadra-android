@@ -23,6 +23,15 @@ class BusinessSettingsTest {
         assertNull(BusinessSettingsRules.validate(base))
     }
 
+    @Test fun registerCheckoutIsOffByDefaultAndTravelsOnlyWhenItChanges() {
+        assertFalse(base.registerCheckout)
+        assertEquals(true, BusinessSettingsRules.patch(base.copy(registerCheckout = true), base).registerCheckout)
+        assertNull(BusinessSettingsRules.patch(base.copy(name = "Otra"), base).registerCheckout)
+        val on = SettingsDraft.of(entity.copy(registerCheckout = true))
+        assertTrue(on.registerCheckout)
+        assertEquals(false, BusinessSettingsRules.patch(on.copy(registerCheckout = false), on).registerCheckout)
+    }
+
     @Test fun nothingChangedMeansAnEmptyPatch() {
         assertTrue(BusinessSettingsRules.patch(base, base).isEmpty)
     }

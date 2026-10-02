@@ -83,11 +83,13 @@ fun NotificationsScreen(vm: NotificationsViewModel, canSchedule: Boolean, onSche
     // El permiso se pide aquí, en contexto (Android 13+), y no al abrir la app.
     var allowed by remember { mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled()) }
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { allowed = NotificationManagerCompat.from(context).areNotificationsEnabled() }
-    NotificationsContent(
-        items, unread, prefs, allowed, canSchedule, vm, onSchedules, onRoute, onBack,
-        onAllow = if (Build.VERSION.SDK_INT >= 33) ({ ask.launch(Manifest.permission.POST_NOTIFICATIONS) }) else null,
-        onSettings = { context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) },
-    )
+    com.cuadra.caja.ui.common.Refreshing(vm.refresher) {
+        NotificationsContent(
+            items, unread, prefs, allowed, canSchedule, vm, onSchedules, onRoute, onBack,
+            onAllow = if (Build.VERSION.SDK_INT >= 33) ({ ask.launch(Manifest.permission.POST_NOTIFICATIONS) }) else null,
+            onSettings = { context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) },
+        )
+    }
 }
 
 /** La bandeja sin ViewModel (estado + acciones): es lo que dibuja la guardia de diseño. */

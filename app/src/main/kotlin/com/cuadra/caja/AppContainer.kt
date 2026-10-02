@@ -1,7 +1,7 @@
 package com.cuadra.caja
 
 import android.content.Context
-import com.cuadra.caja.data.local.CuadraDatabase
+import com.cuadra.caja.data.local.Db
 import com.cuadra.caja.data.remote.ApiFactory
 import com.cuadra.caja.data.remote.AppConfigStore
 import com.cuadra.caja.data.repo.AppConfigRepository
@@ -34,8 +34,11 @@ import com.cuadra.caja.data.sync.SyncScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -44,7 +47,9 @@ import kotlinx.coroutines.runBlocking
  */
 class AppContainer(private val context: Context) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    val db: CuadraDatabase = CuadraDatabase.create(context)
+    /** Una base por negocio (ADR 0014): `db` es siempre la del negocio de la sesión, o una vacía si aún no hay negocio. */
+    val databases = com.cuadra.caja.data.local.BusinessDatabases(context, scope)
+    val db: Db = databases
     val sessionStore = SessionStore(context)
 
     /** Preferencias de pantalla de este teléfono (tamaño de letra). */
@@ -53,6 +58,11 @@ class AppContainer(private val context: Context) {
     @Volatile private var sessionSnapshot: Session = runBlocking { sessionStore.current() }
 
     init {
+        // Primero se rescata la cola de la base vieja (si la hay) hacia la de cada negocio; después la base activa pasa a ser la del negocio de la sesión
+        // y, de ahí en adelante, cambia sola con cada cambio de sesión (SessionStore avisa de forma síncrona).
+        runBlocking { com.cuadra.caja.data.local.LegacyDatabase.migrate(context, databases, sessionSnapshot.businessId) }
+        sessionStore.onSession = { databases.select(it.businessId) }
+        databases.select(sessionSnapshot.businessId)
         sessionStore.flow.onEach { sessionSnapshot = it }.launchIn(scope)
     }
 
@@ -62,8 +72,10 @@ class AppContainer(private val context: Context) {
     private val requestSync: () -> Unit = { SyncScheduler.requestSoon(context) }
 
     val products = ProductRepository(db, api, sessionStore, requestSync)
+    /** Promociones por cantidad (la caja las aplica sola, sin conexión). */
+    val promotions = com.cuadra.caja.data.repo.PromotionRepository(db, requestSync)
     val sales = SaleRepository(db, api, sessionStore, requestSync)
-    val auth = AuthRepository(db, api, sessionStore)
+    val auth = AuthRepository(db, api, sessionStore, dbFor = databases::forBusiness)
     val team = TeamRepository(db, teamApi, sessionStore, auth, api)
     val customers = CustomerRepository(db, requestSync)
     val credits = CreditRepository(db, sessionStore, requestSync)
@@ -73,7 +85,7 @@ class AppContainer(private val context: Context) {
     val purchases = PurchaseRepository(db, sessionStore, requestSync)
     val schedules = ScheduleRepository(api, sessionStore)
     val reports = ReportRepository(api, sessionStore)
-    val settings = SettingsRepository(db, api, sessionStore, schedules)
+    val settings = SettingsRepository(db, api, sessionStore, schedules, databases)
     val plan = PlanRepository(api, sessionStore)
     val support = SupportRepository(api)
     val templates = TemplateRepository(db, api, sessionStore)
@@ -81,6 +93,11 @@ class AppContainer(private val context: Context) {
     /** «Requiere atención»: lo rechazado por el servidor, con Reintentar y Descartar. */
     val attention = com.cuadra.caja.data.repo.AttentionRepository(db, sessionStore, requestSync)
     val appConfig = AppConfigRepository(api, AppConfigStore(context))
+
+    init {
+        // Una llamada respondió PIN_VERIFICATION_REQUIRED: la persona baja al rol base hasta «Confirmar PIN».
+        com.cuadra.caja.data.remote.PinVerificationSignal.onRequired = { member -> scope.launch { auth.pinVerificationRequired(member) } }
+    }
     val presenter = NotificationPresenter(context, db, sessionStore)
 
     /** Lectores de códigos: cámara, teclado (wedge) y Zebra DataWedge, todos por aquí. */
@@ -92,13 +109,17 @@ class AppContainer(private val context: Context) {
     /** Enlace pendiente de abrir (de una notificación). La pantalla lo consume: `AppRoot` lo lee y lo deja en nulo. */
     val pendingRoute = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
 
+    /** Avisos al instante (Firebase): token de esta instalación registrado en el negocio activo. Sin Firebase no hace nada. */
+    val pushPrefs = com.cuadra.caja.data.push.PushPrefs(context)
+    val push = com.cuadra.caja.data.push.PushRegistrar(context, api, pushPrefs)
+
     val sync = SyncCoordinator(
         engine = {
             val s = sessionSnapshot
             if (s.deviceToken == null || s.businessId == null) null
             else SyncEngine(
                 RetrofitSyncRemote(api, s.businessId) { sessionSnapshot.memberId },
-                RoomSyncStore(db, s.businessId) { sessionSnapshot.memberId != null },
+                RoomSyncStore(databases.forBusiness(s.businessId), s.businessId) { sessionSnapshot.memberId != null },
             )
         },
         onAuthProblem = { code ->
@@ -113,8 +134,20 @@ class AppContainer(private val context: Context) {
         },
         // Después de sincronizar: los avisos nuevos salen como notificación y los leídos viejos se limpian.
         onSynced = {
+            // Rol base del teléfono y permisos de PIN verificado (ADR 0012, 2026-10-01): la persona activa queda con el rol que le toca.
+            runCatching { auth.refreshDeviceAccess() }
             presenter.showNew()
             db.notifications().pruneRead(System.currentTimeMillis() - 60L * 24 * 3600 * 1000)
         },
     )
+
+    /** Sincronización con la app a la vista: al volver, al abrir la caja, al llegar un aviso y de respaldo cada 30 s sin Firebase (5 min con él). */
+    val foreground = com.cuadra.caja.data.push.ForegroundSync(scope, run = { sync.run() }, pushActive = { push.active })
+
+    init {
+        // El token se registra en el negocio y con la persona que atiende; al cambiar de negocio o de persona, otra vez. Sin negocio se olvida.
+        sessionStore.flow.map { Triple(it.businessId, it.memberId, it.deviceToken ?: it.userToken) }.distinctUntilChanged().onEach { (business, _, _) ->
+            if (business == null) push.forget() else runCatching { push.register(sessionStore.current()) }
+        }.launchIn(scope)
+    }
 }

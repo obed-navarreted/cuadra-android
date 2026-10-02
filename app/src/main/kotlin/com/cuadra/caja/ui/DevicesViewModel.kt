@@ -34,19 +34,27 @@ class DevicesViewModel(private val c: AppContainer) : ViewModel(), DevicesAction
         viewModelScope.launch { c.sessionStore.flow.collect { s -> _ui.update { it.copy(thisDeviceId = s.deviceId) } } }
     }
 
+    /** Refresco al abrir, al volver al frente y al deslizar (con antirrebote). */
+    val refresher = ScreenRefresh(viewModelScope) { if (fetch()) RefreshResult.DONE else RefreshResult.OFFLINE }
+
     override fun enter() {
         _ui.update { it.copy(notice = null, revoking = null) }
-        load()
+        refresher.request(com.cuadra.caja.domain.RefreshTrigger.SHOWN)
     }
 
-    override fun load() {
+    override fun load() { viewModelScope.launch { fetch() } }
+
+    /** Devuelve false sin conexión (la lista guardada sigue a la vista, sin error). */
+    private suspend fun fetch(): Boolean {
         _ui.update { it.copy(loading = true, loadError = null) }
-        viewModelScope.launch {
-            c.team.devices().fold(
-                onSuccess = { list -> _ui.update { it.copy(loading = false, devices = list) } },
-                onFailure = { e -> _ui.update { it.copy(loading = false, loadError = e.teamError()) } },
-            )
-        }
+        return c.team.devices().fold(
+            onSuccess = { list -> _ui.update { it.copy(loading = false, devices = list) }; true },
+            onFailure = { e ->
+                val offline = e is com.cuadra.caja.data.remote.ApiFailure.Offline
+                _ui.update { it.copy(loading = false, loadError = if (offline && it.devices.isNotEmpty()) null else e.teamError()) }
+                !offline
+            },
+        )
     }
 
     override fun dismissNotice() = _ui.update { it.copy(notice = null) }

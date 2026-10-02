@@ -14,7 +14,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
 import com.cuadra.caja.core.i18n.AppLocale
 import com.cuadra.caja.core.model.Currency
-import com.cuadra.caja.data.local.CuadraDatabase
+import com.cuadra.caja.data.local.Db
 import com.cuadra.caja.data.sync.calendar
 import com.cuadra.caja.domain.SaleView
 import com.cuadra.caja.domain.printing.ConnIssue
@@ -45,7 +45,7 @@ enum class DebugPrinter { CONNECTED, DISCONNECTED }
  * de la prueba y de la vista previa. Sin servicio en segundo plano: `attach`/`detach` los llama `MainActivity` al ponerse a la vista y al salir.
  * Nada aquí necesita red.
  */
-class PrinterHub(private val context: Context, private val scope: CoroutineScope, private val db: CuadraDatabase) {
+class PrinterHub(private val context: Context, private val scope: CoroutineScope, private val db: Db) {
     val prefs = PrinterPrefs(context, scope)
     val settings: StateFlow<PrinterSettings> get() = prefs.settings
 

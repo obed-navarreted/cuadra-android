@@ -24,8 +24,15 @@ class GuardCase(
     val expectTotal: Boolean = expectKeys != null,
     /** El número del botón «Recibo · N» debe verse entero (regla K); N = líneas del carrito. */
     val expectBadge: Int? = null,
+    /** La tira de la última línea debe dibujarse (regla L). Aunque sea false, si se dibuja se revisa igual. */
+    val expectStrip: Boolean = false,
+    /** Con qué ajustes debe dibujarse sí o sí (en los extremos de poco alto o de letra enorme la tira cede su lugar a propósito). */
+    val stripWhen: (GuardCfg) -> Boolean = STRIP_NORMAL,
     val content: @Composable () -> Unit,
 )
+
+/** Cuándo la tira de la última línea debe verse sí o sí: letra efectiva hasta 1.3×, sin teclado y en una ventana de 700 dp o más (más allá puede ceder su lugar). */
+val STRIP_NORMAL: (GuardCfg) -> Boolean = { it.effectiveScale <= 1.3f && it.imeDp == 0 && it.windowDp >= 700 }
 
 /** Teclas de la calculadora de la caja: 0-9, «.», «×», «⌫» y «Agregar». */
 const val CAJA_KEYS = 14
@@ -62,6 +69,7 @@ class GuardRunner(private val rule: ComposeTestRule, private val group: String) 
                 val root = rule.onRoot(useUnmergedTree = true).fetchSemanticsNode()
                 findings += LayoutGuard.inspect(root, case.name, c, density)
                 if (case.expectTotal) findings += LayoutGuard.inspectTotal(root, case.name, c, density)
+                findings += LayoutGuard.inspectStrip(root, case.name, c, density, case.expectStrip && case.stripWhen(c))
                 case.expectBadge?.let { findings += LayoutGuard.inspectReceiptBadge(root, case.name, c, density, it) }
                 // Una tecla que ni se dibuja no la ve ninguna regla de posición: se cuentan.
                 case.expectKeys?.let { expected ->

@@ -52,4 +52,13 @@ class SaleFlashTest {
         assertEquals(3_500L, SaleNotice.visibleMillis(true))
         assertEquals(8_000L, SaleNotice.visibleMillis(false))
     }
+
+    @Test fun sentToTheRegisterIsAShortConfirmationWithTheNoteAndNoUndo() {
+        val c = SaleNotice.of(12_000, 0, doneAtMillis = 1_000, nowMillis = 2_000, sent = true, note = "Mesa 4")
+        assertEquals(SaleNoticeContent.Kind.SENT, c.kind)
+        assertEquals("Mesa 4", c.note)
+        assertFalse(c.canUndo)
+        assertEquals(null, SaleNotice.of(12_000, 0, 1_000, 2_000, sent = true, note = "  ").note)
+        assertEquals(SaleNotice.UNDONE_MILLIS, SaleNotice.visibleMillis(true))
+    }
 }

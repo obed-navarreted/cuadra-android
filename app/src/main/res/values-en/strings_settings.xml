@@ -157,6 +157,7 @@
     <string name="act_DEVICE_CLAIM">Linked a phone with a code</string>
     <string name="act_DEVICE_SELF_LINK">Linked a phone</string>
     <string name="act_DEVICE_REVOKE">Unlinked a phone</string>
+    <string name="act_DEVICE_PIN_VERIFIED">Confirmed their PIN on a business phone</string>
     <string name="act_OWNER_TRANSFER">Transferred business ownership</string>
     <string name="act_BUSINESS_CREATE">Created the business</string>
     <string name="act_BUSINESS_UPDATE">Changed the business settings</string>

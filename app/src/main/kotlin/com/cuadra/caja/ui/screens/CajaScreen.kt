@@ -50,6 +50,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -111,6 +112,10 @@ fun CajaScreen(vm: CajaViewModel, container: com.cuadra.caja.AppContainer, busin
     val parked by vm.parked.collectAsState()
     val sold by vm.soldToday.collectAsState()
     val askDescription by container.display.askDescription.collectAsState()
+    val registerCheckout by vm.registerCheckout.collectAsState()
+    val lineCounts by vm.parkedLineCounts.collectAsState()
+    val business by vm.business.collectAsState()
+    val zone = remember(business?.timezone) { runCatching { java.time.ZoneId.of(business?.timezone) }.getOrDefault(java.time.ZoneId.systemDefault()) }
     // Lector físico (teclado o DataWedge): mientras la caja está a la vista, sus lecturas llegan aquí.
     val hub = container.scanner
     val readerReady by hub.ready.collectAsState()
@@ -120,8 +125,9 @@ fun CajaScreen(vm: CajaViewModel, container: com.cuadra.caja.AppContainer, busin
     }
     CajaContent(
         ui, tabs, products, parked, sold, businessName, memberName, vm, onLock, readerReady = readerReady,
-        shareDialog = { request, dismiss -> ShareDialog(container, request, dismiss) },
-        askDescription = askDescription, canManageFrequents = canManageFrequents,
+        // El comprobante de una venta (sin cliente) pide el número: hoja chica con «Elegir de contactos» y «Abrir WhatsApp». El detalle de un fiado, la de siempre.
+        shareDialog = { request, dismiss -> if (request is ShareRequest.Ticket) WhatsAppNumberDialog(container, request, dismiss) else ShareDialog(container, request, dismiss) },
+        askDescription = askDescription, canManageFrequents = canManageFrequents, registerCheckout = registerCheckout, lineCounts = lineCounts, zone = zone,
     )
 }
 
@@ -143,6 +149,10 @@ fun CajaContent(
     askDescription: Boolean = false,
     /** Quien puede editar productos: marca/quita frecuentes (pulsación larga) y los ordena. */
     canManageFrequents: Boolean = true,
+    /** Cobro en caja (ADR 0015): el botón del encabezado es «Por cobrar en caja» y reúne esas cuentas y las apartadas. */
+    registerCheckout: Boolean = false,
+    lineCounts: Map<String, Int> = emptyMap(),
+    zone: java.time.ZoneId = java.time.ZoneId.systemDefault(),
 ) {
     val activeTab = if (ui.tab in tabs) ui.tab else tabs.first()
     val cobro = ui.cobro
@@ -159,7 +169,7 @@ fun CajaContent(
     // El aviso de la venta cobrada se queda hasta el primer toque del teclado o de un producto (lo quita el ViewModel) o unos 8 s; con la hoja «Anular» abierta no corre.
     LaunchedEffect(saleNotice?.saleId, saleNotice?.undone, ui.saleUndo != null) {
         if (saleNotice == null || ui.saleUndo != null) return@LaunchedEffect
-        delay(com.cuadra.caja.domain.SaleNotice.visibleMillis(saleNotice.undone))
+        delay(com.cuadra.caja.domain.SaleNotice.visibleMillis(saleNotice.undone || saleNotice.sent))
         actions.hideSaleNotice()
     }
     if (cobro != null) {
@@ -185,32 +195,43 @@ fun CajaContent(
         // `RegisterFrame`: el total (`Hero`) tiene prioridad sobre las pestañas, la descripción y el encabezado; ver su documentación.
         RegisterFrame(
             Modifier.fillMaxSize().imePadding().padding(horizontal = 16.dp), spacing = 4.dp, bodyNatural = typing,
-            header = { full -> Header(full, businessName, memberName, parked.size, soldToday, onParked = { actions.toggleParked(true) }, onLock = onLock) },
-            hero = { Hero(ui.cart, readerReady, ui.printer, onOpen = actions::openReceipt, onScan = actions::openScanner, onPrinter = actions::openPrinterSettings) },
+            header = { full -> Header(full, businessName, memberName, parked.size, soldToday, onParked = { actions.toggleParked(true) }, onLock = onLock, registerCheckout = registerCheckout) },
+            hero = { Hero(ui.priced.cart, readerReady, ui.printer, onOpen = actions::openReceipt, onScan = actions::openScanner, onPrinter = actions::openPrinterSettings) },
             body = {
                 if (typing) {
                     if (tabs.size > 1) Tabs(tabs, activeTab, actions)
                 } else {
-                    LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (tabs.size > 1) item { Tabs(tabs, activeTab, actions) }
-                        if (activeTab == PosTab.PRODUCTS) productsTab(ui, products, canManageFrequents, actions)
+                    // La tira de la última línea de «Productos» va pegada bajo el buscador: completa (nombre y controles), compacta (solo controles) o, si la lista
+                    // quedaría sin lugar (teléfono bajo y letra enorme), ninguna. Con el teclado abierto (buscando) o en «Ordenar frecuentes» tampoco.
+                    BoxWithConstraints(Modifier.fillMaxSize()) {
+                        val mode = if (imeOpen || ui.reordering || ui.receiptOpen) StripMode.NONE else StripMode.forProductsBody(maxHeight, fontFactor())
+                        LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (tabs.size > 1) item { Tabs(tabs, activeTab, actions) }
+                            if (activeTab == PosTab.PRODUCTS) productsTab(
+                                ui, products, canManageFrequents, actions,
+                                strip = if (mode == StripMode.NONE) null else ({ LastLineStrip(ui.lastLine, compact = mode == StripMode.COMPACT, actions = actions) }),
+                            )
+                        }
                     }
                 }
             },
             dock = if (typing) ({ TypeDock(ui, entryTotal, keyHeight, imeOpen, askDescription, actions) }) else null,
+            // «Manual»: la última línea del recibo (cantidad editable) en el hueco entre las pestañas y la calculadora; sin teclado del sistema, sin la hoja del recibo abierta (la tapa) y con al menos una línea.
+            reserveForStrip = if (!typing && !imeOpen && !ui.reordering && !ui.receiptOpen) StripMode.compactBodyMin(fontFactor()) else 0.dp,
+            strip = ui.lastLine?.takeIf { typing && !imeOpen && !ui.receiptOpen }?.let { line -> { compact -> LastLineStrip(line, compact, actions) } },
             footer = {
                 Column(Modifier.fillMaxWidth().testTag(TAG_BOTTOM_BAR).padding(bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PosBottomBar(ui.cart, actions)
+                    PosBottomBar(ui.priced.cart, actions)
                 }
             },
-            // Aviso flotante «Cuajada ×1 · C$ 25.00 · Deshacer»: en el hueco libre entre las pestañas y la calculadora (o sobre el encabezado), sin ocupar lugar
+            // Aviso flotante «Línea quitada · Deshacer» (agregar ya no abre aviso: la tira de la última línea lleva su − y su ✕): en el hueco libre entre las pestañas y la calculadora (o sobre el encabezado), sin ocupar lugar
             // ni tapar las pestañas, el total, las teclas o la barra (ver `RegisterFrame`).
             // Con la hoja del recibo abierta, el aviso se dibuja dentro de la hoja (esta capa queda detrás de su fondo oscuro).
             // Prioridad: el aviso de la venta cobrada (vuelto / «Anular», destacado), luego «Deshacer» de la calculadora y al final los avisos de impresión
             // (las advertencias de impresión esperan a que el aviso de la venta se vaya).
             overlay = saleNotice?.takeIf { !ui.receiptOpen }?.let { n ->
                 {
-                    val content = com.cuadra.caja.domain.SaleNotice.of(n.totalMinor, n.changeMinor, n.doneAtMillis, System.currentTimeMillis(), n.undone)
+                    val content = com.cuadra.caja.domain.SaleNotice.of(n.totalMinor, n.changeMinor, n.doneAtMillis, System.currentTimeMillis(), n.undone, n.sent, n.note)
                     SaleNoticePopup(content, printed = ui.printNotice == PrintNotice.PRINTED, onUndo = actions::askUndoSale)
                 }
             }
@@ -219,7 +240,7 @@ fun CajaContent(
             overlayLarge = saleNotice != null && !ui.receiptOpen,
         )
     }
-    Overlays(ui, actions, parked)
+    Overlays(ui, actions, parked, registerCheckout, lineCounts, zone)
 }
 
 /** Cuánto dura el aviso flotante «Deshacer» a la vista. */
@@ -343,20 +364,22 @@ private fun tabLabel(t: PosTab) = when (t) {
  * «Atiende: …» en su línea y «Vendido hoy …» en la suya, las dos a la izquierda y en negrita. Es lo primero que se acorta si no hay alto para el total (ver `RegisterFrame`).
  */
 @Composable
-private fun Header(full: Boolean, business: String, member: String, parkedCount: Int, soldToday: Long, onParked: () -> Unit, onLock: () -> Unit) {
+private fun Header(full: Boolean, business: String, member: String, parkedCount: Int, soldToday: Long, onParked: () -> Unit, onLock: () -> Unit, registerCheckout: Boolean = false) {
     Column(Modifier.fillMaxWidth().padding(vertical = com.cuadra.caja.ui.common.HEADER_GAP), verticalArrangement = Arrangement.spacedBy(com.cuadra.caja.ui.common.HEADER_LINE_GAP)) {
         // Los botones nunca se pisan con el nombre: si no caben lado a lado, quedan arriba a la derecha y el nombre baja (SplitRow).
         SplitRow(
             Modifier.fillMaxWidth(), endMaxFraction = 0.6f, spacing = 8.dp,
             end = {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    CuadraChip(stringResource(R.string.register_parked) + if (parkedCount > 0) " $parkedCount" else "", parkedCount > 0, onParked)
+                    // Con cobro en caja: «Por cobrar en caja N» (esas cuentas y las apartadas, en un solo lugar).
+                    CuadraChip(stringResource(if (registerCheckout) R.string.register_queue_chip else R.string.register_parked) + if (parkedCount > 0) " $parkedCount" else "", parkedCount > 0, onParked,
+                        Modifier.weight(1f, fill = false))
                     CuadraButton("⇄", onLock, Modifier.size(48.dp), height = 48)
                 }
             },
         ) {
             // El nombre del negocio es lo único que puede terminar en «…» (deliberado, etiquetado): hasta 2 líneas y, antes, la letra baja hasta 70 %.
-            Text(business, style = MaterialTheme.typography.titleMedium, maxLines = 2, ellipsize = true, minScale = 0.7f)
+            Text(business, style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraBold, maxLines = 2, ellipsize = true, minScale = 0.7f)
         }
         if (full) {
             Text(

@@ -15,6 +15,9 @@ data class SaleReturnView(
 
 data class ReturnLineView(val saleItemId: String, val name: String, val quantityMilli: Long, val amountMinor: Long)
 
+/** Una promoción que aplicó la venta: «Promo 3 por C$ 100: −C$ 70». */
+data class SalePromotionView(val name: String, val quantity: Int, val priceMinor: Long, val units: Long, val discountMinor: Long)
+
 data class SalePaymentView(
     val method: String, val otherLabel: String?, val amountMinor: Long, val tenderedMinor: Long?, val changeMinor: Long?, val reference: String?, val debtorLabel: String?,
 )
@@ -31,7 +34,16 @@ data class SaleView(
     val returnedMinor: Long = 0, val returns: List<SaleReturnView> = emptyList(),
     /** Quién la cobró (id) y cuándo exactamente (para «Anular esta venta» y la regla de devolución del cajero). */
     val completedById: String? = null, val completedAtMillis: Long? = null,
+    /** Quién la tomó (atendió). Con cobro en caja puede ser otra persona que quien la cobró (`soldBy`): «Atendió: Kevin · Cobró: Ana». */
+    val takenBy: String? = null,
+    /** Cobro en caja: quién la envió a caja y cuándo (si pasó por la caja). */
+    val sentBy: String? = null, val sentAtMillis: Long? = null,
+    /** Promociones por cantidad aplicadas (su descuento ya está en las líneas). */
+    val promotions: List<SalePromotionView> = emptyList(),
 ) {
+    /** «Descuentos por promociones» de esta venta. */
+    val promotionDiscountMinor: Long get() = promotions.sumOf { it.discountMinor }
+
     val cancelled: Boolean get() = status == "CANCELLED"
 
     /** Las líneas con lo ya devuelto, para calcular una devolución (monto devuelto por línea sale de las devoluciones). */

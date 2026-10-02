@@ -67,7 +67,7 @@ fun BusinessDto.toEntity() = BusinessEntity(
     json.encodeToString(MapSerializer(String.serializer(), Boolean.serializer()), modules),
     json.encodeToString(ListSerializer(String.serializer()), posViews), creditRequiresCustomer, shiftRequired, shiftNoteThresholdMinor,
     com.cuadra.caja.domain.BusinessCalendar.toJson(dayRules), dayRuleEffectiveFrom,
-    type, creditDefaultDueDays, creditOverdueDays, creditLimitEnforced, accessCode, currencyLocked,
+    type, creditDefaultDueDays, creditOverdueDays, creditLimitEnforced, accessCode, currencyLocked, registerCheckout,
 )
 
 /** Las jornadas del negocio con su historial de reglas (la única fuente de «a qué día pertenece»; nunca la zona del teléfono). */
@@ -77,7 +77,10 @@ fun BusinessEntity.modules(): Map<String, Boolean> = json.decodeFromString(MapSe
 fun BusinessEntity.posViews(): List<String> = json.decodeFromString(ListSerializer(String.serializer()), posViewsJson)
 
 /** Lo que el servidor sabe de una venta: cabecera, líneas, pagos y devoluciones listos para guardar. */
-data class SaleRows(val sale: SaleEntity, val items: List<SaleItemEntity>, val payments: List<SalePaymentEntity>, val returns: List<com.cuadra.caja.data.local.SaleReturnEntity> = emptyList())
+data class SaleRows(
+    val sale: SaleEntity, val items: List<SaleItemEntity>, val payments: List<SalePaymentEntity>, val returns: List<com.cuadra.caja.data.local.SaleReturnEntity> = emptyList(),
+    val promotions: List<com.cuadra.caja.data.local.SalePromotionEntity> = emptyList(),
+)
 
 fun SaleDto.toRows(): SaleRows {
     val sale = SaleEntity(
@@ -86,7 +89,7 @@ fun SaleDto.toRows(): SaleRows {
         completedAt = millis(completedAt), editedByName = editedBy?.name, cancelledByName = cancelledBy?.name, cancelReason = cancelReason,
         lockedByDeviceId = lockedByDeviceId, createdAt = millis(createdAt) ?: 0, updatedAt = millis(updatedAt) ?: 0, rev = rev,
         editedAt = millis(editedAt), cancelledAt = millis(cancelledAt), reviewFlag = reviewFlag, conflictOfSaleId = conflictOfSaleId, returnedMinor = returnedMinor,
-        completedByMemberId = completedBy?.id,
+        completedByMemberId = completedBy?.id, sentToRegisterAt = millis(sentToRegisterAt), sentByName = sentBy?.name,
     )
     return SaleRows(
         sale,
@@ -95,8 +98,17 @@ fun SaleDto.toRows(): SaleRows {
             SalePaymentEntity(id, p.id, p.method, p.otherLabel, p.amountMinor, p.tenderedMinor, p.changeMinor, p.reference, i, p.debtorLabel, p.debtorPhone, p.customerId)
         },
         returns.map { it.toEntity(rev) },
+        promotions.mapIndexed { i, p -> com.cuadra.caja.data.local.SalePromotionEntity(id, i, p.promotionId, p.name, p.quantity, p.priceMinor, p.units, p.discountMinor) },
     )
 }
+
+fun com.cuadra.caja.data.remote.PromotionDto.toEntity() = com.cuadra.caja.data.local.PromotionEntity(id, name, quantity, priceMinor, active, startsOn, endsOn, rev)
+
+/** La promoción como la usa el motor de precios (`PromotionEngine`). */
+fun com.cuadra.caja.data.local.PromotionEntity.toRule(productIds: Set<String>) = com.cuadra.caja.domain.PromotionRule(
+    id, name, quantity, priceMinor, productIds, active, startsOn?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() },
+    endsOn?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() },
+)
 
 fun com.cuadra.caja.data.remote.ReturnDto.toEntity(rev: Long) = com.cuadra.caja.data.local.SaleReturnEntity(
     id, saleId, reason, refundMethod, totalMinor, createdBy?.name, millis(occurredAt) ?: 0,

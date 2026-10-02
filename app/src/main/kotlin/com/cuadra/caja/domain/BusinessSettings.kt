@@ -60,6 +60,8 @@ data class SettingsDraft(
     /** País y moneda: se cambian solo mientras no haya actividad (el servidor responde CURRENCY_LOCKED después). */
     val country: String = "",
     val currency: String = "",
+    /** Cobro en caja (ADR 0015): quien atiende envía la cuenta a caja y otra persona la cobra. */
+    val registerCheckout: Boolean = false,
 ) {
     companion object {
         fun of(b: BusinessEntity) = SettingsDraft(
@@ -74,6 +76,7 @@ data class SettingsDraft(
             creditOverdueDays = b.creditOverdueDays.toString(),
             country = b.country,
             currency = b.currency,
+            registerCheckout = b.registerCheckout,
         )
     }
 }
@@ -124,6 +127,7 @@ object BusinessSettingsRules {
             creditOverdueDays = d.creditOverdueDays.trim().takeIf { it != current.creditOverdueDays.trim() }?.toIntOrNull(),
             currency = d.currency.trim().uppercase().takeIf { it.isNotEmpty() && it != current.currency.trim().uppercase() },
             country = d.country.trim().uppercase().takeIf { it.isNotEmpty() && it != current.country.trim().uppercase() },
+            registerCheckout = d.registerCheckout.takeIf { it != current.registerCheckout },
         )
     }
 

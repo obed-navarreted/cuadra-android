@@ -1,11 +1,10 @@
 package com.cuadra.caja.data.repo
 
-import androidx.room.withTransaction
 import com.cuadra.caja.data.local.CreditEntity
 import com.cuadra.caja.data.local.CreditItem
 import com.cuadra.caja.data.local.CreditPaymentEntity
 import com.cuadra.caja.data.local.CreditTotals
-import com.cuadra.caja.data.local.CuadraDatabase
+import com.cuadra.caja.data.local.Db
 import com.cuadra.caja.data.local.OutboxEntity
 import com.cuadra.caja.data.remote.EventInputDto
 import com.cuadra.caja.data.remote.LinkCustomerBody
@@ -47,7 +46,7 @@ sealed interface ManualResult {
  * Todo se guarda en el teléfono y en la cola de salida en una sola transacción; cobrar un abono nunca espera a la red.
  */
 class CreditRepository(
-    private val db: CuadraDatabase,
+    private val db: Db,
     private val session: SessionStore,
     private val requestSync: () -> Unit,
     private val now: () -> Long = System::currentTimeMillis,
@@ -78,7 +77,7 @@ class CreditRepository(
         val time = now()
         val entity = CreditEntity(id, null, customerId, name, normalized, amountMinor, amountMinor, "OPEN", null, note?.trim()?.ifEmpty { null }, time, session.current().memberName, null, 0)
         val input = ManualCreditInputDto(name, normalized, customerId, amountMinor, entity.note, createdAt = Instant.ofEpochMilli(time).toString())
-        db.withTransaction {
+        db.inTransaction {
             db.credits().upsert(entity)
             customerId?.let { db.customers().recompute(listOf(it)) }
             db.outbox().insert(OutboxEntity(opId = UUID.randomUUID().toString(), kind = "CREDIT_UPSERT", entityId = id, payload = json.encodeToString(input), createdAt = time))
@@ -93,7 +92,7 @@ class CreditRepository(
         val id = UUID.randomUUID().toString()
         val time = now()
         val payment = payment(id, credit.id, credit.customerId, null, amountMinor, method, reference?.trim()?.ifEmpty { null }, time)
-        db.withTransaction {
+        db.inTransaction {
             db.credits().upsertPayments(listOf(payment))
             recompute(listOf(credit.id))
             db.outbox().insert(op("CREDIT_PAYMENT", id, PayInputDto(creditId = creditId, amountMinor = amountMinor, method = method, reference = payment.reference, occurredAt = iso(time))))
@@ -112,7 +111,7 @@ class CreditRepository(
         val time = now()
         val ref = reference?.trim()?.ifEmpty { null }
         val payments = allocation.map { a -> payment(childId(group, a.creditId), a.creditId, customerId, group, a.amountMinor, method, ref, time) }
-        db.withTransaction {
+        db.inTransaction {
             db.credits().upsertPayments(payments)
             recompute(allocation.map { it.creditId })
             db.outbox().insert(op("CREDIT_PAYMENT", group, PayInputDto(customerId = customerId, amountMinor = amountMinor, method = method, reference = ref, occurredAt = iso(time))))
@@ -125,7 +124,7 @@ class CreditRepository(
     suspend fun link(creditId: String, customerId: String) {
         val credit = db.credits().get(creditId) ?: return
         val customer = db.customers().get(customerId) ?: return
-        db.withTransaction {
+        db.inTransaction {
             db.credits().link(creditId, customerId, customer.phone)
             db.credits().linkPayments(creditId, customerId)
             db.customers().recompute(listOfNotNull(credit.customerId, customerId))
@@ -137,7 +136,7 @@ class CreditRepository(
     /** Condonar: cierra la deuda sin cobrarla. Solo dueño/admin (el servidor lo exige aunque la app no lo ofrezca). */
     suspend fun writeOff(creditId: String, reason: String) {
         val credit = db.credits().get(creditId) ?: return
-        db.withTransaction {
+        db.inTransaction {
             db.credits().upsert(credit.copy(status = "WRITTEN_OFF", balanceMinor = 0))
             credit.customerId?.let { db.customers().recompute(listOf(it)) }
             db.outbox().insert(op("CREDIT_WRITE_OFF", creditId, ReasonBody(reason)))
@@ -149,7 +148,7 @@ class CreditRepository(
     suspend fun voidPayment(paymentId: String, reason: String?) {
         val targets = db.credits().paymentsByIdOrGroup(paymentId)
         if (targets.isEmpty()) return
-        db.withTransaction {
+        db.inTransaction {
             db.credits().voidPayments(targets.map { it.id }, reason)
             recompute(targets.map { it.creditId }.distinct())
             db.outbox().insert(op("CREDIT_PAYMENT_VOID", paymentId, ReasonBody(reason)))
@@ -161,7 +160,7 @@ class CreditRepository(
     suspend fun recordEvent(creditId: String?, customerId: String?, kind: String, format: String) {
         if (creditId == null && customerId == null) return    // un fiado de solo nota sin id aún: no hay a qué asociar el registro
         val time = now()
-        db.withTransaction {
+        db.inTransaction {
             if (kind == "REMINDER_OPENED") {
                 creditId?.let { db.credits().markReminder(it, time) }
                 customerId?.let { db.customers().get(it)?.let { c -> db.customers().upsert(c.copy(lastReminderAt = time)) } }

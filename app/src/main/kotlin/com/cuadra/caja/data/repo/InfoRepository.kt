@@ -1,7 +1,6 @@
 package com.cuadra.caja.data.repo
 
-import androidx.room.withTransaction
-import com.cuadra.caja.data.local.CuadraDatabase
+import com.cuadra.caja.data.local.Db
 import com.cuadra.caja.data.local.TemplateEntity
 import com.cuadra.caja.data.remote.ActivityEntryDto
 import com.cuadra.caja.data.remote.CuadraApi
@@ -42,7 +41,7 @@ class SupportRepository(private val api: CuadraApi) {
  * Plantillas de los mensajes de WhatsApp. Lo que se guarda o se restaura se refleja también en Room (`message_templates`), que es de donde la hoja de compartir
  * lee el texto: el mensaje que sale por WhatsApp ya usa la plantilla editada sin esperar a la sincronización.
  */
-class TemplateRepository(private val db: CuadraDatabase, private val api: CuadraApi, private val session: SessionStore) {
+class TemplateRepository(private val db: Db, private val api: CuadraApi, private val session: SessionStore) {
     private suspend fun <T> call(block: suspend (String) -> T): Result<T> {
         val b = session.current().businessId ?: return Result.failure(IllegalStateException("no business"))
         return apiCall { block(b) }
@@ -52,7 +51,7 @@ class TemplateRepository(private val db: CuadraDatabase, private val api: Cuadra
 
     /** Pide las plantillas del servidor y deja Room igual (también borra las que ya no existen allá). */
     suspend fun refresh(): Result<Unit> = call { api.messageTemplates(it) }.map { remote ->
-        db.withTransaction {
+        db.inTransaction {
             val keep = remote.map { it.kind to it.locale }.toSet()
             db.templates().allNow().filter { (it.kind to it.locale) !in keep }.forEach { db.templates().delete(it.kind, it.locale) }
             remote.forEach { db.templates().upsert(it.toEntity()) }

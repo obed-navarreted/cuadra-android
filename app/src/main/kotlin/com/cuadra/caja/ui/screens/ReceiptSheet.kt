@@ -94,6 +94,8 @@ fun ReceiptSheet(ui: CajaUi, actions: CajaActions, parkedCount: Int = 0) {
 @Composable
 fun ReceiptSheetContent(ui: CajaUi, actions: CajaActions, parkedCount: Int = 0) {
     val cart = ui.cart
+    // Con promociones: el total que se cobra y, debajo de la última línea que tocó cada una, «Promo 3 por C$ 100: −C$ 70».
+    val priced = ui.priced
     Box(Modifier.fillMaxSize()) {
     ScreenFrame(
         Modifier.fillMaxSize().padding(horizontal = 16.dp), spacing = 8.dp,
@@ -118,14 +120,14 @@ fun ReceiptSheetContent(ui: CajaUi, actions: CajaActions, parkedCount: Int = 0) 
             }
         },
         footer = {
-            SplitRow(end = { MoneyText(money(cart.totalMinor), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.headlineSmall) }) {
+            SplitRow(end = { MoneyText(money(priced.totalMinor), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.headlineSmall) }) {
                 Text(stringResource(R.string.receipt_total), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
             }
             ButtonRow(Modifier.padding(bottom = 8.dp)) {
                 CuadraButton(stringResource(R.string.register_park), actions::askPark, Modifier.share(0.6f), enabled = !cart.isEmpty, height = 48)
                 CuadraButton(
-                    stringResource(R.string.register_charge) + if (cart.isEmpty) "" else "  ·  " + money(cart.totalMinor),
-                    actions::startCobro, Modifier.share(1f), kind = ButtonKind.PRIMARY, enabled = cart.totalMinor > 0, height = 48,
+                    stringResource(R.string.register_charge) + if (cart.isEmpty) "" else "  ·  " + money(priced.totalMinor),
+                    actions::startCobro, Modifier.share(1f), kind = ButtonKind.PRIMARY, enabled = priced.totalMinor > 0, height = 48,
                 )
             }
         },
@@ -135,7 +137,12 @@ fun ReceiptSheetContent(ui: CajaUi, actions: CajaActions, parkedCount: Int = 0) 
         } else {
             LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (ui.swipeHint) item(key = "hint") { SwipeHint(actions::dismissSwipeHint) }
-                items(cart.lines, key = { it.id }) { line -> ReceiptLine(line, actions) }
+                cart.lines.forEach { line ->
+                    item(key = line.id) { ReceiptLine(line, actions) }
+                    priced.promo.applied.filter { it.lineIds.lastOrNull() == line.id }.forEach { a ->
+                        item(key = "promo-" + a.promotionId) { PromoLineRow(a.quantity, a.priceMinor, a.discountMinor, Modifier.padding(horizontal = 12.dp)) }
+                    }
+                }
                 // Las cuentas apartadas también se abren desde aquí: en un teléfono muy bajo con letra enorme el encabezado de la caja (con «Apartadas») puede no caber.
                 if (parkedCount > 0) item(key = "parked") { LinkAction(stringResource(R.string.register_parked) + " $parkedCount  ›", { actions.toggleParked(true) }) }
             }

@@ -12,7 +12,7 @@ import kotlinx.serialization.json.longOrNull
  */
 object Attention {
     /** Qué era la operación. */
-    enum class What { SALE, SALE_CANCEL, SALE_RETURN, CREDIT_PAYMENT, CREDIT, EXPENSE, WITHDRAWAL, DEPOSIT, PRODUCT, CUSTOMER, OTHER }
+    enum class What { SALE, SALE_CANCEL, SALE_RETURN, CREDIT_PAYMENT, CREDIT, EXPENSE, WITHDRAWAL, DEPOSIT, PRODUCT, CUSTOMER, PROMOTION, OTHER }
 
     /** Por qué requiere atención (a partir del código estable del servidor). */
     enum class Reason {
@@ -20,7 +20,10 @@ object Attention {
         CONFLICT_COPY,
         /** La cuenta ya se cobró o descartó en otro teléfono con el mismo contenido. */
         ALREADY_CLOSED_ELSEWHERE,
-        CREDIT_LIMIT, CREDIT_CLOSED, NO_OPEN_CREDITS, MEMBER_DISABLED, DEVICE_NOT_TRUSTED, FORBIDDEN, PAYMENT_MISMATCH, CUSTOMER_REQUIRED,
+        CREDIT_LIMIT, CREDIT_CLOSED, NO_OPEN_CREDITS, MEMBER_DISABLED,
+        /** Quien la hizo tiene más rol que este teléfono y su PIN aún no se confirmó con el servidor aquí: «Confirmar PIN» y se reenvía (ADR 0012, 2026-10-01). */
+        PIN_VERIFICATION_REQUIRED,
+        FORBIDDEN, PAYMENT_MISMATCH, CUSTOMER_REQUIRED,
         CREDIT_HAS_PAYMENTS, NOT_FOUND, CODE_IN_USE,
         /** «Anular esta venta» llegó tarde (pasaron los 5 minutos) o ya no era la última: la venta sigue cobrada; el dueño o un admin pueden eliminarla. */
         UNDO_NOT_ALLOWED,
@@ -37,8 +40,12 @@ object Attention {
         val limitMinor: Long? = null, val balanceMinor: Long? = null, val customerName: String? = null,
         /** Rechazada (se puede reintentar) o aplicada con algo que revisar (solo se quita de la lista). */
         val review: Boolean = false,
+        /** Quién la hizo (para «Confirmar PIN»). */
+        val memberId: String? = null,
     ) {
         val canRetry: Boolean get() = !review
+        /** Se resuelve confirmando el PIN de quien la hizo en este teléfono (y luego se reenvía). */
+        val canConfirmPin: Boolean get() = !review && reason == Reason.PIN_VERIFICATION_REQUIRED && memberId != null
     }
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -50,12 +57,13 @@ object Attention {
         "CREDIT_CLOSED" -> Reason.CREDIT_CLOSED
         "NO_OPEN_CREDITS" -> Reason.NO_OPEN_CREDITS
         "MEMBER_NOT_ACTIVE", "ACCESS_DISABLED" -> Reason.MEMBER_DISABLED
-        "DEVICE_NOT_TRUSTED", "MEMBER_MISMATCH" -> Reason.DEVICE_NOT_TRUSTED
-        "FORBIDDEN" -> Reason.FORBIDDEN
+        // DEVICE_NOT_TRUSTED: el código de versiones anteriores del servidor para lo mismo.
+        "PIN_VERIFICATION_REQUIRED", "DEVICE_NOT_TRUSTED" -> Reason.PIN_VERIFICATION_REQUIRED
+        "FORBIDDEN", "MEMBER_MISMATCH" -> Reason.FORBIDDEN
         "PAYMENT_MISMATCH", "PAYMENT_REQUIRED", "TENDERED_TOO_LOW" -> Reason.PAYMENT_MISMATCH
         "CUSTOMER_REQUIRED", "DEBTOR_REQUIRED" -> Reason.CUSTOMER_REQUIRED
         "CREDIT_HAS_PAYMENTS", "CREDIT_PAID_EXCEEDS" -> Reason.CREDIT_HAS_PAYMENTS
-        "PRODUCT_NOT_FOUND", "SALE_NOT_FOUND", "CREDIT_NOT_FOUND", "PAYMENT_NOT_FOUND", "INVALID_CUSTOMER", "INVALID_CATEGORY" -> Reason.NOT_FOUND
+        "PRODUCT_NOT_FOUND", "SALE_NOT_FOUND", "CREDIT_NOT_FOUND", "PAYMENT_NOT_FOUND", "INVALID_CUSTOMER", "INVALID_CATEGORY", "PROMOTION_NOT_FOUND", "INVALID_PRODUCT" -> Reason.NOT_FOUND
         "BARCODE_IN_USE", "SHORT_CODE_IN_USE", "ID_TAKEN" -> Reason.CODE_IN_USE
         "UNDO_NOT_ALLOWED" -> Reason.UNDO_NOT_ALLOWED
         "RETURN_EXCEEDS_SOLD", "CREDIT_NOTE_EXCEEDS", "NO_CREDIT_TO_REDUCE", "RETURN_NOT_ALLOWED", "SALE_HAS_RETURNS", "SALE_NOT_COMPLETED", "EMPTY_RETURN" -> Reason.RETURN_REJECTED
@@ -68,7 +76,7 @@ object Attention {
      */
     fun describe(
         seq: Long, kind: String, payload: String, createdAt: Long, state: String, code: String?, detail: String?,
-        memberName: String?, saleTotal: Long?,
+        memberName: String?, saleTotal: Long?, memberId: String? = null,
     ): Item {
         val p = runCatching { json.parseToJsonElement(payload) as? JsonObject }.getOrNull()
         val d = detail?.let { runCatching { json.parseToJsonElement(it) as? JsonObject }.getOrNull() }
@@ -85,13 +93,15 @@ object Attention {
             "PRODUCT_UPSERT" -> Triple(What.PRODUCT, null, str(p, "name"))
             "PRODUCT_PATCH" -> Triple(What.PRODUCT, null, str(p?.get("set") as? JsonObject, "name"))
             "CUSTOMER_UPSERT" -> Triple(What.CUSTOMER, null, str(p, "name"))
+            "PROMOTION_UPSERT" -> Triple(What.PROMOTION, null, str(p, "name"))
+            "PROMOTION_DELETE" -> Triple(What.PROMOTION, null, null)
             else -> Triple(What.OTHER, null, null)
         }
         val c = code ?: "REJECTED"
         return Item(
             seq = seq, what = what, amountMinor = amount, name = name, at = createdAt, byName = memberName, reason = reasonOf(c), code = c,
             limitMinor = long(d, "limitMinor"), balanceMinor = long(d, "balanceMinor"), customerName = str(d, "customerName"),
-            review = state == "REVIEW",
+            review = state == "REVIEW", memberId = memberId ?: str(d, "memberId"),
         )
     }
 

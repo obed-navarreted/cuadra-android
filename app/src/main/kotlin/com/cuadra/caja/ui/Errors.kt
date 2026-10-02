@@ -23,6 +23,7 @@ fun Throwable?.errorMessage(): ErrorMessage = when (this) {
     is ApiFailure.Offline -> ErrorMessage(R.string.error_offline)
     is ApiFailure.Http -> when (code) {
         "INVALID_GOOGLE_TOKEN" -> ErrorMessage(R.string.error_INVALID_GOOGLE_TOKEN)
+        "PIN_VERIFICATION_REQUIRED" -> ErrorMessage(R.string.error_PIN_VERIFICATION_REQUIRED)
         "FORBIDDEN" -> ErrorMessage(R.string.error_FORBIDDEN)
         "PLAN_LIMIT" -> planLimit(feature, limit)
         "BUSINESS_SUSPENDED" -> ErrorMessage(R.string.error_BUSINESS_SUSPENDED)

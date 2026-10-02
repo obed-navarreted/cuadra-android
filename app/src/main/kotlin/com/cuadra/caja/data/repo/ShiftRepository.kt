@@ -1,7 +1,6 @@
 package com.cuadra.caja.data.repo
 
-import androidx.room.withTransaction
-import com.cuadra.caja.data.local.CuadraDatabase
+import com.cuadra.caja.data.local.Db
 import com.cuadra.caja.data.local.OutboxEntity
 import com.cuadra.caja.data.local.ShiftEntity
 import com.cuadra.caja.data.remote.CloseShiftInputDto
@@ -34,7 +33,7 @@ sealed interface CloseResult {
  * Lo esperado se recalcula siempre desde las ventas y movimientos que este teléfono conoce; el servidor recalcula con lo de todos los teléfonos al recibir el cierre.
  */
 class ShiftRepository(
-    private val db: CuadraDatabase,
+    private val db: Db,
     private val session: SessionStore,
     private val requestSync: () -> Unit,
     private val now: () -> Long = System::currentTimeMillis,
@@ -71,7 +70,7 @@ class ShiftRepository(
         val time = now()
         val shift = ShiftEntity(id, register, null, s.memberName, s.memberId, time, floatMinor, null, null, null, null, null, null, null, "OPEN", null, 0, 0)
         val input = OpenShiftInputDto(register, floatMinor, Instant.ofEpochMilli(time).toString())
-        db.withTransaction {
+        db.inTransaction {
             db.cash().upsertShift(shift)
             db.outbox().insert(OutboxEntity(opId = UUID.randomUUID().toString(), kind = "SHIFT_OPEN", entityId = id, payload = json.encodeToString(input), createdAt = time))
         }
@@ -97,7 +96,7 @@ class ShiftRepository(
         val closed = shift.copy(closedByName = s.memberName, closedAt = time, expectedAtCloseMinor = expected, countedMinor = countedMinor, differenceMinor = diff, denominations = denominations,
             note = cleanNote, status = "CLOSED", forcedReason = forcedReason)
         val input = CloseShiftInputDto(countedMinor, denominations, cleanNote, Instant.ofEpochMilli(time).toString(), force, forcedReason)
-        db.withTransaction {
+        db.inTransaction {
             db.cash().upsertShift(closed)
             db.outbox().insert(OutboxEntity(opId = UUID.randomUUID().toString(), kind = "SHIFT_CLOSE", entityId = shiftId, payload = json.encodeToString(input), createdAt = time))
         }

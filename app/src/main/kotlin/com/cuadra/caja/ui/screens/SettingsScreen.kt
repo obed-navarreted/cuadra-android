@@ -259,6 +259,8 @@ private fun RegisterCard(d: SettingsDraft, canEdit: Boolean, actions: SettingsAc
             CuadraChip(stringResource(R.string.set_pos_PRODUCTS), products, { if (canEdit) actions.update(d.copy(posViews = PosViews.withProducts(d.posViews, !products))) })
         }
         if (d.posViews.isEmpty()) Text(stringResource(R.string.set_val_pos_views), color = CuadraColors.Red, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+        // Cobro en caja (ADR 0015): quien atiende arma la cuenta y la envía a caja; cualquiera la cobra después.
+        SwitchRow(stringResource(R.string.set_register_checkout), d.registerCheckout, { actions.update(d.copy(registerCheckout = it)) }, help = stringResource(R.string.set_register_checkout_help), enabled = canEdit)
     }
 }
 

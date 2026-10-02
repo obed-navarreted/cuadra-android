@@ -70,6 +70,11 @@ class GuardSelfTest {
                 GuardCase("K número del recibo cortado por su botón", one, expectBadge = 999) { Box(Modifier.width(30.dp).height(48.dp).clipToBounds().clickable {}) { Text("999", Modifier.requiredWidth(60.dp).testTag(com.cuadra.caja.ui.common.TAG_RECEIPT_BADGE), maxLines = 1) } },
                 GuardCase("K número del recibo que falta", one, expectBadge = 3) { Box { Text("Recibo") } },
                 GuardCase("K número del recibo bien puesto (no debe fallar)", one, expectBadge = 15) { Box(Modifier.width(120.dp).height(48.dp).clickable {}) { com.cuadra.caja.ui.common.Text("15", Modifier.testTag(com.cuadra.caja.ui.common.TAG_RECEIPT_BADGE), maxLines = 1, softWrap = false, minScale = 1f) } },
+                GuardCase("L tira tapada por una tecla", one, expectStrip = true) { Box { Box(Modifier.size(200.dp, 60.dp).testTag(com.cuadra.caja.ui.screens.TAG_LAST_LINE)) { Text("6", Modifier.testTag(com.cuadra.caja.ui.screens.TAG_STRIP_QTY), maxLines = 1) }; Box(Modifier.offset(0.dp, 20.dp).size(60.dp).testTag(TAG_KEY).clickable {}) { Text("7") } } },
+                GuardCase("L tira fuera de la ventana", one, expectStrip = true) { Box { Box(Modifier.offset(0.dp, 700.dp).size(200.dp, 60.dp).testTag(com.cuadra.caja.ui.screens.TAG_LAST_LINE)) { Text("6", Modifier.testTag(com.cuadra.caja.ui.screens.TAG_STRIP_QTY), maxLines = 1) } } },
+                GuardCase("L no hay tira", one, expectStrip = true) { Box { Text("sin tira") } },
+                GuardCase("L cantidad cortada", one, expectStrip = true) { Box(Modifier.size(200.dp, 60.dp).testTag(com.cuadra.caja.ui.screens.TAG_LAST_LINE)) { Box(Modifier.width(20.dp).clipToBounds()) { Text("12345678", Modifier.requiredWidth(80.dp).testTag(com.cuadra.caja.ui.screens.TAG_STRIP_QTY), maxLines = 1, softWrap = false) } } },
+                GuardCase("L tira bien puesta (no debe fallar)", one, expectStrip = true) { Column { Box(Modifier.size(200.dp, 60.dp).testTag(com.cuadra.caja.ui.screens.TAG_LAST_LINE)) { com.cuadra.caja.ui.common.Text("6", Modifier.testTag(com.cuadra.caja.ui.screens.TAG_STRIP_QTY), maxLines = 1) }; Box(Modifier.size(60.dp).testTag(TAG_KEY).clickable {}) { Text("7") } } },
                 GuardCase("G acción fija dentro de scroll", one) { Column(Modifier.verticalScroll(rememberScrollState())) { Box(Modifier.testTag(TAG_PINNED_ACTION).height(60.dp).width(100.dp).clickable {}) { Text("Guardar") } } },
             ),
         )
@@ -90,6 +95,11 @@ class GuardSelfTest {
         assertTrue("J fuera", found("J total fuera de la ventana", GuardRule.J_TOTAL_HIDDEN))
         assertTrue("J recortado", found("J total recortado por una zona con scroll", GuardRule.J_TOTAL_HIDDEN))
         assertTrue("J falta", found("J no hay tarjeta del total", GuardRule.J_TOTAL_HIDDEN))
+        assertTrue("L tecla", found("L tira tapada por una tecla", GuardRule.L_LAST_LINE_STRIP))
+        assertTrue("L fuera", found("L tira fuera de la ventana", GuardRule.L_LAST_LINE_STRIP))
+        assertTrue("L falta", found("L no hay tira", GuardRule.L_LAST_LINE_STRIP))
+        assertTrue("L cantidad", found("L cantidad cortada", GuardRule.L_LAST_LINE_STRIP))
+        assertTrue("L bien puesta no debe fallar: " + runner.findings.filter { it.screen.startsWith("L tira bien") }, runner.findings.none { it.screen.startsWith("L tira bien") && it.rule == GuardRule.L_LAST_LINE_STRIP })
         assertTrue("J bien puesto no debe fallar: " + runner.findings.filter { it.screen.startsWith("J total bien") }, runner.findings.none { it.screen.startsWith("J total bien") && it.rule == GuardRule.J_TOTAL_HIDDEN })
         assertTrue("K cortado", found("K número del recibo cortado por su botón", GuardRule.K_RECEIPT_BADGE))
         assertTrue("K falta", found("K número del recibo que falta", GuardRule.K_RECEIPT_BADGE))

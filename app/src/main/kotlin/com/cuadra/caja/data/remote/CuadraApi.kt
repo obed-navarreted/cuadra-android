@@ -38,6 +38,9 @@ interface CuadraApi {
     @GET("api/b/{businessId}/members") suspend fun members(@Path("businessId") businessId: String): List<MemberDto>
     /** Lo mismo con credenciales explícitas: el listado con `Device` trae el hash del PIN (para validarlo sin conexión); con la sesión de Google, no. */
     @GET("api/b/{businessId}/members") suspend fun membersAs(@Path("businessId") businessId: String, @Header("Authorization") authorization: String): List<MemberDto>
+    /** Siempre como TELÉFONO (`Device <token>`): con la sesión de Google aún puesta, el interceptor mandaría la de Google. */
+    @GET("api/devices/me") suspend fun deviceSelf(@Header("Authorization") authorization: String): DeviceSelfDto
+    @POST("api/devices/me/members/{memberId}/verify-pin") suspend fun verifyPin(@Path("memberId") memberId: String, @Body body: VerifyPinBody, @Header("Authorization") authorization: String): VerifiedPinDto
     @PUT("api/b/{businessId}/members/{memberId}/pin") suspend fun setPin(@Path("businessId") businessId: String, @Path("memberId") memberId: String, @Body body: PinBody)
 
     /** `member`: solo cuando no hay persona activa (pantalla de PIN, acceso desactivado): envía como quien hizo las operaciones. Nulo = la de la sesión. */

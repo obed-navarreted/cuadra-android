@@ -188,6 +188,8 @@ fun BarcodeScannerDialog(
     paused: Boolean = false,
     continuousOption: Boolean = false,
     addedCount: Int = 0,
+    /** Empieza ya en modo continuo (elegir varios productos seguidos, p. ej. los de una promoción). */
+    startContinuous: Boolean = false,
 ) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
@@ -204,7 +206,7 @@ fun BarcodeScannerDialog(
     var hasZoom by remember { mutableStateOf(false) }
     var zoom by remember { mutableStateOf(0f) }
     var lowLight by remember { mutableStateOf(false) }
-    var continuous by remember { mutableStateOf(false) }
+    var continuous by remember { mutableStateOf(startContinuous && continuousOption) }
     var manual by remember { mutableStateOf("") }
     var scanned by remember { mutableStateOf(false) }
     var sinceMs by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }

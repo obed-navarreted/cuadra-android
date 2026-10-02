@@ -41,6 +41,9 @@ data class SaleEntity(
     @androidx.room.ColumnInfo(defaultValue = "0") val returnedMinor: Long = 0,
     /** Quién la cobró (para «Anular mi última venta»: solo la propia). */
     val completedByMemberId: String? = null,
+    /** Cobro en caja (ADR 0015): cuándo y quién la envió a caja. Una PARKED con `sentToRegisterAt` está «Por cobrar en caja» (la nota es `label`). */
+    val sentToRegisterAt: Long? = null,
+    val sentByName: String? = null,
 )
 
 @Entity(tableName = "sale_items", primaryKeys = ["saleId", "id"], indices = [Index("saleId")])
@@ -50,6 +53,27 @@ data class SaleItemEntity(
     /** Cuánto de esta línea ya se devolvió (se recalcula con las devoluciones de la venta). */
     @androidx.room.ColumnInfo(defaultValue = "0") val returnedMilli: Long = 0,
 )
+
+/**
+ * Una promoción aplicada en una venta (PENDIENTES.md, «Promociones por cantidad»): la foto de lo que se cobró («3 por C$ 100», paquetes y descuento). El
+ * descuento ya está repartido en el `discountMinor` de las líneas; esto dice de qué promoción salió (recibo, reportes y cierre).
+ */
+@Entity(tableName = "sale_promotions", primaryKeys = ["saleId", "position"], indices = [Index("saleId")])
+data class SalePromotionEntity(
+    val saleId: String, val position: Int, val promotionId: String?, val name: String, val quantity: Int, val priceMinor: Long, val units: Long, val discountMinor: Long,
+)
+
+/**
+ * Promoción por cantidad del negocio («3 por C$ 100»): se baja con la sincronización y la caja la aplica sola, sin conexión. Las fechas son jornadas del
+ * negocio (`yyyy-MM-dd`, ADR 0011). Sus productos viven en `promotion_products`.
+ */
+@Entity(tableName = "promotions")
+data class PromotionEntity(
+    @PrimaryKey val id: String, val name: String, val quantity: Int, val priceMinor: Long, val active: Boolean, val startsOn: String?, val endsOn: String?, val rev: Long,
+)
+
+@Entity(tableName = "promotion_products", primaryKeys = ["promotionId", "productId"], indices = [Index("productId")])
+data class PromotionProductEntity(val promotionId: String, val productId: String)
 
 /**
  * Una devolución de una venta cobrada (docs/adr/0013). `rev = 0` mientras el servidor no la confirma (se hizo sin conexión y va en la cola como
@@ -149,6 +173,8 @@ data class BusinessEntity(
     val accessCode: String? = null,
     /** La moneda ya no se puede cambiar (hay actividad registrada en ella). */
     @androidx.room.ColumnInfo(defaultValue = "0") val currencyLocked: Boolean = false,
+    /** Cobro en caja (ADR 0015): «Cobrar» ofrece también «Enviar a caja» y la caja muestra «Por cobrar en caja». Apagado por omisión. */
+    @androidx.room.ColumnInfo(defaultValue = "0") val registerCheckout: Boolean = false,
 )
 
 @Entity(tableName = "cash_registers")

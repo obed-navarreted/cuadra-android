@@ -51,6 +51,9 @@ class GuardDaysTest {
                 GuardCase("Ventas: dueño, lista del servidor", full) { Sales(HistoryUi(sales = Fixtures.serverSales, totals = Fixtures.saleTotals, hasMore = true, query = SaleQuery(setOf("COMPLETED", "CANCELLED")))) },
                 GuardCase("Ventas: dueño, más filtros", full) { Sales(HistoryUi(sales = Fixtures.serverSales, totals = Fixtures.saleTotals, query = SaleQuery(setOf("CANCELLED"), "TRANSFER", "m2")), moreFilters = true) },
                 GuardCase("Ventas: dueño, ayer y cargando", full) { Sales(HistoryUi(range = RangeChoice(RangePreset.YESTERDAY), loading = true)) },
+                // Al abrir Ventas se refresca con el MISMO filtro: la lista de antes sigue a la vista con el indicador pequeño (sin vaciarse).
+                GuardCase("Ventas: dueño, refrescando con la lista de antes", full) { Sales(HistoryUi(sales = Fixtures.serverSales, totals = Fixtures.saleTotals, loading = true), refreshing = true) },
+                GuardCase("Ventas: cajero, sin conexión al refrescar", full) { Sales(HistoryUi(), manager = false, role = "CASHIER", offlineLocal = true) },
                 GuardCase("Ventas: dueño, sin resultados", full) { Sales(HistoryUi(totals = Fixtures.saleTotals.copy(count = 0, totalMinor = 0, cancelledCount = 0))) },
                 GuardCase("Ventas: dueño, sin conexión", full) { Sales(HistoryUi(offline = true)) },
                 GuardCase("Ventas: dueño, error", full) { Sales(HistoryUi(error = ErrorMessage(R.string.error_generic))) },
@@ -59,6 +62,11 @@ class GuardDaysTest {
                 GuardCase("Venta: detalle cobrada (dueño)", full) { Detail(Fixtures.saleView(2, edited = true), "OWNER") },
                 GuardCase("Venta: detalle eliminada", full) { Detail(Fixtures.saleView(3, cancelled = true), "ADMIN") },
                 GuardCase("Venta: detalle de cajero (sin eliminar)", full) { Detail(Fixtures.saleView(1), "CASHIER") },
+                // Cobro en caja: «Atendió: X · Cobró: Y», quién la envió a caja y «Enviar por WhatsApp» (siempre disponible en el detalle).
+                GuardCase("Venta: atendió y cobró personas distintas, con WhatsApp", full) { Detail(Fixtures.servedAndCharged, "OWNER", whatsApp = true) },
+                GuardCase("Ventas: atendió y cobró personas distintas", full) { Sales(HistoryUi(sales = listOf(Fixtures.servedAndCharged) + Fixtures.serverSales, totals = Fixtures.saleTotals)) },
+                GuardCase("Cierre del día: descuentos por promociones", full) { Close(DailyCloseUi(cards = listOf(Fixtures.dayCloses.first().copy(promotionDiscountMinor = Fixtures.HUGE)))) },
+                GuardCase("Cierre del día: cuentas por cobrar en caja", full) { Close(DailyCloseUi(cards = listOf(Fixtures.dayCloses.first().copy(pendingCheckoutCount = 12_345, pendingCheckoutMinor = Fixtures.HUGE)))) },
                 GuardCase("Venta: eliminar (motivo vacío)", full) { DeleteSaleSheet("", actions) },
                 GuardCase("Venta: eliminar (motivo largo)", full) { DeleteSaleSheet(Fixtures.NAME_200, actions) },
                 GuardCase("Venta: eliminar (motivo corto)", full) { DeleteSaleSheet("ab", actions) },
@@ -94,15 +102,18 @@ class GuardDaysTest {
 
     @Composable private fun Picker(p: RangePreset) = RangePicker(RangeChoice(p), Fixtures.calendar, {}, nowMillis = Fixtures.NOW)
 
-    @Composable private fun Sales(ui: HistoryUi, manager: Boolean = true, role: String = "OWNER", local: List<com.cuadra.caja.domain.SaleView> = Fixtures.localSales, moreFilters: Boolean = false) =
-        HistoryContent(ui, local, manager, role, Fixtures.calendar, members, actions, Fixtures.NOW, moreFilters)
+    @Composable private fun Sales(
+        ui: HistoryUi, manager: Boolean = true, role: String = "OWNER", local: List<com.cuadra.caja.domain.SaleView> = Fixtures.localSales, moreFilters: Boolean = false,
+        refreshing: Boolean = false, offlineLocal: Boolean = false,
+    ) = HistoryContent(ui, local, manager, role, Fixtures.calendar, members, actions, Fixtures.NOW, moreFilters, refreshing = refreshing, offlineLocal = offlineLocal)
 
     @Composable private fun Detail(
         s: com.cuadra.caja.domain.SaleView, role: String, canReturn: Boolean = false, undoable: Boolean = false, lastReturn: com.cuadra.caja.domain.SaleReturnView? = null,
-        printer: com.cuadra.caja.domain.printing.PrinterBadge = com.cuadra.caja.domain.printing.PrinterBadge.OFF,
+        printer: com.cuadra.caja.domain.printing.PrinterBadge = com.cuadra.caja.domain.printing.PrinterBadge.OFF, whatsApp: Boolean = false,
     ) {
         val time = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(androidx.compose.ui.platform.LocalConfiguration.current.locales[0]).withZone(Fixtures.calendar.zone)
-        SaleDetailSheet(s, time, com.cuadra.caja.domain.SaleDeletion.canDelete(role, s.status), actions, printer, null, canReturn = canReturn, undoable = undoable, lastReturn = lastReturn, nowMillis = Fixtures.NOW)
+        SaleDetailSheet(s, time, com.cuadra.caja.domain.SaleDeletion.canDelete(role, s.status), actions, printer, null, canReturn = canReturn, undoable = undoable, lastReturn = lastReturn, nowMillis = Fixtures.NOW,
+            onWhatsApp = if (whatsApp) ({}) else null)
     }
 
     @Composable private fun Close(ui: DailyCloseUi) = DailyCloseContent(ui, Fixtures.calendar, object : DailyCloseActions {}, {}, Fixtures.NOW)

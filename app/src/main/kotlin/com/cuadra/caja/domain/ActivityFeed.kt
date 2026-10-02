@@ -16,7 +16,7 @@ enum class ActivityAction(val code: String, val kind: ActivityKind) {
     PRODUCT_IMPORT("product.import", ActivityKind.PRODUCTS), PURCHASE_CREATE("purchase.create", ActivityKind.PRODUCTS), PURCHASE_VOID("purchase.void", ActivityKind.PRODUCTS),
     MEMBER_CREATE("member.create", ActivityKind.TEAM), MEMBER_UPDATE("member.update", ActivityKind.TEAM), MEMBER_PIN_RESET("member.pin_reset", ActivityKind.TEAM),
     INVITATION_CREATE("invitation.create", ActivityKind.TEAM), INVITATION_REVOKE("invitation.revoke", ActivityKind.TEAM), INVITATION_ACCEPT("invitation.accept", ActivityKind.TEAM),
-    DEVICE_CLAIM("device.claim", ActivityKind.TEAM), DEVICE_SELF_LINK("device.self_link", ActivityKind.TEAM), DEVICE_REVOKE("device.revoke", ActivityKind.TEAM),
+    DEVICE_CLAIM("device.claim", ActivityKind.TEAM), DEVICE_SELF_LINK("device.self_link", ActivityKind.TEAM), DEVICE_REVOKE("device.revoke", ActivityKind.TEAM), DEVICE_PIN_VERIFIED("device.pin_verified", ActivityKind.TEAM),
     OWNER_TRANSFER("owner.transfer", ActivityKind.TEAM),
     BUSINESS_CREATE("business.create", ActivityKind.BUSINESS), BUSINESS_UPDATE("business.update", ActivityKind.BUSINESS), BUSINESS_DELETE_REQUESTED("business.delete_requested", ActivityKind.BUSINESS),
     PLATFORM_VIEW_AS("platform.view_as", ActivityKind.PLATFORM), PLATFORM_PLAN_CHANGED("platform.plan_changed", ActivityKind.PLATFORM),

@@ -1,8 +1,7 @@
 package com.cuadra.caja.data.repo
 
-import androidx.room.withTransaction
 import com.cuadra.caja.data.local.CashMovementEntity
-import com.cuadra.caja.data.local.CuadraDatabase
+import com.cuadra.caja.data.local.Db
 import com.cuadra.caja.data.local.ExpenseCategoryEntity
 import com.cuadra.caja.data.local.ExpenseEntity
 import com.cuadra.caja.data.local.ExpenseTotals
@@ -26,7 +25,7 @@ import kotlinx.serialization.json.Json
  * Un gasto no se edita: se anula (con motivo) y se registra de nuevo. Se guarda en el teléfono y en la cola de salida en una sola transacción.
  */
 class ExpenseRepository(
-    private val db: CuadraDatabase,
+    private val db: Db,
     private val session: SessionStore,
     private val requestSync: () -> Unit,
     private val api: CuadraApi? = null,
@@ -59,7 +58,7 @@ class ExpenseRepository(
         val text = description?.trim()?.ifEmpty { null }
         val entity = ExpenseEntity(id, categoryId, text, amountMinor, source, register.takeIf { source == "CASH_DRAWER" }, s.memberName, s.memberId, time, false, null, 0)
         val input = ExpenseInputDto(categoryId, text, amountMinor, source, entity.cashRegisterId, Instant.ofEpochMilli(time).toString())
-        db.withTransaction {
+        db.inTransaction {
             db.cash().upsertExpense(entity)
             db.outbox().insert(OutboxEntity(opId = UUID.randomUUID().toString(), kind = "EXPENSE_UPSERT", entityId = id, payload = json.encodeToString(input), createdAt = time))
         }
@@ -75,7 +74,7 @@ class ExpenseRepository(
         val text = reason?.trim()?.ifEmpty { null }
         val entity = CashMovementEntity(id, kind, amountMinor, text, register, s.memberName, s.memberId, time, false, null, 0)
         val input = MovementInputDto(kind, amountMinor, text, register, Instant.ofEpochMilli(time).toString())
-        db.withTransaction {
+        db.inTransaction {
             db.cash().upsertMovement(entity)
             db.outbox().insert(OutboxEntity(opId = UUID.randomUUID().toString(), kind = "CASH_MOVEMENT_UPSERT", entityId = id, payload = json.encodeToString(input), createdAt = time))
         }
@@ -86,7 +85,7 @@ class ExpenseRepository(
     /** Anular un gasto (o un retiro/entrada) devuelve el dinero al cálculo del cierre. Solo quien administra; el servidor lo exige igual. */
     suspend fun voidExpense(id: String, reason: String?) {
         val e = db.cash().expense(id) ?: return
-        db.withTransaction {
+        db.inTransaction {
             db.cash().upsertExpense(e.copy(voided = true, voidReason = reason))
             db.outbox().insert(OutboxEntity(opId = UUID.randomUUID().toString(), kind = "EXPENSE_VOID", entityId = id, payload = json.encodeToString(ReasonBody(reason)), createdAt = now()))
         }
@@ -95,7 +94,7 @@ class ExpenseRepository(
 
     suspend fun voidMovement(id: String, reason: String?) {
         val m = db.cash().movement(id) ?: return
-        db.withTransaction {
+        db.inTransaction {
             db.cash().upsertMovement(m.copy(voided = true, voidReason = reason))
             db.outbox().insert(OutboxEntity(opId = UUID.randomUUID().toString(), kind = "CASH_MOVEMENT_VOID", entityId = id, payload = json.encodeToString(ReasonBody(reason)), createdAt = now()))
         }

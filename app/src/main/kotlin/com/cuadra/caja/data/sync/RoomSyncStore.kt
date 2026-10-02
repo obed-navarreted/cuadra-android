@@ -1,7 +1,8 @@
 package com.cuadra.caja.data.sync
 
-import androidx.room.withTransaction
-import com.cuadra.caja.data.local.CuadraDatabase
+import com.cuadra.caja.data.local.Db
+import com.cuadra.caja.data.local.deletePromotion
+import com.cuadra.caja.data.local.savePromotion
 import com.cuadra.caja.data.local.mergeMembers
 import com.cuadra.caja.data.local.deleteUnconfirmedPayment
 import com.cuadra.caja.data.local.SyncStateEntity
@@ -28,7 +29,7 @@ import com.cuadra.caja.data.remote.SaleDto
 import kotlinx.serialization.json.Json
 
 /** `businessId`: el negocio al que está vinculado el teléfono. Solo se envía lo de ese negocio y el cursor es el suyo. */
-class RoomSyncStore(private val db: CuadraDatabase, private val businessId: String? = null, private val hasMember: () -> Boolean = { true }) : SyncStore {
+class RoomSyncStore(private val db: Db, private val businessId: String? = null, private val hasMember: () -> Boolean = { true }) : SyncStore {
     private val json = Json { ignoreUnknownKeys = true }
 
     override suspend fun dueOps(limit: Int, now: Long) = db.outbox().due(limit, now, businessId, hasMember())
@@ -45,7 +46,7 @@ class RoomSyncStore(private val db: CuadraDatabase, private val businessId: Stri
     }
 
     override suspend fun applyPage(changes: List<ChangeDto>, cursor: Long) {
-        db.withTransaction {
+        db.inTransaction {
             val touchedCredits = linkedSetOf<String>()
             val touchedCustomers = linkedSetOf<String>()
             for (c in changes) apply(c, touchedCredits, touchedCustomers)
@@ -71,6 +72,13 @@ class RoomSyncStore(private val db: CuadraDatabase, private val businessId: Stri
                 // Si hay un cambio local sin enviar sobre este producto, gana el teléfono hasta que se suba.
                 if (db.outbox().countFor(p.id) == 0) db.products().upsert(p.toEntity())
             }
+            "promotion" -> {
+                val d = json.decodeFromJsonElement(com.cuadra.caja.data.remote.PromotionDto.serializer(), c.data)
+                // Un cambio hecho aquí sin enviar gana hasta que se suba; una borrada en el servidor se quita.
+                if (db.outbox().countFor(d.id) == 0) {
+                    if (d.deleted) db.products().deletePromotion(d.id) else db.products().savePromotion(d.toEntity(), d.productIds)
+                }
+            }
             "category" -> {
                 val d = json.decodeFromJsonElement(CategoryDto.serializer(), c.data)
                 if (db.outbox().countFor(d.id) == 0) db.products().upsertCategory(d.toEntity())
@@ -84,6 +92,7 @@ class RoomSyncStore(private val db: CuadraDatabase, private val businessId: Stri
                     sales.upsert(rows.sale)
                     sales.deleteItems(s.id); sales.insertItems(rows.items)
                     sales.deletePayments(s.id); sales.insertPayments(rows.payments)
+                    sales.deletePromotions(s.id); sales.insertPromotions(rows.promotions)
                     // Las devoluciones confirmadas se reemplazan con las del servidor; una hecha aquí sin conexión (pendiente) se conserva y vuelve a contar.
                     sales.deleteConfirmedReturns(s.id)
                     rows.returns.forEach { r -> sales.deleteUnconfirmedReturn(r.id); sales.upsertReturn(r) }

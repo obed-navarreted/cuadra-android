@@ -53,7 +53,7 @@ fun ActivityScreen(vm: ActivityViewModel, onBack: () -> Unit) {
     LaunchedEffect(Unit) { vm.enter() }
     val ui by vm.ui.collectAsState()
     val business by vm.business.collectAsState()
-    ActivityContent(ui, business?.timezone.orEmpty(), vm, onBack)
+    com.cuadra.caja.ui.common.Refreshing(vm.refresher, busy = ui.loading, showOffline = false) { ActivityContent(ui, business?.timezone.orEmpty(), vm, onBack) }
 }
 
 /** Actividad sin ViewModel (estado + acciones): es lo que dibuja la guardia de diseño. */
@@ -167,6 +167,7 @@ private fun sentence(r: ActivityRow): String {
         ActivityAction.DEVICE_CLAIM -> R.string.act_DEVICE_CLAIM
         ActivityAction.DEVICE_SELF_LINK -> R.string.act_DEVICE_SELF_LINK
         ActivityAction.DEVICE_REVOKE -> R.string.act_DEVICE_REVOKE
+        ActivityAction.DEVICE_PIN_VERIFIED -> R.string.act_DEVICE_PIN_VERIFIED
         ActivityAction.OWNER_TRANSFER -> R.string.act_OWNER_TRANSFER
         ActivityAction.BUSINESS_CREATE -> R.string.act_BUSINESS_CREATE
         ActivityAction.BUSINESS_UPDATE -> R.string.act_BUSINESS_UPDATE

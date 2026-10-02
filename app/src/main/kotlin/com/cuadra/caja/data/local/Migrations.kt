@@ -165,3 +165,31 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
         db.execSQL("UPDATE sync_state SET cursor = 0")
     }
 }
+
+/**
+ * 11 → 12 (docs/adr/0015, cobro en caja): el ajuste del negocio y, en cada venta, cuándo y quién la envió a caja. Aditiva: nada se borra. El cursor vuelve
+ * a 0 una vez para bajar de nuevo el negocio y las cuentas con esos datos.
+ */
+val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `sales` ADD COLUMN `sentToRegisterAt` INTEGER")
+        db.execSQL("ALTER TABLE `sales` ADD COLUMN `sentByName` TEXT")
+        db.execSQL("ALTER TABLE `business` ADD COLUMN `registerCheckout` INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("UPDATE sync_state SET cursor = 0")
+    }
+}
+
+/**
+ * 12 → 13 (PENDIENTES.md, «Promociones por cantidad»): las promociones del negocio con sus productos y, en cada venta, las promociones que aplicó.
+ * Aditiva: nada se borra. El cursor vuelve a 0 una vez para bajar las promociones que ya existían y las ventas con lo que aplicaron.
+ */
+val MIGRATION_12_13 = object : Migration(12, 13) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS `sale_promotions` (`saleId` TEXT NOT NULL, `position` INTEGER NOT NULL, `promotionId` TEXT, `name` TEXT NOT NULL, `quantity` INTEGER NOT NULL, `priceMinor` INTEGER NOT NULL, `units` INTEGER NOT NULL, `discountMinor` INTEGER NOT NULL, PRIMARY KEY(`saleId`, `position`))")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_sale_promotions_saleId` ON `sale_promotions` (`saleId`)")
+        db.execSQL("CREATE TABLE IF NOT EXISTS `promotions` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `quantity` INTEGER NOT NULL, `priceMinor` INTEGER NOT NULL, `active` INTEGER NOT NULL, `startsOn` TEXT, `endsOn` TEXT, `rev` INTEGER NOT NULL, PRIMARY KEY(`id`))")
+        db.execSQL("CREATE TABLE IF NOT EXISTS `promotion_products` (`promotionId` TEXT NOT NULL, `productId` TEXT NOT NULL, PRIMARY KEY(`promotionId`, `productId`))")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_promotion_products_productId` ON `promotion_products` (`productId`)")
+        db.execSQL("UPDATE sync_state SET cursor = 0")
+    }
+}

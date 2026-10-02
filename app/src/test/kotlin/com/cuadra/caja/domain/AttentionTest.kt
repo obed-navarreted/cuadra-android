@@ -42,7 +42,15 @@ class AttentionTest {
     @Test fun serverCodesMapToPlainReasonsAndUnknownOnesKeepTheCode() {
         assertEquals(Attention.Reason.MEMBER_DISABLED, Attention.reasonOf("MEMBER_NOT_ACTIVE"))
         assertEquals(Attention.Reason.MEMBER_DISABLED, Attention.reasonOf("ACCESS_DISABLED"))
-        assertEquals(Attention.Reason.DEVICE_NOT_TRUSTED, Attention.reasonOf("DEVICE_NOT_TRUSTED"))
+        // Elevación por PIN verificado (ADR 0012, 2026-10-01): el código viejo y el nuevo piden lo mismo, «Confirmar PIN».
+        assertEquals(Attention.Reason.PIN_VERIFICATION_REQUIRED, Attention.reasonOf("PIN_VERIFICATION_REQUIRED"))
+        assertEquals(Attention.Reason.PIN_VERIFICATION_REQUIRED, Attention.reasonOf("DEVICE_NOT_TRUSTED"))
+        assertEquals(Attention.Reason.FORBIDDEN, Attention.reasonOf("MEMBER_MISMATCH"))
+        val needsPin = Attention.describe(1, "CASH_MOVEMENT_UPSERT", """{"kind":"WITHDRAWAL","amountMinor":1}""", 1, "FAILED", "PIN_VERIFICATION_REQUIRED", null, "Ana", null, "m2")
+        assertEquals(true, needsPin.canConfirmPin); assertEquals("m2", needsPin.memberId)
+        // Sin saber quién la hizo, el id viene en el detalle del rechazo.
+        assertEquals("m3", Attention.describe(1, "EXPENSE_UPSERT", "{}", 1, "FAILED", "PIN_VERIFICATION_REQUIRED", """{"memberId":"m3"}""", null, null).memberId)
+        assertEquals(false, Attention.describe(1, "EXPENSE_UPSERT", "{}", 1, "FAILED", "FORBIDDEN", null, null, null, "m3").canConfirmPin)
         assertEquals(Attention.Reason.NO_OPEN_CREDITS, Attention.reasonOf("NO_OPEN_CREDITS"))
         assertEquals(Attention.Reason.PAYMENT_MISMATCH, Attention.reasonOf("PAYMENT_MISMATCH"))
         val unknown = Attention.describe(1, "SALE_UPSERT", sale, 1, "FAILED", "SOMETHING_NEW", null, null, null)

@@ -20,6 +20,7 @@ fun Throwable?.settingsError(): ErrorMessage = when (this) {
         "INVALID_BODY" -> ErrorMessage(R.string.tpl_err_INVALID_BODY)
         "TOO_MANY_TICKETS" -> ErrorMessage(R.string.help_err_too_many)
         "BUSINESS_NOT_FOUND" -> ErrorMessage(R.string.set_err_NOT_FOUND)
+        "PIN_VERIFICATION_REQUIRED" -> ErrorMessage(R.string.error_PIN_VERIFICATION_REQUIRED)
         "FORBIDDEN" -> ErrorMessage(R.string.set_err_FORBIDDEN)
         "CURRENCY_LOCKED" -> ErrorMessage(R.string.set_err_CURRENCY_LOCKED)
         else -> errorMessage()
@@ -29,6 +30,7 @@ fun Throwable?.settingsError(): ErrorMessage = when (this) {
 
 /** Al eliminar el negocio: 403 = quien lo intenta no es el dueño. */
 fun Throwable?.deleteError(): ErrorMessage = when {
+    this is ApiFailure.Http && code == "PIN_VERIFICATION_REQUIRED" -> ErrorMessage(R.string.error_PIN_VERIFICATION_REQUIRED)
     this is ApiFailure.Http && (status == 403 || code == "FORBIDDEN") -> ErrorMessage(R.string.set_delete_err_forbidden)
     else -> settingsError()
 }

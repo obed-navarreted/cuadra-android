@@ -111,7 +111,7 @@ private fun movementLabel(kind: String): String = when (kind) {
  * Con `catalogOnly` (negocio sin módulo de inventario) es solo el catálogo: productos con precio, costo y ganancia, sin nada de existencias.
  */
 @Composable
-fun InventoryScreen(vm: InventoryViewModel, timezone: String, catalogOnly: Boolean = false, onBack: () -> Unit) {
+fun InventoryScreen(vm: InventoryViewModel, timezone: String, catalogOnly: Boolean = false, onPromotions: (() -> Unit)? = null, onBack: () -> Unit) {
     val ui by vm.ui.collectAsState()
     val items by vm.items.collectAsState()
     val review by vm.reviewCount.collectAsState()
@@ -119,7 +119,7 @@ fun InventoryScreen(vm: InventoryViewModel, timezone: String, catalogOnly: Boole
     val canDelete by vm.canDelete.collectAsState()
     // Si el módulo de inventario se apagó, un filtro de existencias que hubiera quedado puesto no debe esconder productos.
     androidx.compose.runtime.LaunchedEffect(catalogOnly) { if (catalogOnly) vm.setFilter(StockFilter.ALL) }
-    InventoryContent(ui, items, review, detail, canDelete, timezone, catalogOnly, vm, onBack)
+    InventoryContent(ui, items, review, detail, canDelete, timezone, catalogOnly, vm, onBack, onPromotions)
 }
 
 /** El inventario sin ViewModel (estado + acciones): es lo que dibuja la guardia de diseño. */
@@ -128,6 +128,8 @@ fun InventoryScreen(vm: InventoryViewModel, timezone: String, catalogOnly: Boole
 fun InventoryContent(
     ui: InventoryUi, items: List<ProductStock>, review: Int, detail: ProductDetail?, canDelete: Boolean, timezone: String, catalogOnly: Boolean,
     actions: InventoryActions, onBack: () -> Unit,
+    /** Productos › Promociones (dueño y admins); nulo = no se ofrece. */
+    onPromotions: (() -> Unit)? = null,
 ) {
     ScreenFrame(
         Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -137,6 +139,16 @@ fun InventoryContent(
             item {
                 TitleBar(Modifier.padding(top = 16.dp), end = { CuadraButton(stringResource(R.string.back), onBack, height = 48) }) {
                     Text(stringResource(if (catalogOnly) R.string.catalog_title else R.string.inventory_title), style = MaterialTheme.typography.headlineMedium)
+                }
+            }
+            if (onPromotions != null) item {
+                CuadraCard(onClick = onPromotions) {
+                    SplitRow(end = { Text("›", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, maxLines = 1) }) {
+                        Column {
+                            Text(stringResource(R.string.promo_title), fontWeight = FontWeight.ExtraBold)
+                            Text(stringResource(R.string.promo_entry_hint), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted)
+                        }
+                    }
                 }
             }
             stickyHeader {

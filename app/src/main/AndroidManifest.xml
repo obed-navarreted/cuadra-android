@@ -82,6 +82,15 @@
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
 
+        <!-- Avisos al instante (Firebase): solo mensajes de datos («sincroniza ya», «hay un aviso nuevo»). Sin google-services.json Firebase no se inicia y esto no recibe nada. -->
+        <service
+            android:name=".data.push.CuentivaMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <!-- Idioma por app en Android 8-12 (en 13+ lo guarda el sistema). -->
         <service
             android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"

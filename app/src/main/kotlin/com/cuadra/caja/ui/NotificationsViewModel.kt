@@ -22,6 +22,9 @@ val NOTIFICATION_TYPES = listOf(
 )
 
 class NotificationsViewModel(private val c: AppContainer) : ViewModel(), NotificationsActions {
+
+    /** Refresco al abrir la pantalla, al volver al frente y al deslizar: sincroniza (sube lo pendiente y baja lo nuevo). */
+    val refresher = ScreenRefresh(viewModelScope) { c.pullNow() }
     val items: StateFlow<List<NotificationEntity>> = c.notifications.inbox().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val unread: StateFlow<Int> = c.notifications.unreadCount().stateIn(viewModelScope, SharingStarted.Eagerly, 0)
 

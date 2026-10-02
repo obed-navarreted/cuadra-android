@@ -45,9 +45,16 @@ class ActivityViewModel(private val c: AppContainer) : ViewModel(), ActivityActi
     val ui: StateFlow<ActivityUi> = _ui.asStateFlow()
     val business: StateFlow<BusinessEntity?> = c.db.directory().business().stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
+    /** Refresco al abrir, al volver al frente y al deslizar (con antirrebote): la primera página otra vez; lo de antes sigue a la vista. */
+    val refresher = ScreenRefresh(viewModelScope) {
+        _ui.update { it.copy(loading = true, error = null) }
+        load(0, replace = true)
+        if (_ui.value.offline) RefreshResult.OFFLINE else RefreshResult.DONE
+    }
+
     override fun enter() {
         _ui.update { it.copy(kind = ActivityKind.ALL) }
-        refresh()
+        refresher.request(com.cuadra.caja.domain.RefreshTrigger.SHOWN)
     }
 
     override fun refresh() {

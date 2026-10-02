@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="promo_title">Promotions</string>
+    <string name="promo_entry_hint">“3 for C$ 100” and the like: applied automatically at the register</string>
+    <string name="promo_empty">No promotions yet. Create one: pick the products, how many units and the price for all of them.</string>
+    <string name="promo_new">New promotion</string>
+    <string name="promo_edit">Edit promotion</string>
+    <string name="promo_name">Name</string>
+    <string name="promo_name_hint">E.g. Beer 3 for C$ 100</string>
+    <string name="promo_quantity">Quantity</string>
+    <string name="promo_price">Price for that quantity</string>
+    <string name="promo_line">Promo %1$d for %2$s</string>
+    <string name="promo_rule">%1$d for %2$s</string>
+    <string name="promo_state_ACTIVE">Active</string>
+    <string name="promo_state_PAUSED">Paused</string>
+    <string name="promo_state_SCHEDULED">Scheduled</string>
+    <string name="promo_state_ENDED">Ended</string>
+    <string name="promo_active">Active</string>
+    <string name="promo_active_hint">A paused promotion is not applied at the register (you can resume it any time).</string>
+    <string name="promo_toggle">Active or paused: %1$s</string>
+    <string name="promo_products">Products in the promotion</string>
+    <string name="promo_products_hint">Units of these products add up: 2 Toña and 1 Victoria count as 3. Products sold by weight or with an open price are not included.</string>
+    <string name="promo_products_none">Add at least one product.</string>
+    <string name="promo_search">Search product (name or code)</string>
+    <string name="promo_scan">Scan products</string>
+    <string name="promo_remove">Remove %1$s</string>
+    <string name="promo_added">%1$s added</string>
+    <string name="promo_already">%1$s is already on the list</string>
+    <string name="promo_not_eligible">%1$s is sold by weight or with an open price: not included</string>
+    <string name="promo_unknown_code">Code %1$s is not in the catalog</string>
+    <string name="promo_no_results">No product matches.</string>
+    <string name="promo_example">Example: %1$d × %2$s = %3$s</string>
+    <string name="promo_no_benefit">With these prices there is no discount: the pack costs the same or more than the single units.</string>
+    <string name="promo_dates">Dates</string>
+    <string name="promo_dates_always">Always</string>
+    <string name="promo_dates_some">With dates</string>
+    <string name="promo_dates_hint">By the business day: valid from the start of the first day to the end of the last one.</string>
+    <string name="promo_from">From: %1$s</string>
+    <string name="promo_until">Until: %1$s</string>
+    <string name="promo_no_end">no end date</string>
+    <string name="promo_pick_date">Change</string>
+    <string name="promo_clear_date">Remove</string>
+    <string name="promo_date_title">Pick the day</string>
+    <string name="promo_error_name">Type a name.</string>
+    <string name="promo_error_quantity">From 2 to 999 units.</string>
+    <string name="promo_error_price">Type the price.</string>
+    <string name="promo_error_dates">The end date is before the start date.</string>
+    <string name="promo_delete">Delete promotion</string>
+    <string name="promo_delete_confirm">Delete “%1$s”? Sales that already used it do not change.</string>
+    <string name="promo_discounts">Promotion discounts</string>
+    <string name="att_what_promotion">Promotion “%1$s”</string>
+    <string name="att_what_promotion_plain">A promotion change</string>
+    <plurals name="promo_products_count">
+        <item quantity="one">%d product</item>
+        <item quantity="other">%d products</item>
+    </plurals>
+    <string name="notif_perm_title">Alerts on this phone</string>
+    <string name="notif_perm_body">To alert you right away (a cashier changed a price, a close with a difference, low stock), Android asks for your permission. You can change it later in More › Notifications.</string>
+    <string name="notif_perm_allow">Allow alerts</string>
+    <string name="notif_perm_later">Not now</string>
+</resources>

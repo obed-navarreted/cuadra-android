@@ -33,4 +33,9 @@
     <string name="undo_deleted">Line removed</string>
     <string name="undo_cleared">Receipt cleared</string>
     <string name="undo_action">Undo</string>
+    <!-- Tira de la última línea (Manual y Productos) -->
+    <string name="strip_remove">Remove this line</string>
+    <string name="strip_qty">Quantity %1$s. Tap to type another</string>
+    <string name="strip_empty">The last product you add will show up here</string>
+    <string name="strip_label">Last line</string>
 </resources>

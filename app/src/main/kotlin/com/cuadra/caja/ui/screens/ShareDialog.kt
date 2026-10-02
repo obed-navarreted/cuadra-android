@@ -96,12 +96,12 @@ private suspend fun resolve(c: AppContainer, ctx: Context, request: ShareRequest
             Resolved(ShareBuilders.statement(business.name, customer.name, lines, money.format(customer.balanceMinor), l), customer.phone, null, customer.id, customer.name, "STATEMENT_OPENED")
         }
         is ShareRequest.CreditNew -> Resolved(
-            ShareBuilders.creditNew(business.name, request.debtor, date(now), money.format(request.creditedMinor), request.items.map { it.first to money.format(it.second) },
+            ShareBuilders.creditNew(business.name, request.debtor, date(now), money.format(request.creditedMinor), request.items.map { it.first to money.signed(it.second) },
                 request.paidNowMinor?.let { money.format(it) }, l, ctx.getString(R.string.card_paid_now)),
             request.phone, request.creditId, request.customerId, request.debtor, "CREDIT_OPENED",
         )
         is ShareRequest.Ticket -> Resolved(
-            ShareBuilders.ticket(business.name, date(now), request.items.map { it.first to money.format(it.second) }, money.format(request.totalMinor), l),
+            ShareBuilders.ticket(business.name, date(now), request.items.map { it.first to money.signed(it.second) }, money.format(request.totalMinor), l),
             null, null, null, "", "TICKET_OPENED",
         )
         is ShareRequest.Payment -> {

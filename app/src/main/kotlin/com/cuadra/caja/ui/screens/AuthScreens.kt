@@ -267,11 +267,8 @@ fun OnboardingScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(b.businessName, fontWeight = FontWeight.ExtraBold)
                         Text(stringResource(roleRes(b.role)), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        if (b.role == "OWNER" || b.role == "ADMIN") {
-                            CuadraButton(stringResource(R.string.onboarding_use_here), { onUse(b.businessId) }, Modifier.fillMaxWidth(), enabled = !ui.busy)
-                        } else {
-                            Text(stringResource(R.string.onboarding_cannot_link), style = MaterialTheme.typography.bodyMedium)
-                        }
+                        // Cualquier persona del negocio usa este teléfono para el negocio (ADR 0012, 2026-10-01).
+                        CuadraButton(stringResource(R.string.onboarding_use_here), { onUse(b.businessId) }, Modifier.fillMaxWidth(), enabled = !ui.busy)
                     }
                 }
             }

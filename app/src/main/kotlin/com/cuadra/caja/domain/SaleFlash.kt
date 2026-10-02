@@ -21,8 +21,9 @@ object SaleFlash {
 }
 
 /** Qué dice el aviso flotante que queda tras cobrar. */
-data class SaleNoticeContent(val kind: Kind, val totalMinor: Long, val changeMinor: Long, val canUndo: Boolean) {
-    enum class Kind { CHANGE, SOLD, UNDONE }
+data class SaleNoticeContent(val kind: Kind, val totalMinor: Long, val changeMinor: Long, val canUndo: Boolean, val note: String? = null) {
+    /** SENT: «Enviada a caja · Mesa 4» (cobro en caja, ADR 0015): no es una venta, no se anula desde aquí. */
+    enum class Kind { CHANGE, SOLD, UNDONE, SENT }
 }
 
 object SaleNotice {
@@ -36,7 +37,8 @@ object SaleNotice {
      * Contenido del aviso: con vuelto, «Vuelto C$ X · Anular»; sin vuelto, «Venta cobrada · C$ X · Anular»; «Anular» solo mientras siga el plazo de 5 minutos
      * ([SaleUndo]); una venta ya anulada solo confirma.
      */
-    fun of(totalMinor: Long, changeMinor: Long, doneAtMillis: Long?, nowMillis: Long, undone: Boolean = false): SaleNoticeContent {
+    fun of(totalMinor: Long, changeMinor: Long, doneAtMillis: Long?, nowMillis: Long, undone: Boolean = false, sent: Boolean = false, note: String? = null): SaleNoticeContent {
+        if (sent) return SaleNoticeContent(SaleNoticeContent.Kind.SENT, totalMinor, 0, canUndo = false, note = note?.takeIf { it.isNotBlank() })
         if (undone) return SaleNoticeContent(SaleNoticeContent.Kind.UNDONE, totalMinor, 0, canUndo = false)
         val kind = if (SaleFlash.showsChange(changeMinor)) SaleNoticeContent.Kind.CHANGE else SaleNoticeContent.Kind.SOLD
         return SaleNoticeContent(kind, totalMinor, changeMinor.coerceAtLeast(0), canUndo = SaleUndo.remaining(doneAtMillis, nowMillis) > 0)

@@ -1,6 +1,6 @@
 package com.cuadra.caja.data.repo
 
-import com.cuadra.caja.data.local.CuadraDatabase
+import com.cuadra.caja.data.local.Db
 import com.cuadra.caja.data.local.MemberEntity
 import com.cuadra.caja.data.remote.CreateMemberBody
 import com.cuadra.caja.data.remote.CuadraApi
@@ -20,7 +20,7 @@ import kotlinx.coroutines.flow.Flow
  * (`AuthRepository.loadDirectory`): así el teléfono recibe el hash del PIN nuevo y lo valida sin conexión de inmediato.
  */
 class TeamRepository(
-    private val db: CuadraDatabase,
+    private val db: Db,
     private val api: TeamApi,
     private val session: SessionStore,
     private val auth: AuthRepository,

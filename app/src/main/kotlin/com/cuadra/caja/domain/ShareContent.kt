@@ -45,7 +45,7 @@ object ShareBuilders {
 
     /** Fiado nuevo (al cobrar una venta): el detalle de la compra, lo fiado y, si hubo, lo que pagó en el momento. */
     fun creditNew(business: String, debtor: String, date: String, credited: String, items: List<Pair<String, String>>, paidNow: String?, labels: CardLabels, paidLinePrefix: String): ShareContent {
-        val detail = items.take(MAX).joinToString("\n") { "· ${it.first} — ${it.second}" }
+        val detail = items.take(MAX).joinToString("\n") { line(it) }
         val paidLine = paidNow?.let { "$paidLinePrefix $it. " }.orEmpty()
         return ShareContent(
             MessageKind.CREDIT_NEW, vars(business, debtor, date = date, amount = credited, detail = detail, paidLine = paidLine),
@@ -55,7 +55,7 @@ object ShareBuilders {
 
     /** Comprobante de una venta: cada línea con su monto y el total (plantilla «Comprobante de venta»). */
     fun ticket(business: String, date: String, items: List<Pair<String, String>>, total: String, labels: CardLabels): ShareContent {
-        val detail = items.take(TICKET_MAX).joinToString("\n") { "· ${it.first} — ${it.second}" }
+        val detail = items.take(TICKET_MAX).joinToString("\n") { line(it) }
         return ShareContent(
             MessageKind.TICKET, vars(business, "", date = date, amount = total, detail = detail),
             ShareCard(business, labels.ticket, null, items.take(TICKET_MAX).map { CardLine(it.first, it.second) }, labels.total, total),
@@ -69,6 +69,9 @@ object ShareBuilders {
     )
 
     private const val MAX = 8
+
+    /** «· Toña ×7 — C$ 315.00»; una línea de promoción («Promo 3 por C$ 100:») va con su monto pegado: «· Promo 3 por C$ 100: -C$ 70.00». */
+    private fun line(it: Pair<String, String>): String = if (it.first.endsWith(":")) "· ${it.first} ${it.second}" else "· ${it.first} — ${it.second}"
 
     /** Un comprobante lleva TODAS las líneas de la venta (hasta este tope), no solo las primeras. */
     private const val TICKET_MAX = 40

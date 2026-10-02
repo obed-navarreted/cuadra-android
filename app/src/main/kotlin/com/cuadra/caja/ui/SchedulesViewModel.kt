@@ -68,6 +68,7 @@ class SchedulesViewModel(private val c: AppContainer) : ViewModel(), SchedulesAc
             "RULE_ENDED" -> ErrorMessage(R.string.sched_err_ended)
             "INVALID_LINK" -> ErrorMessage(R.string.sched_err_link)
             "SCHEDULE_LIMIT" -> ErrorMessage(R.string.sched_err_limit)
+            "PIN_VERIFICATION_REQUIRED" -> ErrorMessage(R.string.error_PIN_VERIFICATION_REQUIRED)
             "FORBIDDEN" -> ErrorMessage(R.string.sched_err_forbidden)
             "PLAN_LIMIT", "BUSINESS_SUSPENDED" -> errorMessage()
             else -> ErrorMessage(R.string.sched_err_generic)

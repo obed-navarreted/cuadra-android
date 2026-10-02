@@ -29,7 +29,7 @@
     <string name="att_reason_CREDIT_CLOSED">Ese fiado ya estaba cerrado (condonado o anulado en otro teléfono) y el cliente no tiene otras deudas: el abono no se guardó. Devuelve el dinero o anótalo de otra forma.</string>
     <string name="att_reason_NO_OPEN_CREDITS">El cliente ya no debía nada: el abono no se guardó. Devuelve el dinero o anótalo de otra forma.</string>
     <string name="att_reason_MEMBER_DISABLED">Quien la hizo fue dado de baja antes de que se enviara.</string>
-    <string name="att_reason_DEVICE_NOT_TRUSTED">Este teléfono no puede actuar con el rol de quien la hizo. Pídele al dueño que la haga desde su teléfono o desde la web.</string>
+    <string name="att_reason_PIN_VERIFICATION_REQUIRED">Quien la hizo tiene que confirmar su PIN en este teléfono (con conexión). Toca «Confirmar PIN» y se vuelve a enviar.</string>
     <string name="att_reason_FORBIDDEN">Quien la hizo no tiene permiso para esto.</string>
     <string name="att_reason_PAYMENT_MISMATCH">Los pagos no cuadran con el total de la venta.</string>
     <string name="att_reason_CUSTOMER_REQUIRED">El negocio exige un cliente de la lista en cada fiado.</string>
@@ -81,4 +81,6 @@
     <string name="att_reason_UNDO_NOT_ALLOWED">Ya no se podía anular: pasaron los 5 minutos o no era tu última venta. La venta sigue cobrada; pide al dueño o a un admin que la elimine.</string>
     <string name="att_reason_RETURN_REJECTED">La devolución no se aplicó: se pidió devolver más de lo que quedaba, el fiado ya no alcanzaba o no había permiso.</string>
     <string name="att_reason_LATE_OP_REJECTED">La hizo alguien dado de baja y no es creíble que sea de antes de la baja (muy vieja, anterior a vincular el teléfono o ya se había enviado todo).</string>
+    <string name="sync_channel">Sincronización</string>
+    <string name="sync_running">Poniéndose al día con el negocio…</string>
 </resources>

@@ -157,6 +157,7 @@
     <string name="act_DEVICE_CLAIM">Vinculó un teléfono con un código</string>
     <string name="act_DEVICE_SELF_LINK">Vinculó un teléfono</string>
     <string name="act_DEVICE_REVOKE">Desvinculó un teléfono</string>
+    <string name="act_DEVICE_PIN_VERIFIED">Confirmó su PIN en un teléfono del negocio</string>
     <string name="act_OWNER_TRANSFER">Pasó la propiedad del negocio</string>
     <string name="act_BUSINESS_CREATE">Creó el negocio</string>
     <string name="act_BUSINESS_UPDATE">Cambió los ajustes del negocio</string>

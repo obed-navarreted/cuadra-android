@@ -1,7 +1,6 @@
 package com.cuadra.caja.data.repo
 
-import androidx.room.withTransaction
-import com.cuadra.caja.data.local.CuadraDatabase
+import com.cuadra.caja.data.local.Db
 import com.cuadra.caja.data.local.CustomerEntity
 import com.cuadra.caja.data.local.OutboxEntity
 import com.cuadra.caja.data.remote.CustomerInputDto
@@ -19,7 +18,7 @@ sealed interface SaveCustomer {
 }
 
 class CustomerRepository(
-    private val db: CuadraDatabase,
+    private val db: Db,
     private val requestSync: () -> Unit,
     private val now: () -> Long = System::currentTimeMillis,
 ) {
@@ -50,7 +49,7 @@ class CustomerRepository(
             lastReminderAt = existing?.lastReminderAt, archived = archived, balanceMinor = existing?.balanceMinor ?: 0, oldestOpenAt = existing?.oldestOpenAt, rev = existing?.rev ?: 0,
         )
         val input = CustomerInputDto(entity.name, normalized, entity.notes, creditLimitMinor, archived)
-        db.withTransaction {
+        db.inTransaction {
             db.customers().upsert(entity)
             db.outbox().insert(OutboxEntity(opId = UUID.randomUUID().toString(), kind = "CUSTOMER_UPSERT", entityId = customerId, payload = json.encodeToString(input), createdAt = now()))
         }

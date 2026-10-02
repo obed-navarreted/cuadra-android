@@ -15,7 +15,7 @@ class HardwareScanRouteTest {
         assertEquals(HardwareScanRoute.IGNORE, CajaUi(showParked = true).hardwareScanRoute())
         // Menú de frecuentes abierto (pulsación larga): una lectura no agrega nada por detrás.
         assertEquals(HardwareScanRoute.IGNORE, CajaUi(productMenu = com.cuadra.caja.ui.guard.Fixtures.products[0]).hardwareScanRoute())
-        assertEquals(HardwareScanRoute.IGNORE, CajaUi(notice = Notice.TicketLocked).hardwareScanRoute())
+        assertEquals(HardwareScanRoute.IGNORE, CajaUi(notice = Notice.TicketLocked()).hardwareScanRoute())
         assertEquals(HardwareScanRoute.IGNORE, CajaUi(draft = ProductDraft(), notice = Notice.InvalidProduct).hardwareScanRoute())
     }
 }
