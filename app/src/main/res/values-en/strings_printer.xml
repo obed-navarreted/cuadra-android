@@ -81,4 +81,9 @@
     <string name="more_offer_whatsapp_help">Only on this phone. Off: the sale ends with no WhatsApp button or window.</string>
     <string name="more_ask_description">Ask for a description when adding</string>
     <string name="more_ask_description_help">Only on this phone. Off: the keypad has no description field; you can add one later by tapping the line in the receipt.</string>
+    <string name="printer_end_spacing">Space at the end of the receipt</string>
+    <string name="printer_end_min">Minimum</string>
+    <string name="printer_end_more">More space</string>
+    <string name="printer_no_cutter">My printer has no cutter</string>
+    <string name="printer_no_cutter_help">The paper advances just enough to tear it off. If your printer cuts the last line, choose “More space”.</string>
 </resources>

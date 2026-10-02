@@ -198,6 +198,7 @@ fun CobroContent(ui: CajaUi, actions: CajaActions, nowMillis: Long = System.curr
         } else {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (cobro.registerCheckout) CobroModeSwitch(cobro, actions)
+                if (cobro.registerOffNotice) Text(stringResource(R.string.pay_register_off), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = CuadraColors.Orange)
                 if (cobro.registerCheckout && cobro.toRegister) {
                     RegisterSendBody(cobro, actions)
                     return@Column

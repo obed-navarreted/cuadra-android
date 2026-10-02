@@ -28,6 +28,7 @@ fun Throwable?.errorMessage(): ErrorMessage = when (this) {
         "PLAN_LIMIT" -> planLimit(feature, limit)
         "BUSINESS_SUSPENDED" -> ErrorMessage(R.string.error_BUSINESS_SUSPENDED)
         "REASON_REQUIRED" -> ErrorMessage(R.string.error_REASON_REQUIRED)
+        "COBRO_EN_CAJA_OFF" -> ErrorMessage(R.string.error_COBRO_EN_CAJA_OFF)
         else -> ErrorMessage(R.string.error_generic)
     }
     else -> ErrorMessage(R.string.error_generic)

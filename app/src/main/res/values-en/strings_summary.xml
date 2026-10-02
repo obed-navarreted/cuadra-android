@@ -7,8 +7,8 @@
     <string name="summary_loading">Calculating…</string>
     <string name="summary_sales">Sales</string>
     <plurals name="summary_sales_hint">
-        <item quantity="one">%1$d sale · ticket %2$s</item>
-        <item quantity="other">%1$d sales · ticket %2$s</item>
+        <item quantity="one">%1$d sale · Average per sale %2$s</item>
+        <item quantity="other">%1$d sales · Average per sale %2$s</item>
     </plurals>
     <string name="summary_expenses">Expenses</string>
     <string name="summary_expenses_hint">Without merchandise purchases (%1$s)</string>

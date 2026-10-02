@@ -109,7 +109,7 @@ fun ticketOf(s: SaleView, money: com.cuadra.caja.ui.common.MoneyFormat = com.cua
 @Composable
 fun HistoryContent(
     ui: HistoryUi, local: List<SaleView>, manager: Boolean, role: String?, calendar: BusinessCalendar?, members: List<MemberEntity>, actions: HistoryActions,
-    nowMillis: Long = System.currentTimeMillis(), initialMoreFilters: Boolean = false,
+    nowMillis: Long = System.currentTimeMillis(), initialMoreFilters: Boolean = false, initialShowAllPeople: Boolean = false,
     /** «Enviar por WhatsApp» desde el detalle (cualquier venta, sin depender de la preferencia): la hoja con el número. */
     whatsApp: @Composable (SaleView, () -> Unit) -> Unit = { _, _ -> },
     /** Refrescando: lo de antes sigue a la vista con el indicador pequeño. `offlineLocal`: la lista de este teléfono no se pudo sincronizar. */
@@ -123,6 +123,7 @@ fun HistoryContent(
     val serverList = manager && !ui.offline && ui.error == null
     val rows = if (serverList) ui.sales else local
     var moreFilters by remember { mutableStateOf(initialMoreFilters) }
+    var showAllPeople by remember { mutableStateOf(initialShowAllPeople) }
     com.cuadra.caja.ui.common.RefreshBox(refreshing || ui.loading, actions::pullRefresh, Modifier.fillMaxSize(), offline = offlineLocal) {
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item { Text(stringResource(R.string.history_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 16.dp, bottom = 2.dp)) }
@@ -144,10 +145,20 @@ fun HistoryContent(
             if (serverList) ui.totals?.let { t ->
                 item {
                     ButtonRow(spacing = 10.dp) {
-                        Totals(stringResource(R.string.summary_sales), money(t.totalMinor), pluralStringResource(R.plurals.summary_sales_hint, t.count.toInt(), t.count.toInt(), money(t.averageTicketMinor)), Modifier.share(1f))
+                        Totals(stringResource(R.string.summary_sales), money(t.totalMinor), pluralStringResource(R.plurals.summary_sales_hint, t.count.toInt(), t.count.toInt(), money(t.averageTicketMinor).replace(' ', '\u00A0')), Modifier.share(1f))
                         Totals(stringResource(R.string.sales_status_cancelled), pluralStringResource(R.plurals.sales_cancelled_count, t.cancelledCount.toInt(), t.cancelledCount.toInt()), null, Modifier.share(1f), plainValue = true)
                     }
                 }
+            }
+        }
+        // «Por persona»: del servidor (sin conexión no hay desglose y la tarjeta no se muestra). Tocar una fila aplica el filtro de persona.
+        if (manager && serverList && com.cuadra.caja.domain.SalesByPerson.applies(ui.query.statuses)) ui.people?.let { pb ->
+            val rows = com.cuadra.caja.domain.SalesByPerson.shares(pb.rows(ui.peopleMode))
+            if (rows.isNotEmpty()) item(key = "people") {
+                SalesByPersonCard(
+                    rows, ui.peopleMode, com.cuadra.caja.domain.SalesByPerson.showControl(ui.registerCheckout, pb), ui.query.memberId, showAllPeople,
+                    actions::setPeopleMode, actions::setMember, { showAllPeople = it },
+                )
             }
         }
         // Mientras se refresca, lo de antes sigue a la vista (el indicador va arriba); «Cargando…» solo si aún no hay nada.

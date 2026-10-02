@@ -13,6 +13,8 @@ interface SettingsActions {
     fun save() {}
     fun confirmSave() {}
     fun cancelConfirm() {}
+    fun confirmDiscard() {}
+    fun cancelDiscard() {}
     fun setModule(key: String, on: Boolean) {}
     fun openZonePicker() {}
     fun zoneQuery(q: String) {}

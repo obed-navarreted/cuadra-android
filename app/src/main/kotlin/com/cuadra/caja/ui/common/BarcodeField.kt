@@ -76,14 +76,14 @@ fun BarcodeField(
 }
 
 /**
- * Control segmentado de pocas opciones (2 o 3): una etiqueta y las opciones pegadas en una fila con borde común; la elegida va rellena. Cada opción mide al
+ * Control segmentado de pocas opciones (2 o 3): una etiqueta (opcional) y las opciones pegadas en una fila con borde común; la elegida va rellena. Cada opción mide al
  * menos 48 dp y reparte el ancho; el texto baja de tamaño y sigue en más líneas antes de recortarse.
  */
 @Composable
-fun SegmentedChoice(label: String, options: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+fun SegmentedChoice(label: String?, options: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(50)
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(label, style = MaterialTheme.typography.labelLarge, color = CuadraColors.Ink2)
+        if (label != null) Text(label, style = MaterialTheme.typography.labelLarge, color = CuadraColors.Ink2)
         Row(Modifier.fillMaxWidth().clip(shape).border(BorderStroke(1.dp, CuadraColors.Line), shape).selectableGroup()) {
             options.forEachIndexed { i, text ->
                 val on = i == selected

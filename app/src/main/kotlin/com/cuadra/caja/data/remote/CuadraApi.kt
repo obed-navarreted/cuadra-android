@@ -52,6 +52,7 @@ interface CuadraApi {
         @Query("method") method: String? = null, @Query("byMember") byMember: String? = null, @Query("page") page: Int = 0, @Query("size") size: Int = 100,
     ): PageDto<SaleDto>
     @GET("api/b/{businessId}/reports/sales") suspend fun salesReport(@Path("businessId") businessId: String, @Query("from") from: String, @Query("to") to: String): SalesReportDto
+    @GET("api/b/{businessId}/reports/sales/breakdown") suspend fun salesBreakdown(@Path("businessId") businessId: String, @Query("by") by: String, @Query("from") from: String, @Query("to") to: String): List<BreakdownRowDto>
     @GET("api/b/{businessId}/reports/daily-close") suspend fun dailyClose(@Path("businessId") businessId: String, @Query("from") from: String, @Query("to") to: String): DailyCloseDto
 
     @POST("api/b/{businessId}/sales/{saleId}/lock") suspend fun lockSale(@Path("businessId") businessId: String, @Path("saleId") saleId: String): SaleDto

@@ -16,7 +16,9 @@ sealed class ApiFailure(message: String) : Exception(message) {
                /** SALE_LOCKED: quién tiene abierta la cuenta («La está cobrando Ana»). */
                val memberName: String? = null,
                /** PIN_VERIFICATION_REQUIRED: de quién hay que confirmar el PIN. */
-               val memberId: String? = null) : ApiFailure(message) {
+               val memberId: String? = null,
+               /** REGISTER_QUEUE_NOT_EMPTY: cuántas cuentas por cobrar en caja hay y cuánto suman (ADR 0015). */
+               val count: Int? = null, val totalMinor: Long? = null) : ApiFailure(message) {
         val isAuth: Boolean get() = status == 401
     }
 }
@@ -44,7 +46,8 @@ fun parseProblem(status: Int, body: String?, fallbackMessage: String): ApiFailur
     val obj = runCatching { ApiJson.parseToJsonElement(body.orEmpty()).jsonObject }.getOrNull()
     fun str(key: String) = (obj?.get(key) as? JsonPrimitive)?.takeIf { it.isString }?.content
     val limit = (obj?.get("limit") as? JsonPrimitive)?.content?.toDoubleOrNull()?.toInt()
-    return ApiFailure.Http(status, str("code") ?: "HTTP_$status", str("detail") ?: fallbackMessage, str("feature"), limit, str("memberName"), str("memberId"))
+    return ApiFailure.Http(status, str("code") ?: "HTTP_$status", str("detail") ?: fallbackMessage, str("feature"), limit, str("memberName"), str("memberId"),
+        (obj?.get("count") as? JsonPrimitive)?.content?.toIntOrNull(), (obj?.get("totalMinor") as? JsonPrimitive)?.content?.toLongOrNull())
 }
 
 /** Quién se entera cuando una llamada responde PIN_VERIFICATION_REQUIRED (lo pone `AppContainer`). Recibe el id de la persona, si vino. */

@@ -307,6 +307,8 @@ data class UpdateBusinessBody(
     val currency: String? = null, val country: String? = null,
     /** Cobro en caja (ADR 0015). */
     val registerCheckout: Boolean? = null,
+    /** Al apagar «Cobro en caja» con cuentas por cobrar: true = anularlas (si no, el servidor responde REGISTER_QUEUE_NOT_EMPTY). */
+    val confirmDiscardPending: Boolean? = null,
 ) {
     /** ¿No cambia nada? (para no llamar al servidor con un cuerpo vacío). */
     val isEmpty: Boolean get() = this == UpdateBusinessBody()
@@ -432,6 +434,8 @@ data class ProductHistoryEntryDto(
     /** «Descuentos por promociones» del periodo (ya restados del total). */
     val promotionDiscountMinor: Long = 0,
 )
+/** Una fila de `reports/sales/breakdown` (por persona: `key` = id del miembro, `label` = su nombre). */
+@Serializable data class BreakdownRowDto(val key: String? = null, val label: String? = null, val count: Long = 0, val totalMinor: Long = 0)
 @Serializable data class SalesReportDto(val sales: SalesTotalsDto, val byMethod: List<MethodAmountDto> = emptyList())
 
 @Serializable

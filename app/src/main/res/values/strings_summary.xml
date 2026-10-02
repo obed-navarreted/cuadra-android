@@ -7,8 +7,8 @@
     <string name="summary_loading">Calculando…</string>
     <string name="summary_sales">Ventas</string>
     <plurals name="summary_sales_hint">
-        <item quantity="one">%1$d venta · ticket %2$s</item>
-        <item quantity="other">%1$d ventas · ticket %2$s</item>
+        <item quantity="one">%1$d venta · Promedio por venta %2$s</item>
+        <item quantity="other">%1$d ventas · Promedio por venta %2$s</item>
     </plurals>
     <string name="summary_expenses">Gastos</string>
     <string name="summary_expenses_hint">Sin compras de mercadería (%1$s)</string>

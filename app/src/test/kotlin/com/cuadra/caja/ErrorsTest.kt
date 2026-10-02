@@ -16,6 +16,12 @@ class ErrorsTest {
         assertEquals(3, f.limit)
     }
 
+    @Test fun parsesRegisterQueueExtras() {
+        val f = parseProblem(409, """{"code":"REGISTER_QUEUE_NOT_EMPTY","detail":"x","count":2,"totalMinor":15000}""", "fallback")
+        assertEquals(2, f.count)
+        assertEquals(15000L, f.totalMinor)
+    }
+
     @Test fun tolerantOfGarbageAndOddTypes() {
         assertEquals("HTTP_500", parseProblem(500, "<html>", "boom").code)
         assertEquals("HTTP_502", parseProblem(502, null, "bad").code)

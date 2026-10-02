@@ -102,6 +102,12 @@ object Fixtures {
     fun member(i: Int, name: String = "Persona $i", role: String = "CASHIER") =
         MemberEntity("m$i", name, role, "ACTIVE", hasGoogle = role != "CASHIER", pinSet = true, pinMustChange = false, color = null, pinHash = null)
 
+    /** «Por persona»: `n` personas (nombres largos y montos enormes en las primeras si se pide), de más a menos vendido. */
+    fun peopleRows(n: Int, long: Boolean = false, huge: Boolean = false) = (1..n).map { i ->
+        com.cuadra.caja.data.remote.BreakdownRowDto("m$i", if (long && i % 2 == 1) (if (i % 3 == 0) PERSON_LONG else NAME_120) else if (i == 2) LONG_WORD else "Persona $i", (13 - i).toLong() * 7_000, if (huge && i == 1) HUGE else (n - i + 1) * 45_000L + 123)
+    }
+    fun people(n: Int, long: Boolean = false, huge: Boolean = false) = com.cuadra.caja.domain.PeopleBreakdown(peopleRows(n, long, huge), peopleRows(n, long, huge).reversed().mapIndexed { i, r -> r.copy(totalMinor = (i + 1) * 30_000L) })
+
     val members = listOf(
         member(1, PERSON_LONG, "OWNER"), member(2, "Ana", "ADMIN"), member(3, LONG_WORD, "CASHIER"), member(4, NAME_60, "CASHIER"), member(5, "Kevin", "CASHIER"),
     )

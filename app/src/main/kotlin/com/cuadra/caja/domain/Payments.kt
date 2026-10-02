@@ -140,40 +140,54 @@ object PaymentMethods {
     fun completions(available: List<PayMethod>): List<PayMethod> = available.filter { it != PayMethod.OTHER }
 }
 
-/** Billetes sugeridos para "paga con", según la moneda del negocio. */
+/**
+ * Montos sugeridos para «Recibido» en efectivo, pensados en billetes de verdad: lo que un cliente puede entregar y que a la cajera le sirve para dar vuelto.
+ * «Exacto» es aparte (otro botón). Puro: sin Android.
+ */
 object CashSuggestions {
-    private val DEFAULT = listOf(10L, 20L, 50L, 100L, 200L, 500L, 1000L)
+    /** Billetes de la moneda (en unidades mayores) y `base`: el «cien» de esa moneda, desde donde se redondea hacia arriba. */
+    private data class Notes(val bills: List<Long>, val base: Long)
+
+    private val DEFAULT = Notes(listOf(10L, 20L, 50L, 100L, 200L, 500L, 1000L), 100L)
     private val BY_CURRENCY = mapOf(
-        "NIO" to listOf(10L, 20L, 50L, 100L, 200L, 500L, 1000L),
-        "HNL" to listOf(20L, 50L, 100L, 200L, 500L),
-        "GTQ" to listOf(10L, 20L, 50L, 100L, 200L),
-        "CRC" to listOf(1000L, 2000L, 5000L, 10000L, 20000L, 50000L),
-        "USD" to listOf(1L, 5L, 10L, 20L, 50L, 100L),
-        "MXN" to listOf(20L, 50L, 100L, 200L, 500L, 1000L),
-        "COP" to listOf(2000L, 5000L, 10000L, 20000L, 50000L, 100000L),
-        "PEN" to listOf(10L, 20L, 50L, 100L, 200L),
-        "EUR" to listOf(5L, 10L, 20L, 50L, 100L, 200L),
-        "CLP" to listOf(1000L, 2000L, 5000L, 10000L, 20000L),
-        "PYG" to listOf(10000L, 20000L, 50000L, 100000L, 200000L),
-        "DOP" to listOf(50L, 100L, 200L, 500L, 1000L, 2000L),
+        "NIO" to DEFAULT,
+        "HNL" to Notes(listOf(20L, 50L, 100L, 200L, 500L), 100L),
+        "GTQ" to Notes(listOf(10L, 20L, 50L, 100L, 200L), 100L),
+        "CRC" to Notes(listOf(1000L, 2000L, 5000L, 10000L, 20000L, 50000L), 1000L),
+        "USD" to Notes(listOf(1L, 5L, 10L, 20L, 50L, 100L), 10L),
+        "MXN" to Notes(listOf(20L, 50L, 100L, 200L, 500L, 1000L), 100L),
+        "COP" to Notes(listOf(2000L, 5000L, 10000L, 20000L, 50000L, 100000L), 10000L),
+        "PEN" to Notes(listOf(10L, 20L, 50L, 100L, 200L), 100L),
+        "EUR" to Notes(listOf(5L, 10L, 20L, 50L, 100L, 200L), 10L),
+        "CLP" to Notes(listOf(1000L, 2000L, 5000L, 10000L, 20000L), 10000L),
+        "PYG" to Notes(listOf(10000L, 20000L, 50000L, 100000L, 200000L), 100000L),
+        "DOP" to Notes(listOf(50L, 100L, 200L, 500L, 1000L, 2000L), 100L),
     )
 
     /**
-     * Hasta 4 montos ≥ lo que hay que cobrar: el billete más chico que alcanza, y los siguientes. Nunca repite ni sugiere el propio monto
-     * (para eso está "Exacto"). `decimals` convierte el billete a unidad menor.
+     * Hasta 3 montos ESTRICTAMENTE mayores que lo que hay que cobrar, de menor a mayor y sin repetir, que se pueden entregar con billetes comunes:
+     * - Cuenta chica (menos que el «cien» de la moneda): el siguiente múltiplo del billete más chico y los billetes que siguen (NIO 35 → 40, 50, 100; 95 → 100, 200, 500).
+     * - Cuenta de «cien» para arriba: se redondea hacia arriba a 1×, 5× y 10× ese paso (NIO 250 → 300, 500, 1000; 1100 → 1200, 1500, 2000; 1400 → 1500, 2000).
+     *   Con cuentas 100 veces mayores el paso sube (×10), para no sugerir 12,340 → 12,400.
+     * `decimals` convierte a unidad menor.
      */
     fun forAmount(amountMinor: Long, currency: String, decimals: Int): List<Long> {
         val scale = pow10(decimals)
-        val notes = (BY_CURRENCY[currency.uppercase()] ?: DEFAULT).map { it * scale }
-        val out = linkedSetOf<Long>()
-        val smallest = notes.firstOrNull { it >= amountMinor }
-        if (smallest != null && smallest != amountMinor) out += smallest
-        // Múltiplos del billete más grande que sigue teniendo sentido (ej. 2 × 500 para 900).
-        for (note in notes) {
-            val roundUp = ((amountMinor + note - 1) / note) * note
-            if (roundUp != amountMinor && roundUp - amountMinor < note * 2) out += roundUp
+        val notes = BY_CURRENCY[currency.uppercase()] ?: DEFAULT
+        val total = amountMinor.coerceAtLeast(0)
+        fun up(step: Long): Long = (total / step + 1) * step  // siguiente múltiplo estrictamente mayor
+        val out = sortedSetOf<Long>()
+        if (total < notes.base * scale) {
+            out += up(notes.bills.first() * scale)
+            notes.bills.map { it * scale }.filter { it > total }.take(3).forEach { out += it }
+        } else {
+            var base = notes.base * scale
+            while (total >= base * 100) base *= 10
+            out += up(base)
+            out += up(base * 5)
+            out += up(base * 10)
         }
-        return out.filter { it > amountMinor }.sorted().take(4)
+        return out.take(3)
     }
 
     private fun pow10(n: Int): Long {

@@ -25,6 +25,9 @@ import kotlinx.coroutines.launch
 /** La hoja de «Eliminar el negocio»: nombre escrito, casilla «Entiendo que…» y el resultado de la llamada. */
 data class DeleteUi(val typed: String = "", val understood: Boolean = false, val busy: Boolean = false, val error: ErrorMessage? = null)
 
+/** Cuentas por cobrar en caja que se anularían al apagar «Cobro en caja» (lo dice el servidor). */
+data class DiscardQueue(val count: Int, val totalMinor: Long)
+
 data class SettingsUi(
     /** Se está pidiendo el negocio al servidor. */
     val loading: Boolean = true,
@@ -48,6 +51,8 @@ data class SettingsUi(
     val notifyNotice: TeamNotice? = null,
     /** El aviso de la ADR 0011 antes de guardar un cambio de zona o de corte. */
     val confirmDayRule: Boolean = false,
+    /** El aviso de «Desactivar y anular» al apagar el cobro en caja con cuentas pendientes. */
+    val discardQueue: DiscardQueue? = null,
     /** Lo escrito en el buscador de zonas; nulo = cerrado. */
     val zoneQuery: String? = null,
     val delete: DeleteUi? = null,
@@ -122,13 +127,19 @@ class SettingsViewModel(private val c: AppContainer) : ViewModel(), SettingsActi
     override fun confirmSave() { _ui.update { it.copy(confirmDayRule = false) }; doSave() }
     override fun cancelConfirm() = _ui.update { it.copy(confirmDayRule = false) }
 
-    private fun doSave() {
-        val patch = _ui.value.patch?.takeIf { !it.isEmpty } ?: return
+    override fun confirmDiscard() { _ui.update { it.copy(discardQueue = null) }; doSave(confirmDiscard = true) }
+    override fun cancelDiscard() = _ui.update { it.copy(discardQueue = null) }
+
+    private fun doSave(confirmDiscard: Boolean = false) {
+        val patch = _ui.value.patch?.takeIf { !it.isEmpty }?.let { if (confirmDiscard) it.copy(confirmDiscardPending = true) else it } ?: return
         _ui.update { it.copy(saving = true, notice = null) }
         viewModelScope.launch {
             c.settings.update(patch).fold(
                 onSuccess = { e -> SettingsDraft.of(e).let { d -> _ui.update { it.copy(saving = false, base = d, draft = d, notice = TeamNotice(ErrorMessage(R.string.set_saved), false)) } } },
-                onFailure = { e -> _ui.update { it.copy(saving = false, notice = TeamNotice(e.settingsError(), true)) } },
+                onFailure = { e ->
+                    if (e is ApiFailure.Http && e.code == "REGISTER_QUEUE_NOT_EMPTY") _ui.update { it.copy(saving = false, discardQueue = DiscardQueue(e.count ?: 0, e.totalMinor ?: 0)) }
+                    else _ui.update { it.copy(saving = false, notice = TeamNotice(e.settingsError(), true)) }
+                },
             )
         }
     }

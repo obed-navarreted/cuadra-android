@@ -227,6 +227,12 @@ private fun PaperCard(s: PrinterSettings, actions: PrinterActions) {
                 CuadraChip(stringResource(R.string.printer_charset_ascii), s.charset == PrintCharset.ASCII, { actions.setCharset(PrintCharset.ASCII) })
             }
             Text(stringResource(R.string.printer_charset_hint), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted)
+            Text(stringResource(R.string.printer_end_spacing), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted)
+            ChipFlow {
+                CuadraChip(stringResource(R.string.printer_end_min), s.endSpacing == com.cuadra.caja.domain.printing.EndSpacing.MINIMUM, { actions.setEndSpacing(com.cuadra.caja.domain.printing.EndSpacing.MINIMUM) })
+                CuadraChip(stringResource(R.string.printer_end_more), s.endSpacing == com.cuadra.caja.domain.printing.EndSpacing.MORE, { actions.setEndSpacing(com.cuadra.caja.domain.printing.EndSpacing.MORE) })
+            }
+            SwitchRow(stringResource(R.string.printer_no_cutter), !s.hasCutter, { actions.setHasCutter(!it) }, help = stringResource(R.string.printer_no_cutter_help))
         }
     }
 }

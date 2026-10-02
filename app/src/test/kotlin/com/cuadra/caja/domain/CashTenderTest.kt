@@ -100,3 +100,41 @@ class CashTenderTest {
         assertTrue(CashSuggestions.forAmount(87_35, "NIO", 2).contains(100_00))
     }
 }
+
+/** «Recibido»: sugerencias con billetes de verdad (reglas del dueño). */
+class CashSuggestionsTest {
+    private fun nio(c: Long) = CashSuggestions.forAmount(c * 100, "NIO", 2).map { it / 100 }
+
+    @Test fun nicaraguaExamplesFromTheOwner() {
+        assertEquals(listOf(300L, 500L, 1000L), nio(250))
+        assertEquals(listOf(1200L, 1500L, 2000L), nio(1100))
+        assertEquals(listOf(1500L, 2000L), nio(1400))
+    }
+
+    // Cuentas chicas: el siguiente múltiplo de 10 y los billetes que siguen (50 es un billete: 35 → 40, 50, 100).
+    @Test fun smallTotalsUseTheSmallBills() {
+        assertEquals(listOf(40L, 50L, 100L), nio(35))
+        assertEquals(listOf(100L, 200L, 500L), nio(95))
+    }
+
+    @Test fun neverLessOrEqualAndNeverOddAmounts() {
+        for (total in listOf(1L, 9L, 10L, 99L, 100L, 101L, 250L, 999L, 1000L, 4575L, 12340L, 99999L)) {
+            val s = nio(total)
+            assertTrue("$total $s", s.isNotEmpty() && s.size <= 3 && s.all { it > total } && s == s.sorted().distinct())
+            assertTrue("$total $s", s.all { it % 10 == 0L })
+        }
+        assertEquals(listOf(13000L, 15000L, 20000L), nio(12340))
+    }
+
+    @Test fun exactAmountIsNeverSuggested() {
+        assertTrue(CashSuggestions.forAmount(25000, "NIO", 2).none { it == 25000L })
+    }
+
+    @Test fun otherCurrenciesUseTheirOwnBills() {
+        assertEquals(listOf(8L, 10L, 20L), CashSuggestions.forAmount(7_50, "USD", 2).map { it / 100 })
+        assertEquals(listOf(30L, 50L, 100L), CashSuggestions.forAmount(23_00, "USD", 2).map { it / 100 })
+        assertEquals(listOf(100L, 200L, 500L), CashSuggestions.forAmount(86_00, "HNL", 2).map { it / 100 })
+        assertEquals(listOf(4000L, 5000L, 10000L), CashSuggestions.forAmount(3500, "CRC", 0))
+        assertEquals(listOf(300L, 500L, 1000L), CashSuggestions.forAmount(250_00, "XXX", 2).map { it / 100 })
+    }
+}

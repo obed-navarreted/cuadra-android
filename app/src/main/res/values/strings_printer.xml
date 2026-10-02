@@ -81,4 +81,9 @@
     <string name="more_offer_whatsapp_help">Solo en este teléfono. Apagado: la venta termina sin botón ni ventana de WhatsApp.</string>
     <string name="more_ask_description">Pedir descripción al agregar</string>
     <string name="more_ask_description_help">Solo en este teléfono. Apagado: la calculadora no muestra el campo; la descripción se escribe después tocando la línea en el recibo.</string>
+    <string name="printer_end_spacing">Espacio al final del recibo</string>
+    <string name="printer_end_min">Mínimo</string>
+    <string name="printer_end_more">Más espacio</string>
+    <string name="printer_no_cutter">Mi impresora no tiene cortador</string>
+    <string name="printer_no_cutter_help">Se avanza el papel lo justo para rasgarlo. Si tu impresora corta la última línea, elige «Más espacio».</string>
 </resources>

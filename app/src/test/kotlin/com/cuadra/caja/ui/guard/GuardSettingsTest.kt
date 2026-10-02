@@ -17,6 +17,7 @@ import com.cuadra.caja.domain.TicketDraft
 import com.cuadra.caja.ui.ActivityActions
 import com.cuadra.caja.ui.ActivityUi
 import com.cuadra.caja.ui.DeleteUi
+import com.cuadra.caja.ui.DiscardQueue
 import com.cuadra.caja.ui.ErrorMessage
 import com.cuadra.caja.ui.HelpActions
 import com.cuadra.caja.ui.HelpTab
@@ -62,9 +63,9 @@ class GuardSettingsTest {
 
     private fun ui(role: String = "OWNER", d: SettingsDraft? = draft(), base: SettingsDraft? = d, notify: NotifyDraft? = this.notify, offline: Boolean = false, loadError: ErrorMessage? = null,
                loading: Boolean = false, validation: SettingsError? = null, notice: TeamNotice? = null, confirm: Boolean = false, zone: String? = null, delete: DeleteUi? = null,
-               notifyNotice: TeamNotice? = null, notifyBase: NotifyDraft? = notify, notifyOffline: Boolean = false, saving: Boolean = false) =
+               notifyNotice: TeamNotice? = null, notifyBase: NotifyDraft? = notify, notifyOffline: Boolean = false, saving: Boolean = false, discard: DiscardQueue? = null) =
         SettingsUi(loading = loading, offline = offline, loadError = loadError, role = role, base = base, draft = d, notify = notify, notifyBase = notifyBase, notifyOffline = notifyOffline,
-            validation = validation, notice = notice, confirmDayRule = confirm, zoneQuery = zone, delete = delete, notifyNotice = notifyNotice, saving = saving)
+            validation = validation, notice = notice, confirmDayRule = confirm, zoneQuery = zone, delete = delete, notifyNotice = notifyNotice, saving = saving, discardQueue = discard)
 
     @Composable private fun Settings(ui: SettingsUi, b: BusinessEntity? = biz()) = SettingsContent(ui, b, object : SettingsActions {}, {})
 
@@ -93,6 +94,8 @@ class GuardSettingsTest {
                 GuardCase("Ajustes: reglas de avisos con cambios y aviso", full) { Settings(ui(notify = notify.copy(staleHours = "720"), notifyBase = notify, notifyNotice = TeamNotice(ErrorMessage(R.string.set_val_stale), true))) },
                 GuardCase("Ajustes: reglas de avisos con cambios (teclado)", kb) { Settings(ui(notify = notify.copy(staleHours = "720"), notifyBase = notify)) },
                 GuardCase("Ajustes: aviso de jornada antes de guardar", full) { Settings(ui(d = dirty, confirm = true)) },
+                GuardCase("Ajustes: aviso al apagar el cobro en caja con cuentas pendientes", full) { Settings(ui(d = draft().copy(registerCheckout = false), discard = DiscardQueue(2, 1_234_567_89L))) },
+                GuardCase("Ajustes: aviso al apagar el cobro en caja con una cuenta", full) { Settings(ui(d = draft().copy(registerCheckout = false), discard = DiscardQueue(1, 15000))) },
                 GuardCase("Ajustes: selector de zona horaria vacío", full) { Settings(ui(zone = "")) },
                 GuardCase("Ajustes: selector de zona horaria vacío (teclado)", kb) { Settings(ui(zone = "")) },
                 GuardCase("Ajustes: selector de zona con búsqueda", full) { Settings(ui(zone = "ameri")) },

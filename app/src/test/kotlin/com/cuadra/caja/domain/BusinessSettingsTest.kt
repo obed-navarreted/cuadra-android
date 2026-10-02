@@ -23,6 +23,11 @@ class BusinessSettingsTest {
         assertNull(BusinessSettingsRules.validate(base))
     }
 
+    @Test fun discardFlagIsNeverPartOfTheRegularPatch() {
+        val on = SettingsDraft.of(entity.copy(registerCheckout = true))
+        assertNull(BusinessSettingsRules.patch(on.copy(registerCheckout = false), on).confirmDiscardPending)
+    }
+
     @Test fun registerCheckoutIsOffByDefaultAndTravelsOnlyWhenItChanges() {
         assertFalse(base.registerCheckout)
         assertEquals(true, BusinessSettingsRules.patch(base.copy(registerCheckout = true), base).registerCheckout)

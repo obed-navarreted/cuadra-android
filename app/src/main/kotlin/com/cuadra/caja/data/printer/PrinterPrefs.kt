@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.cuadra.caja.domain.printing.EndSpacing
 import com.cuadra.caja.domain.printing.PrintCharset
 import com.cuadra.caja.domain.printing.PrinterLink
 import com.cuadra.caja.domain.printing.PrinterSettings
@@ -40,17 +41,21 @@ class PrinterPrefs(context: Context, private val scope: CoroutineScope) {
         val phone = stringPreferencesKey("phone")
         val taxId = stringPreferencesKey("tax_id")
         val footer = stringPreferencesKey("footer")
+        val endSpacing = stringPreferencesKey("end_spacing")
+        val hasCutter = booleanPreferencesKey("has_cutter")
     }
 
     private fun Preferences.read() = PrinterSettings(
         enabled = this[K.enabled] ?: false, link = PrinterLink.parse(this[K.link]), deviceKey = this[K.deviceKey], deviceName = this[K.deviceName],
         widthMm = this[K.widthMm] ?: 58, autoPrint = this[K.auto] ?: true, copies = (this[K.copies] ?: 1).coerceIn(1, 2), charset = PrintCharset.parse(this[K.charset]),
         address = this[K.address].orEmpty(), phone = this[K.phone].orEmpty(), taxId = this[K.taxId].orEmpty(), footer = this[K.footer].orEmpty(),
+        endSpacing = EndSpacing.parse(this[K.endSpacing]), hasCutter = this[K.hasCutter] ?: true,
     )
 
     private fun MutablePreferences.write(s: PrinterSettings) {
         this[K.enabled] = s.enabled; this[K.link] = s.link.key; this[K.widthMm] = s.widthMm; this[K.auto] = s.autoPrint; this[K.copies] = s.copies
         this[K.charset] = s.charset.key; this[K.address] = s.address; this[K.phone] = s.phone; this[K.taxId] = s.taxId; this[K.footer] = s.footer
+        this[K.endSpacing] = s.endSpacing.key; this[K.hasCutter] = s.hasCutter
         if (s.deviceKey != null) this[K.deviceKey] = s.deviceKey else remove(K.deviceKey)
         if (s.deviceName != null) this[K.deviceName] = s.deviceName else remove(K.deviceName)
     }

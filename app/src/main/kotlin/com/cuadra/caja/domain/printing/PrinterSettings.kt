@@ -9,6 +9,15 @@ enum class PrinterLink(val key: String) {
     }
 }
 
+/** Papel que sobra al final del recibo. `MINIMUM` (por omisión): solo lo necesario para llegar al corte. `MORE`: para impresoras que cortan sobre la última línea. */
+enum class EndSpacing(val key: String) {
+    MINIMUM("min"), MORE("more");
+
+    companion object {
+        fun parse(key: String?): EndSpacing = entries.firstOrNull { it.key == key } ?: MINIMUM
+    }
+}
+
 /**
  * Ajustes de la impresora de ESTE teléfono (no del negocio). Todo empieza APAGADO: quien no usa impresora no ve ningún cambio.
  * `deviceKey` es la dirección Bluetooth (AA:BB:…) o, por cable, «vendorId:productId».
@@ -26,6 +35,10 @@ data class PrinterSettings(
     val phone: String = "",
     val taxId: String = "",
     val footer: String = "",
+    /** Espacio al final del recibo (ver [EndSpacing]). */
+    val endSpacing: EndSpacing = EndSpacing.MINIMUM,
+    /** ¿La impresora tiene cortador? Sin él se avanza lo justo para pasar la barra de rasgar. */
+    val hasCutter: Boolean = true,
 ) {
     /** 32 columnas en 58 mm; 48 en 80 mm. */
     val columns: Int get() = if (widthMm >= 80) ReceiptFormatter.COLUMNS_80 else ReceiptFormatter.COLUMNS_58

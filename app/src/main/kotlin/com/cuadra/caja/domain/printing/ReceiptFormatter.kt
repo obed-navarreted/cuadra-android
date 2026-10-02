@@ -77,13 +77,17 @@ data class ReturnReceiptData(
 
 /** Un recibo listo: las líneas y con qué columnas y juego de caracteres se imprime. */
 data class Receipt(val lines: List<ReceiptLine>, val columns: Int, val charset: PrintCharset) {
-    /** Los bytes ESC/POS de `copies` copias, cada una con su corte. */
-    fun toBytes(copies: Int = 1): ByteArray {
+    /**
+     * Los bytes ESC/POS de `copies` copias. Sin líneas en blanco de relleno: con cortador termina con `GS V 66 0` (avanza SOLO hasta la posición de corte y corta);
+     * sin cortador avanza lo justo para pasar la barra de rasgar. `EndSpacing.MORE` agrega un poco para impresoras que cortan sobre la última línea.
+     */
+    fun toBytes(copies: Int = 1, spacing: EndSpacing = EndSpacing.MINIMUM, hasCutter: Boolean = true): ByteArray {
         val p = EscPos(charset)
         repeat(copies.coerceIn(1, 5)) {
             p.init()
             for (l in lines) p.align(l.align).bold(l.bold).size(l.size).text(l.text).lf()
-            p.align(Align.LEFT).bold(false).size(TextSize.NORMAL).feed(3).cut()
+            p.align(Align.LEFT).bold(false).size(TextSize.NORMAL)
+            if (hasCutter) { if (spacing == EndSpacing.MORE) p.feed(2); p.cut() } else p.feed(if (spacing == EndSpacing.MORE) ReceiptFormatter.TEAR_MORE else ReceiptFormatter.TEAR_MIN)
         }
         return p.toBytes()
     }
@@ -101,6 +105,10 @@ data class Receipt(val lines: List<ReceiptLine>, val columns: Int, val charset: 
 }
 
 object ReceiptFormatter {
+    /** Líneas que hay que avanzar para que el papel pase la barra de rasgar (≈ 11 mm con letra normal; con «más espacio» ≈ 19 mm). */
+    const val TEAR_MIN = 3
+    const val TEAR_MORE = 5
+
     const val COLUMNS_58 = 32
     const val COLUMNS_80 = 48
 

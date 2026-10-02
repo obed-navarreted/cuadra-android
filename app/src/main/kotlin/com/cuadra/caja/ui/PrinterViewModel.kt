@@ -45,6 +45,8 @@ interface PrinterActions {
     fun setAuto(on: Boolean) {}
     fun setCopies(n: Int) {}
     fun setCharset(charset: PrintCharset) {}
+    fun setEndSpacing(spacing: com.cuadra.caja.domain.printing.EndSpacing) {}
+    fun setHasCutter(on: Boolean) {}
     fun setAddress(text: String) {}
     fun setPhone(text: String) {}
     fun setTaxId(text: String) {}
@@ -87,6 +89,8 @@ class PrinterViewModel(private val c: AppContainer) : ViewModel(), PrinterAction
     override fun setAuto(on: Boolean) = change { it.copy(autoPrint = on) }
     override fun setCopies(n: Int) = change { it.copy(copies = n.coerceIn(1, 2)) }
     override fun setCharset(charset: PrintCharset) = change { it.copy(charset = charset) }
+    override fun setEndSpacing(spacing: com.cuadra.caja.domain.printing.EndSpacing) = change { it.copy(endSpacing = spacing) }
+    override fun setHasCutter(on: Boolean) = change { it.copy(hasCutter = on) }
     override fun setAddress(text: String) = change { it.copy(address = text.take(PrinterSettings.MAX_LINE)) }
     override fun setPhone(text: String) = change { it.copy(phone = text.take(PrinterSettings.MAX_LINE)) }
     override fun setTaxId(text: String) = change { it.copy(taxId = text.take(PrinterSettings.MAX_LINE)) }

@@ -1,5 +1,6 @@
 package com.cuadra.caja.data.repo
 
+import com.cuadra.caja.data.remote.BreakdownRowDto
 import com.cuadra.caja.data.remote.CuadraApi
 import com.cuadra.caja.data.remote.DailyCloseDto
 import com.cuadra.caja.data.remote.PageDto
@@ -23,6 +24,9 @@ class ReportRepository(private val api: CuadraApi, private val session: SessionS
         call { api.sales(it, status, from.toString(), to.toString(), method, memberId, page, size) }
 
     suspend fun salesReport(from: LocalDate, to: LocalDate): Result<SalesReportDto> = call { api.salesReport(it, from.toString(), to.toString()) }
+
+    /** Ventas del periodo por persona: `member` (quien cobró) o `member_served` (quien atendió: tomó o envió a caja la cuenta). */
+    suspend fun salesBreakdown(from: LocalDate, to: LocalDate, by: String): Result<List<BreakdownRowDto>> = call { api.salesBreakdown(it, by, from.toString(), to.toString()) }
 
     suspend fun dailyClose(from: LocalDate, to: LocalDate): Result<DailyCloseDto> = call { api.dailyClose(it, from.toString(), to.toString()) }
 

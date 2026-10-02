@@ -22,6 +22,7 @@ fun Throwable?.settingsError(): ErrorMessage = when (this) {
         "BUSINESS_NOT_FOUND" -> ErrorMessage(R.string.set_err_NOT_FOUND)
         "PIN_VERIFICATION_REQUIRED" -> ErrorMessage(R.string.error_PIN_VERIFICATION_REQUIRED)
         "FORBIDDEN" -> ErrorMessage(R.string.set_err_FORBIDDEN)
+        "REGISTER_QUEUE_BUSY" -> ErrorMessage(R.string.set_err_REGISTER_QUEUE_BUSY)
         "CURRENCY_LOCKED" -> ErrorMessage(R.string.set_err_CURRENCY_LOCKED)
         else -> errorMessage()
     }

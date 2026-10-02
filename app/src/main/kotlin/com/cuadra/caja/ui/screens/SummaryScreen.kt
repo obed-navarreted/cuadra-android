@@ -95,7 +95,7 @@ fun SummaryContent(
             return@Column
         }
         val ticket = if (d.sales.count == 0L) 0 else Math.round(d.sales.totalMinor.toDouble() / d.sales.count)
-        Kpi(stringResource(R.string.summary_sales), money(d.sales.totalMinor), pluralStringResource(R.plurals.summary_sales_hint, d.sales.count.toInt(), d.sales.count.toInt(), money(ticket)))
+        Kpi(stringResource(R.string.summary_sales), money(d.sales.totalMinor), pluralStringResource(R.plurals.summary_sales_hint, d.sales.count.toInt(), d.sales.count.toInt(), money(ticket).replace(' ', '\u00A0')))
         // Lo que descontaron las promociones por cantidad (ya está restado de las ventas).
         if (d.promotionDiscountMinor > 0) SplitRow(end = { MoneyText("−" + money(d.promotionDiscountMinor), fontWeight = FontWeight.Bold, color = CuadraColors.Green) }) { Text(stringResource(R.string.promo_discounts)) }
         val modules = com.cuadra.caja.ui.common.LocalModules.current

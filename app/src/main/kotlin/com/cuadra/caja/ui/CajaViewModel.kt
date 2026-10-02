@@ -124,9 +124,21 @@ data class CobroUi(
     /** «Enviar a caja» elegido: sin método de pago ni vuelto, solo una nota opcional. */
     val toRegister: Boolean = false,
     val registerNote: String = "",
+    /** El ajuste se apagó con este cobro abierto: se cobra normal y se avisa una vez. */
+    val registerOffNotice: Boolean = false,
     /** Ya enviada a caja: destello corto y venta nueva con el aviso «Enviada a caja · nota». */
     val sent: Boolean = false,
 ) {
+    /**
+     * El ajuste «Cobro en caja» cambió (a mano en este teléfono, o por sincronización desde la web u otro teléfono). Una cuenta ya enviada no cambia. Al apagarse con la
+     * pantalla abierta se esconde la opción y, si estaba elegido «Enviar a caja», se vuelve a «Cobrar ahora» con un aviso.
+     */
+    fun withRegisterSetting(on: Boolean): CobroUi = when {
+        sent || doneChangeMinor != null || registerCheckout == on -> this
+        on -> copy(registerCheckout = true, registerOffNotice = false)
+        else -> copy(registerCheckout = false, toRegister = false, registerOffNotice = true)
+    }
+
     /** ¿Una regla del negocio impide fiar así? (cliente obligatorio o límite de crédito que bloquea). Nulo si no hay fiado o todo está bien. */
     val creditBlock: com.cuadra.caja.domain.CreditRules.Block?
         get() {
@@ -295,6 +307,11 @@ class CajaViewModel(private val c: AppContainer) : ViewModel(), CajaActions {
 
     /** Cobro en caja (ADR 0015) encendido en este negocio. */
     val registerCheckout: StateFlow<Boolean> = business.map { it?.registerCheckout == true }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    init {
+        // El ajuste «Cobro en caja» manda sobre un cobro ya abierto: si cambia (aquí, o por sincronización), la pantalla lo refleja sin reiniciar la app.
+        viewModelScope.launch { registerCheckout.collect { on -> _ui.update { s -> s.cobro?.let { s.copy(cobro = it.withRegisterSetting(on)) } ?: s } } }
+    }
 
     /** Lo vendido en la jornada actual según lo que este teléfono conoce (efectivo, fiado, etc.). */
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -630,6 +647,8 @@ class CajaViewModel(private val c: AppContainer) : ViewModel(), CajaActions {
         val s = _ui.value
         val cobro = s.cobro ?: return
         if (!cobro.registerCheckout || !cobro.toRegister || cobro.saving || s.cart.isEmpty) return
+        // El ajuste puede haberse apagado hace un instante (otro teléfono o la web): no se manda a una caja que ya no existe; se cobra normal.
+        if (business.value?.registerCheckout != true) { _ui.update { it.copy(cobro = cobro.withRegisterSetting(false)) }; return }
         _ui.update { it.copy(cobro = cobro.copy(saving = true)) }
         viewModelScope.launch {
             val note = com.cuadra.caja.domain.RegisterQueue.cleanNote(cobro.registerNote)

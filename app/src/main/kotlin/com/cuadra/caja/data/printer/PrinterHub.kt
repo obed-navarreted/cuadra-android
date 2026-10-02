@@ -150,7 +150,7 @@ class PrinterHub(private val context: Context, private val scope: CoroutineScope
         val s = settings.value
         if (!s.enabled) return PrintOutcome.DISABLED
         val receipt = receiptFor(sale) ?: return PrintOutcome.FAILED
-        return connection.print(receipt.toBytes(s.copies))
+        return connection.print(receipt.toBytes(s.copies, s.endSpacing, s.hasCutter))
     }
 
     /** Imprime el comprobante de una devolución (una copia). Con la opción apagada no hace nada. */
@@ -158,14 +158,14 @@ class PrinterHub(private val context: Context, private val scope: CoroutineScope
         val s = settings.value
         if (!s.enabled) return PrintOutcome.DISABLED
         val receipt = render { name, zone, money -> SaleReceipts.returnReceipt(sale, ret, name, zone, s, language(), money) } ?: return PrintOutcome.FAILED
-        return connection.print(receipt.toBytes(1))
+        return connection.print(receipt.toBytes(1, s.endSpacing, s.hasCutter))
     }
 
     suspend fun printTest(): PrintOutcome {
         val s = settings.value
         if (!s.enabled) return PrintOutcome.DISABLED
         val r = render { name, zone, money -> PrinterSamples.test(name, s, language(), money, zone, System.currentTimeMillis()) } ?: return PrintOutcome.FAILED
-        return connection.print(r.toBytes(1))
+        return connection.print(r.toBytes(1, s.endSpacing, s.hasCutter))
     }
 
     /** El texto exacto de un recibo de muestra con los ajustes actuales (la vista previa). */

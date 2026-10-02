@@ -49,4 +49,13 @@
     <string name="wa_pick_contact">Pick from contacts</string>
     <string name="wa_open">Open WhatsApp</string>
     <string name="sale_send_whatsapp">Send via WhatsApp</string>
+    <string name="set_discard_queue_title">Turn off charging at the register?</string>
+    <plurals name="set_discard_queue_body">
+        <item quantity="one">There is %1$d ticket to charge at the register (%2$s). If you turn it off, it will be cancelled. Turn it off?</item>
+        <item quantity="other">There are %1$d tickets to charge at the register (%2$s). If you turn it off, they will be cancelled. Turn it off?</item>
+    </plurals>
+    <string name="set_discard_queue_confirm">Turn off and cancel</string>
+    <string name="set_err_REGISTER_QUEUE_BUSY">Someone is charging a ticket right now; try again in a moment.</string>
+    <string name="pay_register_off">Charge the ticket here: charging at the register was turned off.</string>
+    <string name="error_COBRO_EN_CAJA_OFF">Charging at the register is turned off for this business. Charge the ticket here.</string>
 </resources>

@@ -94,4 +94,15 @@
     <string name="barcode_kb_numbers">Números</string>
     <string name="barcode_kb_letters">Letras</string>
     <string name="barcode_kb_help">Letras solo para códigos que las traen</string>
+    <string name="people_title">Por persona</string>
+    <string name="people_charged">Cobró</string>
+    <string name="people_served">Atendió</string>
+    <string name="people_charged_help">Quién cobró cada venta en la caja.</string>
+    <string name="people_served_help">Quién tomó la cuenta o la envió a caja.</string>
+    <plurals name="people_sales_share">
+        <item quantity="one">%1$d venta · %2$d %%</item>
+        <item quantity="other">%1$d ventas · %2$d %%</item>
+    </plurals>
+    <string name="people_show_all">Ver todos (%1$d)</string>
+    <string name="people_show_less">Ver menos</string>
 </resources>

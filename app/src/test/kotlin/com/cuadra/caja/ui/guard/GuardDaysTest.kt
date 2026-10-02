@@ -50,6 +50,13 @@ class GuardDaysTest {
                 GuardCase("Rango: personalizado con año", full) { RangePicker(RangeChoice(RangePreset.CUSTOM, LocalDate.of(2025, 12, 30) to LocalDate.of(2026, 1, 2)), Fixtures.calendar, {}, nowMillis = Fixtures.NOW) },
                 GuardCase("Ventas: dueño, lista del servidor", full) { Sales(HistoryUi(sales = Fixtures.serverSales, totals = Fixtures.saleTotals, hasMore = true, query = SaleQuery(setOf("COMPLETED", "CANCELLED")))) },
                 GuardCase("Ventas: dueño, más filtros", full) { Sales(HistoryUi(sales = Fixtures.serverSales, totals = Fixtures.saleTotals, query = SaleQuery(setOf("CANCELLED"), "TRANSFER", "m2")), moreFilters = true) },
+                // «Por persona»: 1, 5 y 12 personas, nombres larguísimos, montos enormes, con y sin «Cobró / Atendió», persona elegida y «Ver todos».
+                GuardCase("Ventas: por persona, 1 persona", full) { Sales(HistoryUi(sales = Fixtures.serverSales, totals = Fixtures.saleTotals, people = Fixtures.people(1))) },
+                GuardCase("Ventas: por persona, 5 personas (sin Cobró/Atendió)", full) { Sales(HistoryUi(sales = Fixtures.serverSales, totals = Fixtures.saleTotals, people = Fixtures.people(5), query = SaleQuery(setOf("COMPLETED"), memberId = "m2"))) },
+                GuardCase("Ventas: por persona, 12 personas, primeras 5", full) { Sales(HistoryUi(sales = Fixtures.serverSales, totals = Fixtures.saleTotals, people = Fixtures.people(12), registerCheckout = true)) },
+                GuardCase("Ventas: por persona, 12 personas, ver todos", full) { Sales(HistoryUi(sales = Fixtures.serverSales, totals = Fixtures.saleTotals, people = Fixtures.people(12), registerCheckout = true, query = SaleQuery(setOf("COMPLETED"), memberId = "m11")), showAllPeople = true) },
+                GuardCase("Ventas: por persona, nombres largos y montos enormes", full) { Sales(HistoryUi(sales = Fixtures.serverSales, totals = Fixtures.saleTotals, people = Fixtures.people(7, long = true, huge = true), registerCheckout = true, query = SaleQuery(setOf("COMPLETED"), memberId = "m1"))) },
+                GuardCase("Ventas: por persona, Atendió con nombres largos", full) { Sales(HistoryUi(sales = Fixtures.serverSales, totals = Fixtures.saleTotals, people = Fixtures.people(6, long = true, huge = true), peopleMode = com.cuadra.caja.domain.PeopleMode.SERVED, registerCheckout = true)) },
                 GuardCase("Ventas: dueño, ayer y cargando", full) { Sales(HistoryUi(range = RangeChoice(RangePreset.YESTERDAY), loading = true)) },
                 // Al abrir Ventas se refresca con el MISMO filtro: la lista de antes sigue a la vista con el indicador pequeño (sin vaciarse).
                 GuardCase("Ventas: dueño, refrescando con la lista de antes", full) { Sales(HistoryUi(sales = Fixtures.serverSales, totals = Fixtures.saleTotals, loading = true), refreshing = true) },
@@ -104,8 +111,8 @@ class GuardDaysTest {
 
     @Composable private fun Sales(
         ui: HistoryUi, manager: Boolean = true, role: String = "OWNER", local: List<com.cuadra.caja.domain.SaleView> = Fixtures.localSales, moreFilters: Boolean = false,
-        refreshing: Boolean = false, offlineLocal: Boolean = false,
-    ) = HistoryContent(ui, local, manager, role, Fixtures.calendar, members, actions, Fixtures.NOW, moreFilters, refreshing = refreshing, offlineLocal = offlineLocal)
+        refreshing: Boolean = false, offlineLocal: Boolean = false, showAllPeople: Boolean = false,
+    ) = HistoryContent(ui, local, manager, role, Fixtures.calendar, members, actions, Fixtures.NOW, moreFilters, showAllPeople, refreshing = refreshing, offlineLocal = offlineLocal)
 
     @Composable private fun Detail(
         s: com.cuadra.caja.domain.SaleView, role: String, canReturn: Boolean = false, undoable: Boolean = false, lastReturn: com.cuadra.caja.domain.SaleReturnView? = null,

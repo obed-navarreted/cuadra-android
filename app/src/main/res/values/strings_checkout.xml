@@ -49,4 +49,13 @@
     <string name="wa_pick_contact">Elegir de contactos</string>
     <string name="wa_open">Abrir WhatsApp</string>
     <string name="sale_send_whatsapp">Enviar por WhatsApp</string>
+    <string name="set_discard_queue_title">¿Desactivar el cobro en caja?</string>
+    <plurals name="set_discard_queue_body">
+        <item quantity="one">Hay %1$d cuenta por cobrar en caja (%2$s). Si desactivas el cobro en caja, se anulará. ¿Desactivar?</item>
+        <item quantity="other">Hay %1$d cuentas por cobrar en caja (%2$s). Si desactivas el cobro en caja, se anularán. ¿Desactivar?</item>
+    </plurals>
+    <string name="set_discard_queue_confirm">Desactivar y anular</string>
+    <string name="set_err_REGISTER_QUEUE_BUSY">Alguien está cobrando una cuenta en este momento; intenta en un momento.</string>
+    <string name="pay_register_off">Cobra la cuenta aquí: el cobro en caja se desactivó.</string>
+    <string name="error_COBRO_EN_CAJA_OFF">El cobro en caja está desactivado en este negocio. Cobra la cuenta aquí.</string>
 </resources>

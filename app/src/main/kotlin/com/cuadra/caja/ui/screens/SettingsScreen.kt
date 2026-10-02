@@ -58,6 +58,9 @@ import com.cuadra.caja.ui.common.Sheet
 import com.cuadra.caja.ui.common.SplitRow
 import com.cuadra.caja.ui.common.SwitchRow
 import com.cuadra.caja.ui.common.Text
+import com.cuadra.caja.ui.common.money
+import androidx.compose.ui.res.pluralStringResource
+import com.cuadra.caja.ui.DiscardQueue
 import com.cuadra.caja.ui.common.TimeField
 import com.cuadra.caja.ui.common.TitleBar
 import com.cuadra.caja.ui.common.VoiceTextField
@@ -124,6 +127,7 @@ fun SettingsContent(ui: SettingsUi, business: BusinessEntity?, actions: Settings
         }
     }
     if (ui.confirmDayRule) DayRuleConfirm(actions)
+    ui.discardQueue?.let { DiscardQueueConfirm(it, actions) }
     ui.zoneQuery?.let { ZonePicker(it, draft?.timezone.orEmpty(), business?.country.orEmpty(), actions) }
     ui.delete?.let { DeleteSheet(it, ui.base?.name ?: business?.name.orEmpty(), actions) }
 }
@@ -331,6 +335,20 @@ private fun DayRuleConfirm(actions: SettingsActions) {
         Text(stringResource(R.string.set_confirm_title), style = MaterialTheme.typography.headlineMedium)
         Text(stringResource(R.string.set_day_rule_warning), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
         Text(stringResource(R.string.set_confirm_body), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted)
+    }
+}
+
+/** Apagar «Cobro en caja» con cuentas por cobrar: se avisa cuántas son y que se anularán (ADR 0015). */
+@Composable
+private fun DiscardQueueConfirm(q: DiscardQueue, actions: SettingsActions) {
+    Sheet(actions::cancelDiscard, actions = {
+        ButtonRow {
+            CuadraButton(stringResource(R.string.cancel), actions::cancelDiscard, Modifier.share(1f))
+            CuadraButton(stringResource(R.string.set_discard_queue_confirm), actions::confirmDiscard, Modifier.share(1.3f), kind = ButtonKind.DANGER)
+        }
+    }) {
+        Text(stringResource(R.string.set_discard_queue_title), style = MaterialTheme.typography.headlineMedium)
+        Text(pluralStringResource(R.plurals.set_discard_queue_body, q.count, q.count, money(q.totalMinor)), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
     }
 }
 

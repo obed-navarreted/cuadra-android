@@ -10,6 +10,8 @@ import com.cuadra.caja.data.remote.SalesTotalsDto
 import com.cuadra.caja.data.sync.calendar
 import com.cuadra.caja.data.sync.toView
 import com.cuadra.caja.domain.BusinessCalendar
+import com.cuadra.caja.domain.PeopleBreakdown
+import com.cuadra.caja.domain.PeopleMode
 import com.cuadra.caja.domain.RangeChoice
 import com.cuadra.caja.domain.RangePresets
 import com.cuadra.caja.domain.SaleDeletion
@@ -68,6 +70,11 @@ data class HistoryUi(
     val sales: List<SaleView> = emptyList(),
     val hasMore: Boolean = false,
     val totals: SalesTotalsDto? = null,
+    /** «Por persona» (solo dueño/admin y con conexión): quién cobró y quién atendió en el rango, y cuál de las dos se ve. `null` = no se pudo traer. */
+    val people: PeopleBreakdown? = null,
+    val peopleMode: PeopleMode = PeopleMode.CHARGED,
+    /** El negocio usa «Cobro en caja»: se ofrece «Cobró / Atendió» aunque aún no haya ventas de dos personas. */
+    val registerCheckout: Boolean = false,
     /** El servidor no se pudo consultar: se muestran las ventas de este teléfono. */
     val offline: Boolean = false,
     val error: ErrorMessage? = null,
@@ -89,6 +96,8 @@ interface HistoryActions {
     fun toggleStatus(status: String) {}
     fun setMethod(method: String?) {}
     fun setMember(memberId: String?) {}
+    /** «Cobró / Atendió» de la tarjeta «Por persona». */
+    fun setPeopleMode(mode: PeopleMode) {}
     fun refresh() {}
     /** Deslizar hacia abajo: refresca a propósito (sin antirrebote de tiempo). */
     fun pullRefresh() {}
@@ -164,11 +173,12 @@ class HistoryViewModel(private val c: AppContainer, private val now: () -> Long 
     init {
         // Si la persona activa cambia (otro cajero/dueño en el mismo teléfono), la lista del servidor de la anterior no se queda a la vista.
         memberId.drop(1).onEach { id ->
-            _ui.update { it.copy(sales = emptyList(), totals = null, detail = null, delete = null, returnDraft = null) }
+            _ui.update { it.copy(sales = emptyList(), totals = null, people = null, detail = null, delete = null, returnDraft = null) }
             if (id != null) refresher.request(com.cuadra.caja.domain.RefreshTrigger.PERSON_CHANGED)
         }.launchIn(viewModelScope)
         // Con el PIN recién confirmado (o al bajar al rol base), la lista que corresponde es otra.
         manager.drop(1).onEach { refresher.request(com.cuadra.caja.domain.RefreshTrigger.PERSON_CHANGED) }.launchIn(viewModelScope)
+        c.db.directory().business().onEach { b -> _ui.update { it.copy(registerCheckout = b?.registerCheckout == true) } }.launchIn(viewModelScope)
         c.printer.badge.onEach { b -> _ui.update { it.copy(printer = b) } }.launchIn(viewModelScope)
         viewModelScope.launch {
             combine(manager, calendar) { m, cal -> m && cal != null }.filter { it }.first()
@@ -196,6 +206,8 @@ class HistoryViewModel(private val c: AppContainer, private val now: () -> Long 
         refresh()
     }
 
+    override fun setPeopleMode(mode: PeopleMode) = _ui.update { it.copy(peopleMode = mode) }
+
     override fun refresh() { load(reset = true) }
 
     override fun loadMore() {
@@ -213,7 +225,10 @@ class HistoryViewModel(private val c: AppContainer, private val now: () -> Long 
         job = viewModelScope.launch {
             val statuses = state.query.statuses.toList()
             val pages = statuses.map { st -> async { c.reports.sales(range.from, range.to, st, state.query.method, state.query.memberId, page) } }.awaitAll()
-            val totals = if (reset) c.reports.salesReport(range.from, range.to).getOrNull()?.sales else _ui.value.totals
+            val totalsJob = if (reset) async { c.reports.salesReport(range.from, range.to).getOrNull()?.sales } else null
+            val peopleJob = if (reset) async { peopleOf(range.from, range.to) } else null
+            val totals = if (totalsJob != null) totalsJob.await() else _ui.value.totals
+            val people = if (peopleJob != null) peopleJob.await() else _ui.value.people
             val failure = pages.firstOrNull { it.isFailure }?.exceptionOrNull()
             if (failure != null) {
                 _ui.update { it.copy(loading = false, loadingMore = false, offline = failure is ApiFailure.Offline, error = if (failure is ApiFailure.Offline) null else failure.errorMessage(), hasMore = false) }
@@ -224,10 +239,19 @@ class HistoryViewModel(private val c: AppContainer, private val now: () -> Long 
             nextPage = page + 1
             _ui.update { s ->
                 val merged = SaleLists.merge(if (reset) emptyList() else s.sales, incoming)
-                s.copy(loading = false, loadingMore = false, offline = false, error = null, sales = visible(merged, s.query), hasMore = fetched.any { !it.last }, totals = totals)
+                s.copy(loading = false, loadingMore = false, offline = false, error = null, sales = visible(merged, s.query), hasMore = fetched.any { !it.last }, totals = totals, people = people)
             }
         }
         return job
+    }
+
+    /** Las dos agrupaciones de «Por persona» (quien cobró y quien atendió); si cualquiera falla, la tarjeta no se muestra. */
+    private suspend fun peopleOf(from: java.time.LocalDate, to: java.time.LocalDate): PeopleBreakdown? = kotlinx.coroutines.coroutineScope {
+        val charged = async { c.reports.salesBreakdown(from, to, PeopleMode.CHARGED.by).getOrNull() }
+        val served = async { c.reports.salesBreakdown(from, to, PeopleMode.SERVED.by).getOrNull() }
+        val a = charged.await()
+        val b = served.await()
+        if (a == null || b == null) null else PeopleBreakdown(a, b)
     }
 
     /** Una venta que se acaba de eliminar sale de la lista si el filtro no incluye las eliminadas. */
