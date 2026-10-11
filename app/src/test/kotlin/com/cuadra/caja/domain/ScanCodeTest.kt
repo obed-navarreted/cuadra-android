@@ -46,4 +46,23 @@ class ScanCodeTest {
         assertTrue(d.accept("A", 700))
         assertTrue(d.accept("A", 2800))
     }
+
+    /** Caso real de la TC77: seis cervezas iguales, una pulsación por segundo. Con el filtro de 1.5 s solo pasaban las impares. */
+    @Test fun hardwareTriggerAcceptsTheSameProductEveryPull() {
+        val d = ScanDebounce(ScanTiming.HARDWARE_DEBOUNCE_MS)
+        val pulls = listOf(0L, 1400L, 2460L, 3570L, 4640L, 5490L, 6410L)
+        assertTrue(pulls.all { d.accept("8800345551234", it) })
+    }
+
+    @Test fun hardwareDebounceStillDropsADoubleDeliveryOfOneShot() {
+        val d = ScanDebounce(ScanTiming.HARDWARE_DEBOUNCE_MS)
+        assertTrue(d.accept("8800345551234", 0))
+        assertFalse(d.accept("8800345551234", 40))
+        assertFalse(d.accept("8800345551234", 300))
+        assertTrue(d.accept("8800345551234", 400))
+    }
+
+    @Test fun cameraWindowIsStillLongerThanTheHardwareOne() {
+        assertTrue(ScanTiming.DEBOUNCE_MS > ScanTiming.HARDWARE_DEBOUNCE_MS)
+    }
 }

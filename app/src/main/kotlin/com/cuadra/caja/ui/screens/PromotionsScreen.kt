@@ -249,7 +249,7 @@ fun PromotionEditorContent(d: PromotionDraft, actions: PromotionsActions, today:
                     if (PromotionError.PRODUCTS in d.errors) Text(stringResource(R.string.promo_products_none), color = CuadraColors.Red, fontWeight = FontWeight.Bold)
                     CuadraButton(stringResource(R.string.promo_scan), actions::openScanner, Modifier.fillMaxWidth(), kind = ButtonKind.DARK, height = 48)
                     d.notice?.let { n -> NoticeLine(n) }
-                    VoiceTextField(d.query, actions::setQuery, Modifier.fillMaxWidth(), singleLine = true, label = { Text(stringResource(R.string.promo_search), maxLines = 1) })
+                    VoiceTextField(d.query, actions::setQuery, Modifier.fillMaxWidth(), singleLine = true, label = { Text(stringResource(R.string.promo_search), maxLines = 1) }, scanFriendly = true, clearable = true)
                 }
             }
             if (d.query.isNotBlank()) {

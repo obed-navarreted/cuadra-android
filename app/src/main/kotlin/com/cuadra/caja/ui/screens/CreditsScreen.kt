@@ -141,7 +141,7 @@ private fun CreditsList(ui: CreditsUi, rows: List<LedgerRow>, customers: List<Cu
             }
             stickyHeader {
                 Box(Modifier.fillMaxWidth().testTag(TAG_STICKY).background(CuadraColors.Bg).padding(vertical = 2.dp)) {
-                    VoiceTextField(ui.query, actions::setQuery, Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text(stringResource(R.string.credits_search_hint), maxLines = 1) })
+                    VoiceTextField(ui.query, actions::setQuery, Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text(stringResource(R.string.credits_search_hint), maxLines = 1) }, clearable = true)
                 }
             }
             if (ui.mode == LedgerMode.CREDITS) {

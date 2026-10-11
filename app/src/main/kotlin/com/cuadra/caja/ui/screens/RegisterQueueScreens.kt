@@ -104,7 +104,7 @@ fun RegisterQueueSheet(
         if (split.pending.size >= RegisterQueue.SEARCH_FROM || query.isNotEmpty()) {
             VoiceTextField(
                 query, actions::setQueueQuery, Modifier.fillMaxWidth().testTag(TAG_QUEUE_SEARCH), singleLine = true, compact = true,
-                placeholder = { Text(stringResource(R.string.queue_search)) },
+                placeholder = { Text(stringResource(R.string.queue_search)) }, clearable = true,
             )
         }
         val shown = RegisterQueue.filter(split.pending, query)

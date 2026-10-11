@@ -6,6 +6,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -20,6 +21,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.testTag
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -71,8 +75,13 @@ fun VoiceTextField(
     enabled: Boolean = true,
     compact: Boolean = false,
     voiceState: VoiceState? = null,
+    /** Campo de BÚSQUEDA (productos): un lector físico con el foco aquí no teclea en el campo, hace una lectura (ver `ScanHub.scanFieldFocused`). */
+    scanFriendly: Boolean = false,
+    /** Campo de búsqueda: con texto muestra una ✕ «Borrar búsqueda» (48 dp) que lo borra todo de un toque sin quitar el foco (el teclado sigue abierto). */
+    clearable: Boolean = false,
 ) {
     var base by remember { mutableStateOf("") }
+    val scanModifier = if (scanFriendly) modifier.scanSearchField(value, onValueChange) else modifier
     val current = androidx.compose.runtime.rememberUpdatedState(value)
     val change = androidx.compose.runtime.rememberUpdatedState(onValueChange)
     val dictation = rememberVoiceDictation(
@@ -83,13 +92,26 @@ fun VoiceTextField(
     )
     val state = voiceState ?: dictation.state
     val listening = state is VoiceState.Listening || state is VoiceState.Finishing
-    val mic: @Composable () -> Unit = { MicButton(listening, enabled) { dictation.onMicTap() } }
+    // Con ✕ y micrófono a la vez el campo necesita ancho: si el campo mide menos de `BOTH_ICONS_MIN`, con texto la ✕ ocupa el lugar del micrófono (sin texto vuelve el micrófono;
+    // escuchando, el micrófono siempre se ve porque es lo que detiene el dictado).
+    var fieldWidth by remember { mutableStateOf(Int.MAX_VALUE) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val showClear = clearable && value.isNotEmpty() && enabled
+    val showBoth = with(density) { fieldWidth.toDp() } >= BOTH_ICONS_MIN
+    val showMic = !showClear || showBoth || listening
+    val mic: @Composable () -> Unit = {
+        androidx.compose.foundation.layout.Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            if (showClear) ClearButton { change.value("") }
+            if (showMic) MicButton(listening, enabled) { dictation.onMicTap() }
+        }
+    }
+    val sized = scanModifier.onSizeChanged { fieldWidth = it.width }
 
     if (compact) {
         val source = remember { MutableInteractionSource() }
         val hintText = placeholder ?: label
         BasicTextField(
-            value, onValueChange, modifier.fillMaxWidth().heightIn(min = 48.dp), enabled = enabled, singleLine = true,
+            value, onValueChange, sized.fillMaxWidth().heightIn(min = 48.dp), enabled = enabled, singleLine = true,
             textStyle = MaterialTheme.typography.titleSmall.copy(color = CuadraColors.Ink), cursorBrush = SolidColor(CuadraColors.Ink),
             keyboardOptions = keyboardOptions, keyboardActions = keyboardActions, interactionSource = source,
             decorationBox = { inner ->
@@ -106,12 +128,24 @@ fun VoiceTextField(
         )
     } else {
         OutlinedTextField(
-            value, onValueChange, modifier, enabled = enabled, singleLine = singleLine, minLines = minLines, maxLines = maxLines,
+            value, onValueChange, sized, enabled = enabled, singleLine = singleLine, minLines = minLines, maxLines = maxLines,
             label = hint(label), placeholder = hint(if (listening && value.isEmpty()) ({ Text(stringResource(R.string.voice_listening)) }) else placeholder), supportingText = supportingText,
             keyboardOptions = keyboardOptions, keyboardActions = keyboardActions, isError = isError, trailingIcon = mic,
         )
     }
     VoiceDialogs(dictation, state)
+}
+
+/** Ancho del campo desde el que caben la ✕ y el micrófono juntos sin dejar el texto sin lugar. */
+private val BOTH_ICONS_MIN = 220.dp
+
+/** ✕ «Borrar búsqueda» (48 x 48 dp tocables). No pide el foco: el campo lo conserva y el teclado sigue abierto. */
+@Composable
+private fun ClearButton(onClick: () -> Unit) {
+    val description = stringResource(R.string.search_clear)
+    Box(Modifier.size(48.dp).clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onClick).semantics { contentDescription = description }.testTag(TAG_SEARCH_CLEAR), contentAlignment = androidx.compose.ui.Alignment.Center) {
+        Icon(painterResource(R.drawable.ic_clear), contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
 }
 
 /** El micrófono (48 x 48 dp tocables): quieto en reposo; rojo y latiendo mientras escucha (tocar de nuevo termina). */
@@ -177,3 +211,26 @@ internal fun VoiceDialogs(dictation: VoiceDictation, state: VoiceState) {
         }
     }
 }
+
+/**
+ * Marca este campo como buscador que acepta lecturas: mientras tiene el foco, `ScanHub.scanFieldFocused` es verdadero y una lectura que ya escribió su primer
+ * carácter aquí se limpia sola (`ScanLeak.strip`). Sin la aplicación (guardia de diseño) no hace nada.
+ */
+@Composable
+internal fun Modifier.scanSearchField(value: String, onValueChange: (String) -> Unit): Modifier {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val hub = remember { (context.applicationContext as? com.cuadra.caja.CuadraApp)?.container?.scanner }
+    val current = androidx.compose.runtime.rememberUpdatedState(value)
+    val change = androidx.compose.runtime.rememberUpdatedState(onValueChange)
+    val fixer: (String) -> Unit = remember { { code: String -> change.value(com.cuadra.caja.domain.ScanLeak.strip(current.value, code)) } }
+    androidx.compose.runtime.DisposableEffect(hub) { onDispose { if (hub?.leakFixer === fixer) { hub.leakFixer = null; hub.scanFieldFocused = false } } }
+    return this.onFocusChanged { f ->
+        if (hub != null) {
+            hub.scanFieldFocused = f.isFocused
+            hub.leakFixer = if (f.isFocused) fixer else if (hub.leakFixer === fixer) null else hub.leakFixer
+        }
+    }
+}
+
+/** Etiqueta de prueba de la ✕ «Borrar búsqueda». */
+const val TAG_SEARCH_CLEAR = "SearchClear"

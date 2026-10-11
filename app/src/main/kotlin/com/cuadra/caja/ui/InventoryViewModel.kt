@@ -53,13 +53,29 @@ data class ProductEditorDraft(
     val errors: Set<ProductError> = emptySet(),
     val barcodeOwner: String? = null,
     val newCategory: String? = null,
+    /** Abierto desde «Comprobar producto» al crear: el cursor empieza en el nombre (el precio va justo después). */
+    val focusName: Boolean = false,
+    /** Abierto desde «Comprobar producto»: al guardar se vuelve a la lista mostrando el producto (sin abrir su detalle). */
+    val returnToList: Boolean = false,
 )
+
+/** El resultado de «Comprobar producto» (hoja compacta): existe (con sus existencias si las lleva) o no existe (con el aviso del dígito de control). */
+sealed interface CodeCheckUi {
+    data class Found(val product: ProductEntity, val stockMilli: Long?) : CodeCheckUi
+    data class Missing(val code: String, val badChecksum: Boolean) : CodeCheckUi
+}
 
 data class InventoryUi(
     val query: String = "",
     val filter: StockFilter = StockFilter.ALL,
     val selectedId: String? = null,
     val editor: ProductEditorDraft? = null,
+    /** «Comprobar producto»: lo que se acaba de leer. Nada se agrega a ninguna venta. */
+    val check: CodeCheckUi? = null,
+    /** El producto encontrado (o recién guardado desde la comprobación): su fila se ve resaltada en la lista. */
+    val highlightId: String? = null,
+    /** El editor se abrió desde la venta («Editar producto» en la caja): se dibuja ahí, no en esta pantalla, y al guardar vuelve a la venta sin abrir el detalle ni el conteo. */
+    val fromRegister: Boolean = false,
     /** Categorías de productos que el teléfono conoce (para elegir en el editor). */
     val categories: List<CategoryEntity> = emptyList(),
     val count: CountDraft2? = null,
@@ -155,6 +171,46 @@ class InventoryViewModel(private val c: AppContainer, private val clock: () -> L
 
     override fun newProduct() = _ui.update { it.copy(editor = ProductEditorDraft()) }
 
+    // ---------- comprobar producto (lector del equipo, Bluetooth/USB o cámara) ----------
+
+    /** Una lectura en Más › Productos: ¿existe? Funciona con los datos del teléfono (sin red). No vende ni agrega nada. */
+    override fun checkCode(raw: String) {
+        viewModelScope.launch {
+            val result = com.cuadra.caja.domain.ProductChecker.check(raw) { code -> (c.products.byBarcode(code) as? com.cuadra.caja.data.repo.ScanLookup.Found)?.product } ?: return@launch
+            when (result) {
+                is com.cuadra.caja.domain.ProductCheck.Found -> {
+                    val stock = result.product.takeIf { it.trackStock }?.let { c.db.inventory().stockNow(it.id)?.stockNowMilli }
+                    // La lista se filtra a ese producto (por su código guardado) y su fila queda resaltada.
+                    _ui.update { it.copy(check = CodeCheckUi.Found(result.product, stock), query = com.cuadra.caja.domain.ProductChecker.listQuery(result.product), highlightId = result.product.id) }
+                }
+                is com.cuadra.caja.domain.ProductCheck.Missing -> _ui.update { it.copy(check = CodeCheckUi.Missing(result.code, result.badChecksum), highlightId = null) }
+            }
+        }
+    }
+
+    override fun closeCheck() = _ui.update { it.copy(check = null) }
+
+    override fun editFromCheck() {
+        val found = _ui.value.check as? CodeCheckUi.Found ?: return
+        edit(found.product)
+        _ui.update { it.copy(check = null, editor = it.editor?.copy(returnToList = true)) }
+    }
+
+    override fun createFromCheck() {
+        val missing = _ui.value.check as? CodeCheckUi.Missing ?: return
+        _ui.update { it.copy(check = null, editor = ProductEditorDraft(form = ProductForm(barcode = missing.code.take(ProductEditor.MAX_BARCODE)), focusName = true, returnToList = true)) }
+        checkBarcode(missing.code)
+    }
+
+    /** Lo llama la caja cuando el editor abierto desde la venta termina de guardar (con el id del producto): la venta actualiza sus líneas. */
+    var onRegisterSaved: ((String) -> Unit)? = null
+
+    /** «Editar producto» desde la venta: mismo editor, pero se queda en la caja (sin detalle de inventario ni conteo inicial al guardar). */
+    fun editFromRegister(p: ProductEntity) {
+        edit(p)
+        _ui.update { it.copy(fromRegister = true) }
+    }
+
     override fun edit(p: ProductEntity) {
         val decimals = decimals()
         _ui.update { it.copy(editor = ProductEditorDraft(p.id, ProductEditor.formOf(p, decimals), wasTracked = p.trackStock)) }
@@ -177,7 +233,7 @@ class InventoryViewModel(private val c: AppContainer, private val clock: () -> L
         }
     }
 
-    override fun closeEditor() = _ui.update { it.copy(editor = null) }
+    override fun closeEditor() = _ui.update { it.copy(editor = null, fromRegister = false) }
 
     override fun confirmNewCategory() {
         val d = _ui.value.editor ?: return
@@ -210,6 +266,16 @@ class InventoryViewModel(private val c: AppContainer, private val clock: () -> L
                         input = input.copy(categoryId = cat.id)
                     }
                     val saved = c.products.save(d.id, input)
+                    if (_ui.value.fromRegister) {
+                        _ui.update { it.copy(editor = null, fromRegister = false) }
+                        onRegisterSaved?.invoke(saved.id)
+                        return@launch
+                    }
+                    // Venía de «Comprobar producto»: se vuelve a la lista mostrando el producto guardado.
+                    if (d.returnToList && !(form.trackStock && !d.wasTracked)) {
+                        _ui.update { it.copy(editor = null, selectedId = null, highlightId = saved.id, query = com.cuadra.caja.domain.ProductChecker.listQuery(saved)) }
+                        return@launch
+                    }
                     // Empezar a llevar control pide un conteo inicial: sin él la existencia no significaría nada.
                     if (form.trackStock && !d.wasTracked) _ui.update { it.copy(editor = null, selectedId = null, count = CountDraft2(saved.id, StockAction.COUNT, initial = true)) }
                     else _ui.update { it.copy(editor = null, selectedId = saved.id) }

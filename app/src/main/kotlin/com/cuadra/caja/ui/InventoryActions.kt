@@ -23,4 +23,9 @@ interface InventoryActions {
     fun closeEditor() {}
     fun confirmNewCategory() {}
     fun saveEditor() {}
+    /** «Comprobar producto»: una lectura (lector del equipo o cámara) en la lista de productos. */
+    fun checkCode(raw: String) {}
+    fun closeCheck() {}
+    fun editFromCheck() {}
+    fun createFromCheck() {}
 }

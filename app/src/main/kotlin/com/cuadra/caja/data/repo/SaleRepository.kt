@@ -25,6 +25,8 @@ import com.cuadra.caja.domain.PhoneResult
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -60,7 +62,17 @@ class SaleRepository(
 
     /** Ids de los productos más vendidos desde `since` (del más al menos vendido), para completar los frecuentes de la caja. */
     fun bestSellers(since: Long, limit: Int = 24): Flow<List<String>> = db.sales().bestSellers(since, limit).map { rows -> rows.map { it.productId } }
-    fun recent(limit: Int = 100): Flow<List<SaleEntity>> = db.sales().recent(limit)
+    /** Las ventas de este teléfono; un cajero solo ve las suyas de la última hora (`CashierWindow`), que envejecen solas. */
+    fun recent(limit: Int = 100): Flow<List<SaleEntity>> =
+        combine(db.sales().recent(limit), session.flow, com.cuadra.caja.domain.CashierWindow.ticker(now)) { list, s, at -> list.filter { sees(it, s.memberRole, s.memberId, at) } }
+
+    private fun sees(e: SaleEntity, role: String?, me: String?, at: Long) =
+        com.cuadra.caja.domain.CashierWindow.sees(role, me, e.status, e.createdByMemberId, e.completedByMemberId, e.completedAt, e.createdAt, at)
+
+    /** Lo que cobró esta persona en la última hora (el «Tus ventas, última hora» del cajero); se vuelve a calcular con cada tic. */
+    @kotlinx.coroutines.ExperimentalCoroutinesApi
+    fun lastHourBy(memberId: String): Flow<com.cuadra.caja.data.local.DayTotals> =
+        com.cuadra.caja.domain.CashierWindow.ticker(now).flatMapLatest { at -> db.sales().dayTotalsBy(com.cuadra.caja.domain.CashierWindow.since(at), Long.MAX_VALUE, memberId) }
     fun dayTotals(from: Long, to: Long) = db.sales().dayTotals(from, to)
 
     /** Lo cobrado por una persona en el rango («Vendido hoy» de un cajero). */
@@ -69,6 +81,8 @@ class SaleRepository(
 
     suspend fun detail(saleId: String): Triple<SaleEntity, List<SaleItemEntity>, List<SalePaymentEntity>>? {
         val sale = db.sales().get(saleId) ?: return null
+        // Un cajero no alcanza una venta que ya no ve (vieja o de otra persona), aunque el teléfono la tenga guardada.
+        session.current().let { s -> if (!sees(sale, s.memberRole, s.memberId, now())) return null }
         return Triple(sale, db.sales().items(saleId), db.sales().payments(saleId))
     }
 

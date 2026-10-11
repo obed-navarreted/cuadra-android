@@ -51,6 +51,9 @@ interface CajaActions {
     fun openProductMenu(p: ProductEntity) {}
     fun closeProductMenu() {}
     fun toggleFrequent(p: ProductEntity) {}
+    /** «Editar producto» desde la venta (menú de la línea del recibo, tira de la última línea, menú de los mosaicos): abre el editor del producto. Al guardar, la línea se actualiza. */
+    fun editProduct(productId: String) {}
+    fun hidePriceNotice() {}
     /** Modo «Ordenar frecuentes» de la pestaña Productos. */
     fun startReorder() {}
     fun finishReorder() {}

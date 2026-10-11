@@ -120,13 +120,16 @@ fun HistoryContent(
     // El idioma se lee de la configuración de Compose: al cambiarlo desde la app, las fechas se vuelven a dar formato.
     val locale: Locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
     val time = com.cuadra.caja.domain.ClockFormat.dateTime(locale, zone)
+    val cashier = com.cuadra.caja.domain.CashierWindow.applies(role)
     val serverList = manager && !ui.offline && ui.error == null
     val rows = if (serverList) ui.sales else local
     var moreFilters by remember { mutableStateOf(initialMoreFilters) }
     var showAllPeople by remember { mutableStateOf(initialShowAllPeople) }
     com.cuadra.caja.ui.common.RefreshBox(refreshing || ui.loading, actions::pullRefresh, Modifier.fillMaxSize(), offline = offlineLocal) {
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        item { Text(stringResource(R.string.history_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 16.dp, bottom = 2.dp)) }
+        // Cajero (docs/adr/0017): una sola lista, sus ventas de la última hora; sin rangos, estados ni personas.
+        item { Text(stringResource(if (cashier) R.string.history_title_cashier else R.string.history_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 16.dp, bottom = 2.dp)) }
+        if (cashier) item { Text(stringResource(R.string.history_cashier_hint), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted) }
         if (manager) {
             item { RangePicker(ui.range, calendar, actions::setRange, nowMillis = nowMillis) }
             item { Filters(ui, members, moreFilters, { moreFilters = !moreFilters }, actions) }
@@ -165,7 +168,7 @@ fun HistoryContent(
         if (ui.loading && rows.isEmpty()) item { Text(stringResource(R.string.sales_loading), color = CuadraColors.Muted) }
         if (rows.isEmpty() && !ui.loading) item {
             Box(Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
-                Text(stringResource(if (serverList) R.string.sales_empty_filtered else R.string.history_empty), color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                Text(stringResource(if (serverList) R.string.sales_empty_filtered else if (cashier) R.string.history_cashier_empty else R.string.history_empty), color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
             }
         } else items(rows, key = { it.id }) { SaleRow(it, time, actions) }
         if (serverList && ui.hasMore) item {

@@ -107,6 +107,15 @@ fun MoreScreen(
                 CuadraButton(stringResource(R.string.more_sync_now), actions.onSyncNow, Modifier.fillMaxWidth(), enabled = status != SyncStatus.SYNCING)
             }
         }
+        // Productos y existencias van PRIMERO (lo que más se usa): Productos y, si el negocio los lleva, Inventario y Compras debajo.
+        MenuGroup(
+            stringResource(R.string.more_group_catalog),
+            listOfNotNull(
+                actions.onProducts?.let { MenuItem(R.drawable.ic_menu_products, stringResource(R.string.more_products), it) },
+                actions.onInventory?.let { MenuItem(R.drawable.ic_menu_inventory, stringResource(R.string.more_inventory), it) },
+                actions.onPurchases?.let { MenuItem(R.drawable.ic_menu_purchases, stringResource(R.string.more_purchases), it) },
+            ),
+        )
         // Negocio: ajustes (dueño edita, admin ve), equipo, actividad (dueño y admin, solo lectura) y mensajes de WhatsApp (dueño y admin).
         MenuGroup(
             stringResource(R.string.more_group_business),
@@ -115,14 +124,6 @@ fun MoreScreen(
                 actions.onTeam?.let { MenuItem(R.drawable.ic_menu_team, stringResource(R.string.team_title), it) },
                 actions.onActivity?.let { MenuItem(R.drawable.ic_menu_activity, stringResource(R.string.act_title), it) },
                 actions.onTemplates?.let { MenuItem(R.drawable.ic_menu_messages, stringResource(R.string.tpl_title), it) },
-            ),
-        )
-        MenuGroup(
-            stringResource(R.string.more_group_catalog),
-            listOfNotNull(
-                actions.onProducts?.let { MenuItem(R.drawable.ic_menu_products, stringResource(R.string.more_products), it) },
-                actions.onInventory?.let { MenuItem(R.drawable.ic_menu_inventory, stringResource(R.string.more_inventory), it) },
-                actions.onPurchases?.let { MenuItem(R.drawable.ic_menu_purchases, stringResource(R.string.more_purchases), it) },
             ),
         )
         // Cierre automático por jornada (dueño y admin): no hay que abrir ni cerrar nada.

@@ -357,7 +357,7 @@ private fun ZonePicker(query: String, current: String, country: String, actions:
     val options = TimeZones.suggest(query, current, country)
     Sheet(actions::closeZonePicker, actions = { CuadraButton(stringResource(R.string.cancel), actions::closeZonePicker, Modifier.fillMaxWidth()) }) {
         Text(stringResource(R.string.set_zone_title), style = MaterialTheme.typography.headlineMedium)
-        VoiceTextField(query, actions::zoneQuery, Modifier.fillMaxWidth(), singleLine = true, label = { Text(stringResource(R.string.set_zone_search)) })
+        VoiceTextField(query, actions::zoneQuery, Modifier.fillMaxWidth(), singleLine = true, label = { Text(stringResource(R.string.set_zone_search)) }, clearable = true)
         Hint(stringResource(R.string.set_zone_hint))
         if (options.isEmpty()) Text(stringResource(R.string.set_zone_none), color = CuadraColors.Muted)
         options.forEach { id ->

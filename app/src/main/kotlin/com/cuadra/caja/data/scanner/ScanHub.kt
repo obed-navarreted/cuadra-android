@@ -19,6 +19,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.cuadra.caja.domain.DeviceProfile
 import com.cuadra.caja.domain.ScanCode
 import com.cuadra.caja.domain.ScanDebounce
+import com.cuadra.caja.domain.ScanTiming
 import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -68,8 +69,8 @@ private object K {
 }
 
 /**
- * Punto único de entrada de los lectores: cámara, teclado (wedge) y Zebra DataWedge. Filtra (apagado en Ajustes), quita repetidos (mismo código dentro
- * de `ScanTiming.DEBOUNCE_MS`), avisa (vibración y pitido), guarda la última lectura para la prueba de Ajustes y la entrega a quien la pidió.
+ * Punto único de entrada de los lectores: cámara, teclado (wedge) y Zebra DataWedge. Filtra (apagado en Ajustes), quita entregas dobles (mismo código dentro
+ * de `ScanTiming.HARDWARE_DEBOUNCE_MS`; la cámara usa su propio filtro de `DEBOUNCE_MS`), avisa (vibración y pitido), guarda la última lectura para la prueba de Ajustes y la entrega a quien la pidió.
  * Los objetos de pantalla (claim/submit) se usan desde el hilo principal.
  */
 class ScanHub(private val context: Context, private val scope: CoroutineScope) {
@@ -102,12 +103,24 @@ class ScanHub(private val context: Context, private val scope: CoroutineScope) {
         .stateIn(scope, SharingStarted.Eagerly, false)
 
     private val targets = ArrayList<ScanTarget>()
-    private val debounce = ScanDebounce()
+    private val debounce = ScanDebounce(ScanTiming.HARDWARE_DEBOUNCE_MS)
     private val feedback = ScanFeedback(context)
     private val dataWedge = DataWedgeClient(context, this, scope)
     val keys = WedgeKeys(this)
 
     val hasTarget: Boolean get() = targets.isNotEmpty()
+
+    /**
+     * Hay un campo de BÚSQUEDA con el foco (el buscador de la caja, el de productos): ahí un lector tipo teclado no escribe en el campo, es una lectura
+     * (ver `WedgeKeys`). Lo ponen los campos con `VoiceTextField(scanFriendly = true)`; con un campo de otro tipo (nombre, nota, el código del editor) el código se teclea.
+     */
+    @Volatile var scanFieldFocused: Boolean = false
+
+    /**
+     * Quita del campo enfocado el primer carácter de una ráfaga que ya se había escrito (la primera tecla de un lector pasa, podría ser una persona).
+     * Lo registra el campo enfocado y se llama antes de entregar la lectura a su destino.
+     */
+    var leakFixer: ((String) -> Unit)? = null
 
     /** Pide recibir las lecturas del lector físico mientras la pantalla está a la vista; cerrar el resultado deja de recibirlas. */
     fun claim(target: ScanTarget): AutoCloseable {
@@ -116,12 +129,13 @@ class ScanHub(private val context: Context, private val scope: CoroutineScope) {
     }
 
     /** Lectura del lector físico (DataWedge o teclado): pasa por el filtro y llega a quien la pidió. */
-    fun submit(raw: String, source: ScanSource, label: String? = null): Boolean {
+    fun submit(raw: String, source: ScanSource, label: String? = null, leakedIntoField: Boolean = false): Boolean {
         val code = ScanCode.normalize(raw)
         if (code.isEmpty() || !settings.value.useReader) return false
         if (!debounce.accept(code, SystemClock.elapsedRealtime())) return false
         if (source == ScanSource.WEDGE && !settings.value.wedgeSeen) scope.launch { store.edit { it[K.wedgeSeen] = true } }
         emit(code, source, label)
+        if (leakedIntoField) leakFixer?.invoke(code)
         targets.lastOrNull()?.onScan(code, source)
         return true
     }

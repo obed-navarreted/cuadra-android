@@ -6,6 +6,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -111,9 +113,9 @@ private val StripShape = RoundedCornerShape(16.dp)
  * - `line = null` dibuja el hueco reservado de la pestaña Productos (para que la lista no salte al agregar el primer producto).
  */
 @Composable
-fun LastLineStrip(line: CartLine?, compact: Boolean, actions: CajaActions, modifier: Modifier = Modifier) {
+fun LastLineStrip(line: CartLine?, compact: Boolean, actions: CajaActions, modifier: Modifier = Modifier, canEdit: Boolean = false) {
     CappedFontScale(STRIP_FONT_CAP) {
-        if (line == null) EmptyStrip(compact, modifier) else FilledStrip(line, compact, actions, modifier)
+        if (line == null) EmptyStrip(compact, modifier) else FilledStrip(line, compact, actions, modifier, canEdit)
     }
 }
 
@@ -129,7 +131,7 @@ private fun EmptyStrip(compact: Boolean, modifier: Modifier) {
 }
 
 @Composable
-private fun FilledStrip(line: CartLine, compact: Boolean, actions: CajaActions, modifier: Modifier) {
+private fun FilledStrip(line: CartLine, compact: Boolean, actions: CajaActions, modifier: Modifier, canEdit: Boolean) {
     // Destello al agregar o cambiar la cantidad (no al dibujarse por primera vez con una línea que ya estaba).
     val flash = remember { Animatable(CuadraColors.Surface) }
     val first = remember { booleanArrayOf(true) }
@@ -139,12 +141,18 @@ private fun FilledStrip(line: CartLine, compact: Boolean, actions: CajaActions, 
         flash.animateTo(CuadraColors.Surface, tween(durationMillis = 700))
     }
     val height = if (compact) STRIP_ROW_HEIGHT else STRIP_FULL_HEIGHT
+    // «Editar producto»: pulsación larga en la tira (fuera de sus botones) y acción de accesibilidad. No lleva un lápiz aparte: − cantidad + subtotal ✕ ya llenan la fila en un teléfono angosto.
+    val productId = line.productId.takeIf { canEdit }
+    val editLabel = stringResource(R.string.strip_edit_product_hint)
+    @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+    val editGesture = if (productId == null) Modifier else Modifier.combinedClickable(onLongClickLabel = editLabel, onLongClick = { actions.editProduct(productId) }, onClick = {})
+        .semantics { customActions = listOf(androidx.compose.ui.semantics.CustomAccessibilityAction(editLabel) { actions.editProduct(productId); true }) }
     CuadraCard(
-        modifier.testTag(TAG_LAST_LINE).heightIn(min = height), color = flash.value, padding = PaddingValues(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+        modifier.testTag(TAG_LAST_LINE).heightIn(min = height).then(editGesture), color = flash.value, padding = PaddingValues(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
     ) {
         if (compact) {
             // Una sola fila: − cantidad + · subtotal · ✕. El nombre cede antes que cualquiera de los controles.
-            CompactRow(line, actions, height - 10.dp)
+            CompactRow(line, actions, height - 10.dp, productId)
         } else {
             Column(Modifier.fillMaxWidth().heightIn(min = height - 10.dp), verticalArrangement = Arrangement.Center) {
                 // Arriba el nombre (con el precio de cada uno) y el subtotal; abajo los controles.
@@ -152,10 +160,20 @@ private fun FilledStrip(line: CartLine, compact: Boolean, actions: CajaActions, 
                     Text(line.label + "  ·  " + money(line.unitPriceMinor), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1, ellipsize = true)
                     Total(line, Modifier.widthIn(max = 160.dp))
                 }
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Stepper(line, actions)
-                    Spacer(Modifier.weight(1f))
-                    RemoveButton(line, actions)
+                // El lápiz solo se dibuja si cabe junto a − cantidad + y la papelera (se mide la cantidad); si no, queda la pulsación larga.
+                val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+                val density = androidx.compose.ui.platform.LocalDensity.current
+                val qtyStyle = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold)
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    val qtyW = with(density) { measurer.measure(androidx.compose.ui.text.AnnotatedString(qtyText(line.quantityMilli)), qtyStyle, softWrap = false, maxLines = 1).size.width.toDp() } + QTY_PADDING
+                    val stepper = 96.dp + qtyW.coerceIn(48.dp, QTY_MAX_WIDTH)
+                    val showEdit = productId != null && maxWidth >= stepper + 2 * 48.dp + 8.dp
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Stepper(line, actions)
+                        Spacer(Modifier.weight(1f))
+                        if (showEdit && productId != null) EditButton(productId, actions)
+                        RemoveButton(line, actions)
+                    }
                 }
             }
         }
@@ -167,7 +185,7 @@ private fun FilledStrip(line: CartLine, compact: Boolean, actions: CajaActions, 
  * cantidad de 8 cifras y un monto de 7 cifras en un teléfono angosto las dos letras bajan juntas (hasta 40 %), nunca una se come a la otra.
  */
 @Composable
-private fun CompactRow(line: CartLine, actions: CajaActions, minHeight: androidx.compose.ui.unit.Dp) {
+private fun CompactRow(line: CartLine, actions: CajaActions, minHeight: androidx.compose.ui.unit.Dp, productId: String?) {
     val measurer = androidx.compose.ui.text.rememberTextMeasurer()
     val density = androidx.compose.ui.platform.LocalDensity.current
     val style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold)
@@ -176,11 +194,14 @@ private fun CompactRow(line: CartLine, actions: CajaActions, minHeight: androidx
         val qtyNatural = w(qtyText(line.quantityMilli)) + QTY_PADDING
         val totalNatural = w(money(line.totalMinor)) + TOTAL_PADDING
         // Lo que queda entre los tres botones de 48 dp (−, + y ✕).
-        val room = maxWidth - 3 * 48.dp
+        // El lápiz (cuarto botón) solo si la cantidad y el subtotal caben SIN achicar la letra con él.
+        val showEdit = productId != null && qtyNatural + totalNatural <= maxWidth - 4 * 48.dp
+        val room = maxWidth - (if (showEdit) 4 else 3) * 48.dp
         val f = if (qtyNatural + totalNatural <= room) 1f else (room / (qtyNatural + totalNatural)).coerceAtLeast(0.3f)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Stepper(line, actions, qtyWidth = maxOf(qtyNatural * f, 48.dp))
             Total(line, Modifier.weight(1f).padding(horizontal = TOTAL_PADDING / 2))
+            if (showEdit && productId != null) EditButton(productId, actions)
             RemoveButton(line, actions)
         }
     }
@@ -229,12 +250,18 @@ private fun StepButton(symbol: String, description: String, enabled: Boolean, on
     }
 }
 
-/** ✕ «Quitar esta línea»: la quita (con «Línea quitada · Deshacer»). */
+/** Papelera «Quitar esta línea»: la quita (con «Línea quitada · Deshacer»). Mismo ícono que en las filas del recibo. */
 @Composable
 private fun RemoveButton(line: CartLine, actions: CajaActions) {
-    val description = stringResource(R.string.strip_remove)
-    Box(
-        Modifier.size(48.dp).clickable(role = Role.Button) { actions.deleteLine(line.id) }.semantics { contentDescription = description },
-        contentAlignment = Alignment.Center,
-    ) { Text("✕", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, minScale = 0.6f) }
+    LineIconButton(R.drawable.ic_trash, stringResource(R.string.strip_remove), CuadraColors.Red, Modifier.testTag(TAG_STRIP_REMOVE)) { actions.deleteLine(line.id) }
 }
+
+/** Lápiz «Editar producto» (si hay lugar): abre el editor del producto. */
+@Composable
+private fun EditButton(productId: String, actions: CajaActions) {
+    LineIconButton(R.drawable.ic_edit, stringResource(R.string.strip_edit_product_hint), CuadraColors.Ink, Modifier.testTag(TAG_STRIP_EDIT)) { actions.editProduct(productId) }
+}
+
+/** Etiquetas de prueba de los botones de la tira (papelera y lápiz). */
+const val TAG_STRIP_REMOVE = "LastLineStripRemove"
+const val TAG_STRIP_EDIT = "LastLineStripEdit"

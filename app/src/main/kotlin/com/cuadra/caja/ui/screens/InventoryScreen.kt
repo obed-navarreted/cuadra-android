@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
 import com.cuadra.caja.ui.common.TAG_STICKY
 import androidx.compose.foundation.layout.Box
@@ -30,6 +31,8 @@ import com.cuadra.caja.domain.ProductEditor
 import com.cuadra.caja.domain.ProductError
 import com.cuadra.caja.domain.ProductForm
 import com.cuadra.caja.ui.common.BarcodeScannerDialog
+import com.cuadra.caja.ui.common.ScanButton
+import com.cuadra.caja.ui.common.TAG_SEARCH_SCAN
 import com.cuadra.caja.ui.common.BarcodeField
 import com.cuadra.caja.ui.common.ScanFieldIcon
 import com.cuadra.caja.ui.common.Text
@@ -60,6 +63,7 @@ import com.cuadra.caja.domain.ProductHistory
 import com.cuadra.caja.ui.HistoryState
 import com.cuadra.caja.ui.CountDraft2
 import com.cuadra.caja.ui.InventoryActions
+import com.cuadra.caja.ui.CodeCheckUi
 import com.cuadra.caja.ui.InventoryUi
 import com.cuadra.caja.ui.InventoryViewModel
 import com.cuadra.caja.ui.ProductDetail
@@ -131,6 +135,10 @@ fun InventoryContent(
     /** Productos › Promociones (dueño y admins); nulo = no se ofrece. */
     onPromotions: (() -> Unit)? = null,
 ) {
+    // «Comprobar producto»: la cámara o el lector del equipo (Zebra, Bluetooth, USB; también con el buscador enfocado) dicen si el código existe. No venden nada.
+    var searchScanning by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    if (ui.editor == null && ui.count == null) com.cuadra.caja.ui.common.ScanTargetEffect { actions.checkCode(it) }
+    if (searchScanning) BarcodeScannerDialog(onDismiss = { searchScanning = false }, onCode = { actions.checkCode(it); searchScanning = false })
     ScreenFrame(
         Modifier.fillMaxSize().padding(horizontal = 16.dp),
         footer = { CuadraButton(stringResource(R.string.inventory_new_product), actions::newProduct, Modifier.fillMaxWidth().padding(bottom = 8.dp), kind = ButtonKind.PRIMARY, height = 48) },
@@ -152,8 +160,12 @@ fun InventoryContent(
                 }
             }
             stickyHeader {
-                Box(Modifier.fillMaxWidth().testTag(TAG_STICKY).background(CuadraColors.Bg).padding(vertical = 2.dp)) {
-                    VoiceTextField(ui.query, actions::setQuery, Modifier.fillMaxWidth(), singleLine = true, label = { Text(stringResource(R.string.inventory_search), maxLines = 1) })
+                Column(Modifier.fillMaxWidth().testTag(TAG_STICKY).background(CuadraColors.Bg).padding(vertical = 2.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        VoiceTextField(ui.query, actions::setQuery, Modifier.weight(1f), singleLine = true, label = { Text(stringResource(R.string.inventory_search), maxLines = 1) }, scanFriendly = true, clearable = true)
+                        ScanButton({ searchScanning = true }, Modifier.testTag(TAG_SEARCH_SCAN), size = 48.dp)
+                    }
+                    Text(stringResource(R.string.inventory_scan_hint), Modifier.testTag(TAG_SCAN_HINT), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted)
                 }
             }
             item {
@@ -171,21 +183,23 @@ fun InventoryContent(
             }
             if (items.isEmpty()) item {
                 Box(Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) { Text(stringResource(R.string.inventory_empty), color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center) }
-            } else items(items, key = { it.product.id }) { StockRow(it, catalogOnly) { actions.select(it.product.id) } }
+            } else items(items, key = { it.product.id }) { StockRow(it, catalogOnly, highlighted = it.product.id == ui.highlightId) { actions.select(it.product.id) } }
         }
     }
     detail?.let { DetailSheet(it, ui.history, canDelete, timezone, catalogOnly, actions) }
+    ui.check?.let { CodeCheckSheet(it, catalogOnly, actions) }
     ui.confirmActive?.let { ConfirmActiveDialog(it, actions) }
-    ui.editor?.let { EditorDialog(it, ui.categories, catalogOnly, actions) }
+    // Un editor abierto desde la venta se dibuja en la caja (`CajaScreen`), no aquí.
+    ui.editor?.takeIf { !ui.fromRegister }?.let { EditorDialog(it, ui.categories, catalogOnly, actions) }
     if (!catalogOnly) ui.count?.let { CountDialog(it, actions) }
 }
 
 @Composable
-private fun StockRow(s: ProductStock, catalogOnly: Boolean, onClick: () -> Unit) {
+private fun StockRow(s: ProductStock, catalogOnly: Boolean, highlighted: Boolean = false, onClick: () -> Unit) {
     val p = s.product
     val low = p.trackStock && p.minStockMilli != null && s.stockNowMilli <= p.minStockMilli
     val negative = p.trackStock && s.stockNowMilli < 0
-    CuadraCard(Modifier.fillMaxWidth(), onClick = onClick) {
+    CuadraCard(Modifier.fillMaxWidth(), onClick = onClick, color = if (highlighted) CuadraColors.GreenSoft else CuadraColors.Surface, borderColor = if (highlighted) CuadraColors.Green else CuadraColors.Line) {
         SplitRow(end = {
             if (catalogOnly) Unit
             else if (p.trackStock) Column(horizontalAlignment = Alignment.End) {
@@ -204,6 +218,44 @@ private fun StockRow(s: ProductStock, catalogOnly: Boolean, onClick: () -> Unit)
                     style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted,
                 )
             }
+        }
+    }
+}
+
+/** Etiqueta de la línea «Escanea un código para comprobar si existe» bajo el buscador. */
+const val TAG_SCAN_HINT = "ScanHint"
+
+/**
+ * «Comprobar producto»: hoja compacta con el resultado de leer un código. Existe: nombre, precio, código y existencias (si las lleva), «Editar» y «Cerrar».
+ * No existe: «No existe un producto con el código X», «Crear producto» y «Cancelar»; con el dígito de control malo, una línea avisa que el código parece incorrecto
+ * (igual se puede crear).
+ */
+@Composable
+fun CodeCheckSheet(check: CodeCheckUi, catalogOnly: Boolean, actions: InventoryActions) {
+    when (check) {
+        is CodeCheckUi.Found -> {
+            val p = check.product
+            Sheet(actions::closeCheck, actions = {
+                ButtonRow {
+                    CuadraButton(stringResource(R.string.close), actions::closeCheck, Modifier.share(1f))
+                    CuadraButton(stringResource(R.string.check_edit), actions::editFromCheck, Modifier.share(1f), kind = ButtonKind.DARK)
+                }
+            }) {
+                Text(p.name + (p.variant?.let { " · $it" } ?: ""), style = MaterialTheme.typography.headlineSmall, maxLines = 4, ellipsize = true)
+                if (p.pricing == Pricing.OPEN) Text(priceSummary(p), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold)
+                else MoneyText(priceSummary(p), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold)
+                p.barcode?.takeIf { it.isNotBlank() }?.let { Text(stringResource(R.string.check_barcode, it), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted) }
+                if (!catalogOnly && check.stockMilli != null) Text(stringResource(R.string.check_stock, qtyText(check.stockMilli) + " " + unitLabel(p.unit)), fontWeight = FontWeight.Bold)
+            }
+        }
+        is CodeCheckUi.Missing -> Sheet(actions::closeCheck, actions = {
+            ButtonRow {
+                CuadraButton(stringResource(R.string.cancel), actions::closeCheck, Modifier.share(1f))
+                CuadraButton(stringResource(R.string.check_create), actions::createFromCheck, Modifier.share(1.3f), kind = ButtonKind.DARK)
+            }
+        }) {
+            Text(stringResource(R.string.check_missing, check.code), style = MaterialTheme.typography.headlineSmall)
+            if (check.badChecksum) Text(stringResource(R.string.check_bad_code), color = CuadraColors.Orange, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -398,6 +450,9 @@ fun CountDialog(d: CountDraft2, actions: InventoryActions) {
  * categoría, cómo se cobra (fijo / por peso / abierto), precio, costo, «Rápidos» y, si el negocio lleva inventario, control de existencia.
  * Todos los campos tienen etiqueta visible; el contenido se desplaza y «Guardar» queda fijo abajo.
  */
+/** Etiqueta de prueba del campo del precio del editor de productos (la guardia comprueba que se ve sin desplazar). */
+const val TAG_EDITOR_PRICE = "EditorPrice"
+
 @Composable
 fun EditorDialog(d: ProductEditorDraft, categories: List<CategoryEntity>, catalogOnly: Boolean, actions: InventoryActions) {
     val f = d.form
@@ -414,9 +469,38 @@ fun EditorDialog(d: ProductEditorDraft, categories: List<CategoryEntity>, catalo
     }) {
         Text(stringResource(if (d.id == null) R.string.inventory_new_product else R.string.inventory_edit), style = MaterialTheme.typography.headlineMedium)
         val nameError = ProductError.NAME_REQUIRED in d.errors
-        VoiceTextField(f.name, { set(f.copy(name = it.take(ProductEditor.MAX_NAME))) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text(stringResource(R.string.inventory_name)) },
+        val nameFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+        if (d.focusName) androidx.compose.runtime.LaunchedEffect(Unit) { runCatching { nameFocus.requestFocus() } }
+        VoiceTextField(f.name, { set(f.copy(name = it.take(ProductEditor.MAX_NAME))) }, Modifier.fillMaxWidth().focusRequester(nameFocus), singleLine = true, label = { Text(stringResource(R.string.inventory_name)) },
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences), isError = nameError,
             supportingText = if (nameError) ({ Text(stringResource(R.string.product_error_name)) }) else null)
+        // Orden: nombre, PRECIO (con cómo se cobra pegado a él), código de barras, código corto, variante, categoría, costo y, al final, ★ frecuente y existencias.
+        // El precio es lo primero que se ve sin desplazar, también con letra grande y con el teclado abierto.
+        val priceLabel = when (f.pricing) {
+            Pricing.BY_WEIGHT -> stringResource(R.string.product_price_per, unitLabel(f.unit))
+            Pricing.OPEN -> stringResource(R.string.product_price_suggested)
+            else -> stringResource(R.string.inventory_price)
+        }
+        val priceError = ProductError.PRICE_REQUIRED in d.errors || ProductError.PRICE_INVALID in d.errors
+        NumberField(
+            f.price, { set(f.copy(price = it.take(14))) }, Modifier.testTag(TAG_EDITOR_PRICE), isError = priceError,
+            label = { Text(priceLabel, maxLines = 1) },
+            supportingText = if (priceError) ({ Text(stringResource(if (ProductError.PRICE_REQUIRED in d.errors) R.string.product_error_price else R.string.product_error_amount)) }) else null,
+        )
+        // Cómo se cobra: fijo, por peso o abierto (chips pegados al precio); una línea explica el elegido.
+        ChipFlow {
+            CuadraChip(stringResource(R.string.pricing_FIXED), f.pricing == Pricing.FIXED, { set(f.copy(pricing = Pricing.FIXED)) })
+            CuadraChip(stringResource(R.string.pricing_BY_WEIGHT), f.pricing == Pricing.BY_WEIGHT, { set(f.copy(pricing = Pricing.BY_WEIGHT)) })
+            CuadraChip(stringResource(R.string.pricing_OPEN), f.pricing == Pricing.OPEN, { set(f.copy(pricing = Pricing.OPEN)) })
+        }
+        Text(
+            stringResource(when (f.pricing) { Pricing.BY_WEIGHT -> R.string.pricing_BY_WEIGHT_hint; Pricing.OPEN -> R.string.pricing_OPEN_hint; else -> R.string.pricing_FIXED_hint }),
+            style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted,
+        )
+        if (f.pricing == Pricing.BY_WEIGHT) {
+            Text(stringResource(R.string.inventory_unit), fontWeight = FontWeight.Bold)
+            ChipFlow { Pricing.WEIGHT_UNITS.forEach { u -> CuadraChip(unitLabel(u), f.unit == u, { set(f.copy(unit = u)) }) } }
+        }
         // Código de barras: teclado numérico y, con «ABC», de letras (Code 128/39); si otro producto ya lo tiene se dice antes de guardar.
         val taken = d.barcodeOwner != null && f.barcode.isNotBlank()
         BarcodeField(
@@ -439,25 +523,6 @@ fun EditorDialog(d: ProductEditorDraft, categories: List<CategoryEntity>, catalo
             CuadraButton(stringResource(R.string.product_category_add), actions::confirmNewCategory, Modifier.fillMaxWidth(), height = 48, enabled = name.isNotBlank())
         }
 
-        Text(stringResource(R.string.product_pricing_title), fontWeight = FontWeight.Bold)
-        PricingOption(R.string.pricing_FIXED, R.string.pricing_FIXED_hint, f.pricing == Pricing.FIXED) { set(f.copy(pricing = Pricing.FIXED)) }
-        PricingOption(R.string.pricing_BY_WEIGHT, R.string.pricing_BY_WEIGHT_hint, f.pricing == Pricing.BY_WEIGHT) { set(f.copy(pricing = Pricing.BY_WEIGHT)) }
-        PricingOption(R.string.pricing_OPEN_option, R.string.pricing_OPEN_hint, f.pricing == Pricing.OPEN) { set(f.copy(pricing = Pricing.OPEN)) }
-        if (f.pricing == Pricing.BY_WEIGHT) {
-            Text(stringResource(R.string.inventory_unit), fontWeight = FontWeight.Bold)
-            ChipFlow { Pricing.WEIGHT_UNITS.forEach { u -> CuadraChip(unitLabel(u), f.unit == u, { set(f.copy(unit = u)) }) } }
-        }
-        val priceLabel = when (f.pricing) {
-            Pricing.BY_WEIGHT -> stringResource(R.string.product_price_per, unitLabel(f.unit))
-            Pricing.OPEN -> stringResource(R.string.product_price_suggested)
-            else -> stringResource(R.string.inventory_price)
-        }
-        val priceError = ProductError.PRICE_REQUIRED in d.errors || ProductError.PRICE_INVALID in d.errors
-        NumberField(
-            f.price, { set(f.copy(price = it.take(14))) }, isError = priceError,
-            label = { Text(priceLabel, maxLines = 1) },
-            supportingText = if (priceError) ({ Text(stringResource(if (ProductError.PRICE_REQUIRED in d.errors) R.string.product_error_price else R.string.product_error_amount)) }) else null,
-        )
         val costError = ProductError.COST_INVALID in d.errors
         NumberField(f.cost, { set(f.copy(cost = it.take(14))) }, label = { Text(stringResource(R.string.product_cost_optional), maxLines = 1) }, isError = costError,
             supportingText = if (costError) ({ Text(stringResource(R.string.product_error_amount)) }) else null)
@@ -471,20 +536,6 @@ fun EditorDialog(d: ProductEditorDraft, categories: List<CategoryEntity>, catalo
                 supportingText = if (minError) ({ Text(stringResource(R.string.product_error_amount)) }) else null)
         }
         if (d.errors.isNotEmpty()) Text(stringResource(R.string.inventory_editor_error), color = CuadraColors.Red, fontWeight = FontWeight.Bold)
-    }
-}
-
-/** Una de las tres formas de cobrar: título y una línea que la explica; toda la tarjeta se toca. */
-@Composable
-private fun PricingOption(@androidx.annotation.StringRes title: Int, @androidx.annotation.StringRes helper: Int, selected: Boolean, onClick: () -> Unit) {
-    CuadraCard(Modifier.fillMaxWidth(), onClick = onClick) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            RadioButton(selected, onClick = null)
-            Column(Modifier.weight(1f)) {
-                Text(stringResource(title), fontWeight = FontWeight.Bold)
-                Text(stringResource(helper), style = MaterialTheme.typography.bodyMedium, color = CuadraColors.Muted)
-            }
-        }
     }
 }
 

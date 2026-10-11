@@ -19,8 +19,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -39,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -82,8 +81,8 @@ import com.cuadra.caja.ui.theme.CuadraColors
 
 /** La hoja del recibo (sube desde abajo, ~75 % del alto, se arrastra para cerrarla). */
 @Composable
-fun ReceiptSheet(ui: CajaUi, actions: CajaActions, parkedCount: Int = 0, registerCheckout: Boolean = false) {
-    AppBottomSheet(actions::closeReceipt) { ReceiptSheetContent(ui, actions, parkedCount, registerCheckout) }
+fun ReceiptSheet(ui: CajaUi, actions: CajaActions, parkedCount: Int = 0, registerCheckout: Boolean = false, canEditProducts: Boolean = false) {
+    AppBottomSheet(actions::closeReceipt) { ReceiptSheetContent(ui, actions, parkedCount, registerCheckout, canEditProducts) }
 }
 
 /**
@@ -92,7 +91,7 @@ fun ReceiptSheet(ui: CajaUi, actions: CajaActions, parkedCount: Int = 0, registe
  * Cada línea tiene además un menú (⋮) y acciones de accesibilidad con lo mismo, para no depender del gesto.
  */
 @Composable
-fun ReceiptSheetContent(ui: CajaUi, actions: CajaActions, parkedCount: Int = 0, registerCheckout: Boolean = false) {
+fun ReceiptSheetContent(ui: CajaUi, actions: CajaActions, parkedCount: Int = 0, registerCheckout: Boolean = false, canEditProducts: Boolean = false) {
     val cart = ui.cart
     // Con promociones: el total que se cobra y, debajo de la última línea que tocó cada una, «Promo 3 por C$ 100: −C$ 70».
     val priced = ui.priced
@@ -140,7 +139,7 @@ fun ReceiptSheetContent(ui: CajaUi, actions: CajaActions, parkedCount: Int = 0, 
             LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (ui.swipeHint) item(key = "hint") { SwipeHint(actions::dismissSwipeHint) }
                 cart.lines.forEach { line ->
-                    item(key = line.id) { ReceiptLine(line, actions) }
+                    item(key = line.id) { ReceiptLine(line, actions, canEditProducts) }
                     priced.promo.applied.filter { it.lineIds.lastOrNull() == line.id }.forEach { a ->
                         item(key = "promo-" + a.promotionId) { PromoLineRow(a.quantity, a.priceMinor, a.discountMinor, Modifier.padding(horizontal = 12.dp)) }
                     }
@@ -151,7 +150,8 @@ fun ReceiptSheetContent(ui: CajaUi, actions: CajaActions, parkedCount: Int = 0, 
         }
     }
     // Aviso flotante «Deshacer» (arriba de la hoja, encima del contenido: no ocupa lugar).
-    ui.undo?.let { UndoPopup(it, actions::undoLast, Modifier.align(Alignment.TopCenter).padding(top = 4.dp)) }
+    if (ui.priceUpdated) FloatingNotice(stringResource(R.string.price_updated), null, {}, Modifier.align(Alignment.TopCenter).padding(top = 4.dp))
+    else ui.undo?.let { UndoPopup(it, actions::undoLast, Modifier.align(Alignment.TopCenter).padding(top = 4.dp)) }
     }
 }
 
@@ -176,7 +176,7 @@ private fun SwipeHint(onDismiss: () -> Unit) {
 /** Una línea del recibo con sus gestos. Izquierda = eliminar entera; derecha = escribir la cantidad (la fila vuelve a su sitio y abre el diálogo). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ReceiptLine(line: CartLine, actions: CajaActions) {
+private fun ReceiptLine(line: CartLine, actions: CajaActions, canEdit: Boolean) {
     val current by rememberUpdatedState(line)
     val state = rememberSwipeToDismissBoxState(
         confirmValueChange = { target ->
@@ -201,18 +201,22 @@ private fun ReceiptLine(line: CartLine, actions: CajaActions) {
                 ) { Text(stringResource(if (deleting) R.string.receipt_swipe_delete else R.string.receipt_swipe_qty), color = androidx.compose.ui.graphics.Color.White, fontWeight = FontWeight.ExtraBold, maxLines = 1) }
             }
         },
-    ) { LineCard(line, actions) }
+    ) { LineCard(line, actions, canEdit) }
 }
 
 /**
- * Una línea del recibo, compacta (~76 dp a letra normal en vez de ~136): arriba el nombre (hasta 2 líneas) y el total a la derecha; abajo el detalle
- * «C$ 25.00 × 2» en gris, el − / + (32 dp visibles, 48 dp tocables) y el menú ⋮.
+ * Una línea del recibo: arriba el nombre (hasta 2 líneas) y el total a la derecha; abajo el detalle «C$ 25.00 × 2» en gris y los controles VISIBLES:
+ * [−] cantidad [+] [lápiz] [papelera] (todos de 48 dp tocables). Si no caben junto al detalle (letra grande, teléfono angosto) bajan a su propia fila, sin recortarse.
+ * La papelera quita la línea de una vez (con «Línea quitada · Deshacer», sin confirmación); el lápiz abre «Editar producto» en las del catálogo (quien puede editar
+ * productos) y la hoja de descripción y cantidad en las demás. Los gestos de deslizar siguen funcionando.
  */
 @Composable
-private fun LineCard(line: CartLine, actions: CajaActions) {
+private fun LineCard(line: CartLine, actions: CajaActions, canEdit: Boolean) {
     val step = if (line.quantityMilli % 1000L == 0L) 1000L else 250L
     val deleteLabel = stringResource(R.string.receipt_delete_line)
     val changeLabel = stringResource(if (line.descriptionEditable) R.string.register_edit_line else R.string.receipt_change_qty)
+    val editProductLabel = stringResource(R.string.receipt_edit_product)
+    val productId = line.productId.takeIf { canEdit }
     CuadraCard(
         onClick = { actions.editQuantity(line.id) },
         padding = PaddingValues(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 0.dp),
@@ -220,7 +224,7 @@ private fun LineCard(line: CartLine, actions: CajaActions) {
             customActions = listOf(
                 CustomAccessibilityAction(changeLabel) { actions.editQuantity(line.id); true },
                 CustomAccessibilityAction(deleteLabel) { actions.deleteLine(line.id); true },
-            )
+            ) + listOfNotNull(productId?.let { id -> CustomAccessibilityAction(editProductLabel) { actions.editProduct(id); true } })
         },
     ) {
         Column {
@@ -228,13 +232,16 @@ private fun LineCard(line: CartLine, actions: CajaActions) {
                 Text(line.label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold, maxLines = 2, ellipsize = true)
             }
             SplitRow(
-                endMaxFraction = 0.8f, spacing = 4.dp,
+                endMaxFraction = 0.95f, spacing = 4.dp,
                 end = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         StepButton("−", stringResource(R.string.receipt_minus)) { actions.changeQuantity(line.id, -step) }
                         MoneyText(qtyText(line.quantityMilli), Modifier.weight(1f, fill = false).padding(horizontal = 2.dp), fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleSmall)
                         StepButton("+", stringResource(R.string.receipt_plus)) { actions.changeQuantity(line.id, step) }
-                        LineMenu(line, actions)
+                        LineIconButton(R.drawable.ic_edit, stringResource(R.string.receipt_edit_line_action), CuadraColors.Ink, Modifier.testTag(TAG_LINE_EDIT)) {
+                            if (productId != null) actions.editProduct(productId) else actions.editQuantity(line.id)
+                        }
+                        LineIconButton(R.drawable.ic_trash, stringResource(R.string.receipt_remove_line), CuadraColors.Red, Modifier.testTag(TAG_LINE_REMOVE)) { actions.deleteLine(line.id) }
                     }
                 },
             ) {
@@ -244,33 +251,24 @@ private fun LineCard(line: CartLine, actions: CajaActions) {
     }
 }
 
+/** Etiquetas de prueba de los controles visibles de cada línea del recibo (lápiz y papelera). */
+const val TAG_LINE_EDIT = "ReceiptLineEdit"
+const val TAG_LINE_REMOVE = "ReceiptLineRemove"
+
+/** Botón con ícono de 48 x 48 dp tocables (el ícono mide 22 dp): lápiz «Editar» y papelera «Quitar línea». */
+@Composable
+internal fun LineIconButton(@androidx.annotation.DrawableRes icon: Int, description: String, tint: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(modifier.size(48.dp).clickable(role = Role.Button, onClick = onClick).semantics { contentDescription = description }, contentAlignment = Alignment.Center) {
+        Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(22.dp), tint = tint)
+    }
+}
+
 /** − o +: círculo de 32 dp dentro de un área tocable de 48 x 48 dp. */
 @Composable
 private fun StepButton(symbol: String, description: String, onClick: () -> Unit) {
     Box(Modifier.size(48.dp).clickable(role = Role.Button, onClick = onClick).semantics { contentDescription = description }, contentAlignment = Alignment.Center) {
         Box(Modifier.size(32.dp).background(CuadraColors.Soft, CircleShape), contentAlignment = Alignment.Center) {
             Text(symbol, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold, maxLines = 1, minScale = 0.6f)
-        }
-    }
-}
-
-/** Menú visible de la línea (⋮): lo mismo que los gestos, para quien no desliza o usa lector de pantalla. */
-@Composable
-private fun LineMenu(line: CartLine, actions: CajaActions) {
-    var open by remember { mutableStateOf(false) }
-    val description = stringResource(R.string.receipt_line_menu)
-    Box {
-        Box(
-            Modifier.size(48.dp).clickable(role = Role.Button) { open = true }.semantics { contentDescription = description },
-            contentAlignment = Alignment.Center,
-        ) { Icon(painterResource(R.drawable.ic_more_vert), contentDescription = null, modifier = Modifier.size(20.dp)) }
-        // El menú es un popup (otra ventana): re-aplica el `LocalDensity` de la app (política de letra).
-        val density = androidx.compose.ui.platform.LocalDensity.current
-        DropdownMenu(open, { open = false }) {
-            androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalDensity provides density) {
-                DropdownMenuItem(text = { Text(stringResource(if (line.descriptionEditable) R.string.register_edit_line else R.string.receipt_change_qty)) }, onClick = { open = false; actions.editQuantity(line.id) })
-                DropdownMenuItem(text = { Text(stringResource(R.string.receipt_delete_line), color = CuadraColors.Red) }, onClick = { open = false; actions.deleteLine(line.id) })
-            }
         }
     }
 }

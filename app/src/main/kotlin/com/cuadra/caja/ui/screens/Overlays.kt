@@ -51,9 +51,9 @@ const val QUEUE_REFRESH_MILLIS = 15_000L
 @Composable
 fun Overlays(
     ui: CajaUi, actions: CajaActions, parked: List<SaleEntity>, registerCheckout: Boolean = false, lineCounts: Map<String, Int> = emptyMap(),
-    zone: java.time.ZoneId = java.time.ZoneId.systemDefault(),
+    zone: java.time.ZoneId = java.time.ZoneId.systemDefault(), canEditProducts: Boolean = false,
 ) {
-    if (ui.receiptOpen) ReceiptSheet(ui, actions, parked.size, registerCheckout = registerCheckout)
+    if (ui.receiptOpen) ReceiptSheet(ui, actions, parked.size, registerCheckout = registerCheckout, canEditProducts = canEditProducts)
     ui.editingLine?.let { QuantityDialog(it, actions) }
     ui.productMenu?.let { ProductMenuSheet(it, actions) }
     if (ui.showParked) {
@@ -210,16 +210,16 @@ fun ProductDialog(d: com.cuadra.caja.ui.ProductDraft, actions: CajaActions) {
             d.name, { actions.updateDraft(d.copy(name = it.take(120))) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text(stringResource(R.string.product_name)) },
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
         )
-        ChipFlow {
-            CuadraChip(stringResource(R.string.pricing_FIXED), d.pricing == Pricing.FIXED, { actions.updateDraft(d.copy(pricing = Pricing.FIXED)) })
-            CuadraChip(stringResource(R.string.pricing_BY_WEIGHT), d.pricing == Pricing.BY_WEIGHT, { actions.updateDraft(d.copy(pricing = Pricing.BY_WEIGHT)) })
-            CuadraChip(stringResource(R.string.pricing_OPEN), d.pricing == Pricing.OPEN, { actions.updateDraft(d.copy(pricing = Pricing.OPEN)) })
-        }
         NumberField(
             d.price, { actions.updateDraft(d.copy(price = it.take(14))) },
             label = { Text(stringResource(when (d.pricing) { Pricing.OPEN -> R.string.product_price_suggested; Pricing.BY_WEIGHT -> R.string.product_price_by_weight; else -> R.string.product_price }), maxLines = 1) },
             supportingText = if (d.pricing == Pricing.OPEN) ({ Text(stringResource(R.string.product_price_hint_optional)) }) else null,
         )
+        ChipFlow {
+            CuadraChip(stringResource(R.string.pricing_FIXED), d.pricing == Pricing.FIXED, { actions.updateDraft(d.copy(pricing = Pricing.FIXED)) })
+            CuadraChip(stringResource(R.string.pricing_BY_WEIGHT), d.pricing == Pricing.BY_WEIGHT, { actions.updateDraft(d.copy(pricing = Pricing.BY_WEIGHT)) })
+            CuadraChip(stringResource(R.string.pricing_OPEN), d.pricing == Pricing.OPEN, { actions.updateDraft(d.copy(pricing = Pricing.OPEN)) })
+        }
         com.cuadra.caja.ui.common.BarcodeField(d.barcode, { actions.updateDraft(d.copy(barcode = it.take(64))) }, { scanning = true })
         com.cuadra.caja.ui.common.ChipFlow {
             CuadraChip(stringResource(R.string.product_quick), d.quick, { actions.updateDraft(d.copy(quick = !d.quick)) })

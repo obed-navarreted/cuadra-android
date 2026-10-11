@@ -43,11 +43,15 @@ object DataWedge {
     /**
      * Pasos en orden (van separados porque DataWedge solo aplica de forma fiable un plugin por intent):
      * 1 crea el perfil «Cuentiva» ligado a esta app; 2 decodificadores; 3 salida por intent (broadcast) hacia `SCAN_ACTION`; 4 salida por teclado APAGADA.
+     *
+     * La app se liga al perfil SOLO en el paso 1. Mandar `APP_LIST` en cada paso hacía que DataWedge contestara `APP_ALREADY_ASSOCIATED` al repetir la
+     * configuración (reinstalar la app o tocar «Configurar lector Zebra» otra vez), y el ajuste mostraba un error aunque el lector ya funcionaba.
      */
     fun setConfigSteps(appPackage: String): List<Step> {
         val appList = listOf(mapOf("PACKAGE_NAME" to appPackage, "ACTIVITY_LIST" to listOf("*")))
-        fun base(mode: String, plugin: Map<String, Any>?): Map<String, Any> = buildMap {
-            put("PROFILE_NAME", PROFILE); put("PROFILE_ENABLED", "true"); put("CONFIG_MODE", mode); put("APP_LIST", appList)
+        fun base(mode: String, plugin: Map<String, Any>?, bindApp: Boolean = false): Map<String, Any> = buildMap {
+            put("PROFILE_NAME", PROFILE); put("PROFILE_ENABLED", "true"); put("CONFIG_MODE", mode)
+            if (bindApp) put("APP_LIST", appList)
             if (plugin != null) put("PLUGIN_CONFIG", plugin)
         }
         val barcode = plugin("BARCODE", buildMap {
@@ -58,7 +62,7 @@ object DataWedge {
         val intent = plugin("INTENT", mapOf("intent_output_enabled" to "true", "intent_action" to SCAN_ACTION, "intent_delivery" to "2"))
         val keystroke = plugin("KEYSTROKE", mapOf("keystroke_output_enabled" to "false"))
         return listOf(
-            Step("cuentiva-1-profile", base("CREATE_IF_NOT_EXIST", null)),
+            Step("cuentiva-1-profile", base("CREATE_IF_NOT_EXIST", null, bindApp = true)),
             Step("cuentiva-2-barcode", base("UPDATE", barcode)),
             Step("cuentiva-3-intent", base("UPDATE", intent)),
             Step("cuentiva-4-keystroke", base("UPDATE", keystroke)),
@@ -92,7 +96,10 @@ object DataWedge {
     fun parseResult(command: String?, result: String?, commandId: String?, resultInfo: String?): StepResult? {
         if (command == null || !command.endsWith("SET_CONFIG") || result == null) return null
         val exists = resultInfo?.contains("PROFILE_ALREADY_EXISTS") == true // crear un perfil que ya existe no es un problema
-        return StepResult(commandId, result.equals("SUCCESS", true) || exists, resultInfo?.takeIf { it.isNotBlank() })
+        // La app ya está ligada a NUESTRO perfil (se configuró antes): es justo el estado que se busca. Si DataWedge dijera que está ligada a otro perfil,
+        // sigue siendo una falla y se muestra el motivo.
+        val alreadyOurs = resultInfo?.contains("APP_ALREADY_ASSOCIATED") == true && resultInfo.contains("PROFILE_NAME=$PROFILE")
+        return StepResult(commandId, result.equals("SUCCESS", true) || exists || alreadyOurs, resultInfo?.takeIf { it.isNotBlank() })
     }
 
     /** Resumen de todo el proceso: cuando llegaron todas las respuestas, ¿todo bien? Con alguna en falla: el primer motivo. */

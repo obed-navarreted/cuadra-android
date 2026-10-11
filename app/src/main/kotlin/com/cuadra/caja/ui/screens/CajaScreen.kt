@@ -105,12 +105,17 @@ fun qtyText(milli: Long): String = BigDecimal.valueOf(milli, 3).stripTrailingZer
 internal fun fontFactor(): Float = LocalDensity.current.fontScale.coerceIn(1f, 2f)
 
 @Composable
-fun CajaScreen(vm: CajaViewModel, container: com.cuadra.caja.AppContainer, businessName: String, memberName: String, onLock: () -> Unit, canManageFrequents: Boolean = false) {
+fun CajaScreen(
+    vm: CajaViewModel, container: com.cuadra.caja.AppContainer, businessName: String, memberName: String, onLock: () -> Unit, canManageFrequents: Boolean = false,
+    /** El editor de productos (el de Más › Productos): «Editar producto» desde la venta lo abre aquí mismo. */
+    inventory: com.cuadra.caja.ui.InventoryViewModel? = null,
+) {
     val ui by vm.ui.collectAsState()
     val tabs by vm.tabs.collectAsState()
     val products by vm.products.collectAsState()
     val parked by vm.parked.collectAsState()
     val sold by vm.soldToday.collectAsState()
+    val soldWindow by vm.soldWindow.collectAsState()
     val askDescription by container.display.askDescription.collectAsState()
     val registerCheckout by vm.registerCheckout.collectAsState()
     val lineCounts by vm.parkedLineCounts.collectAsState()
@@ -123,11 +128,26 @@ fun CajaScreen(vm: CajaViewModel, container: com.cuadra.caja.AppContainer, busin
         val claim = hub.claim { code, _ -> vm.onHardwareScan(code) }
         onDispose { claim.close() }
     }
+    // «Editar producto» (menú de la línea, tira de la última línea, menú de los mosaicos): abre el editor y, al guardar, la venta actualiza sus líneas.
+    if (inventory != null) {
+        val invUi by inventory.ui.collectAsState()
+        androidx.compose.runtime.LaunchedEffect(ui.editProductId) {
+            val id = ui.editProductId ?: return@LaunchedEffect
+            container.db.products().get(id)?.let { inventory.editFromRegister(it) }
+            vm.editRequestHandled()
+        }
+        androidx.compose.runtime.DisposableEffect(inventory) {
+            inventory.onRegisterSaved = vm::productEdited
+            onDispose { inventory.onRegisterSaved = null }
+        }
+        invUi.editor?.takeIf { invUi.fromRegister }?.let { EditorDialog(it, invUi.categories, catalogOnly = true, actions = inventory) }
+    }
     CajaContent(
         ui, tabs, products, parked, sold, businessName, memberName, vm, onLock, readerReady = readerReady,
         // El comprobante de una venta (sin cliente) pide el número: hoja chica con «Elegir de contactos» y «Abrir WhatsApp». El detalle de un fiado, la de siempre.
         shareDialog = { request, dismiss -> if (request is ShareRequest.Ticket) WhatsAppNumberDialog(container, request, dismiss) else ShareDialog(container, request, dismiss) },
         askDescription = askDescription, canManageFrequents = canManageFrequents, registerCheckout = registerCheckout, lineCounts = lineCounts, zone = zone,
+        soldLastHour = soldWindow,
     )
 }
 
@@ -153,6 +173,8 @@ fun CajaContent(
     registerCheckout: Boolean = false,
     lineCounts: Map<String, Int> = emptyMap(),
     zone: java.time.ZoneId = java.time.ZoneId.systemDefault(),
+    /** Un cajero atiende: el encabezado dice «Tus ventas, última hora C$ X» (docs/adr/0017) en lugar de «Vendido hoy». */
+    soldLastHour: Boolean = false,
 ) {
     val activeTab = if (ui.tab in tabs) ui.tab else tabs.first()
     val cobro = ui.cobro
@@ -195,7 +217,7 @@ fun CajaContent(
         // `RegisterFrame`: el total (`Hero`) tiene prioridad sobre las pestañas, la descripción y el encabezado; ver su documentación.
         RegisterFrame(
             Modifier.fillMaxSize().imePadding().padding(horizontal = 16.dp), spacing = 4.dp, bodyNatural = typing,
-            header = { full -> Header(full, businessName, memberName, parked.size, soldToday, onParked = { actions.toggleParked(true) }, onLock = onLock, registerCheckout = registerCheckout) },
+            header = { full -> Header(full, businessName, memberName, parked.size, soldToday, onParked = { actions.toggleParked(true) }, onLock = onLock, registerCheckout = registerCheckout, soldLastHour = soldLastHour) },
             hero = { Hero(ui.priced.cart, readerReady, ui.printer, onOpen = actions::openReceipt, onScan = actions::openScanner, onPrinter = actions::openPrinterSettings) },
             body = {
                 if (typing) {
@@ -209,7 +231,7 @@ fun CajaContent(
                             if (tabs.size > 1) item { Tabs(tabs, activeTab, actions) }
                             if (activeTab == PosTab.PRODUCTS) productsTab(
                                 ui, products, canManageFrequents, actions,
-                                strip = if (mode == StripMode.NONE) null else ({ LastLineStrip(ui.lastLine, compact = mode == StripMode.COMPACT, actions = actions) }),
+                                strip = if (mode == StripMode.NONE) null else ({ LastLineStrip(ui.lastLine, compact = mode == StripMode.COMPACT, actions = actions, canEdit = canManageFrequents) }),
                             )
                         }
                     }
@@ -218,7 +240,7 @@ fun CajaContent(
             dock = if (typing) ({ TypeDock(ui, entryTotal, keyHeight, imeOpen, askDescription, actions) }) else null,
             // «Manual»: la última línea del recibo (cantidad editable) en el hueco entre las pestañas y la calculadora; sin teclado del sistema, sin la hoja del recibo abierta (la tapa) y con al menos una línea.
             reserveForStrip = if (!typing && !imeOpen && !ui.reordering && !ui.receiptOpen) StripMode.compactBodyMin(fontFactor()) else 0.dp,
-            strip = ui.lastLine?.takeIf { typing && !imeOpen && !ui.receiptOpen }?.let { line -> { compact -> LastLineStrip(line, compact, actions) } },
+            strip = ui.lastLine?.takeIf { typing && !imeOpen && !ui.receiptOpen }?.let { line -> { compact -> LastLineStrip(line, compact, actions, canEdit = canManageFrequents) } },
             footer = {
                 Column(Modifier.fillMaxWidth().testTag(TAG_BOTTOM_BAR).padding(bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     PosBottomBar(ui.priced.cart, actions, com.cuadra.caja.domain.ParkRules.middle(registerCheckout), updating = ui.resumedPending)
@@ -235,12 +257,15 @@ fun CajaContent(
                     SaleNoticePopup(content, printed = ui.printNotice == PrintNotice.PRINTED, onUndo = actions::askUndoSale)
                 }
             }
+                ?: ui.priceUpdated.takeIf { it && !ui.receiptOpen }?.let { { com.cuadra.caja.ui.common.FloatingNotice(stringResource(R.string.price_updated), null, {}) } }
                 ?: ui.undo?.takeIf { !ui.receiptOpen }?.let { u -> { UndoPopup(u, actions::undoLast) } }
                 ?: ui.printNotice?.takeIf { !ui.receiptOpen }?.let { n -> { PrintNoticePopup(n, actions::printAgain, actions::dismissPrintNotice) } },
             overlayLarge = saleNotice != null && !ui.receiptOpen,
         )
     }
-    Overlays(ui, actions, parked, registerCheckout, lineCounts, zone)
+    Overlays(ui, actions, parked, registerCheckout, lineCounts, zone, canEditProducts = canManageFrequents)
+    // «Precio actualizado» (tras editar un producto desde la venta): aviso flotante que se va solo.
+    LaunchedEffect(ui.priceUpdatedTick, ui.priceUpdated) { if (ui.priceUpdated) { delay(UNDO_MILLIS); actions.hidePriceNotice() } }
 }
 
 /** Cuánto dura el aviso flotante «Deshacer» a la vista. */
@@ -375,7 +400,7 @@ private fun tabLabel(t: PosTab) = when (t) {
  * «Atiende: …» en su línea y «Vendido hoy …» en la suya, las dos a la izquierda y en negrita. Es lo primero que se acorta si no hay alto para el total (ver `RegisterFrame`).
  */
 @Composable
-private fun Header(full: Boolean, business: String, member: String, parkedCount: Int, soldToday: Long, onParked: () -> Unit, onLock: () -> Unit, registerCheckout: Boolean = false) {
+private fun Header(full: Boolean, business: String, member: String, parkedCount: Int, soldToday: Long, onParked: () -> Unit, onLock: () -> Unit, registerCheckout: Boolean = false, soldLastHour: Boolean = false) {
     Column(Modifier.fillMaxWidth().padding(vertical = com.cuadra.caja.ui.common.HEADER_GAP), verticalArrangement = Arrangement.spacedBy(com.cuadra.caja.ui.common.HEADER_LINE_GAP)) {
         // Los botones nunca se pisan con el nombre: si no caben lado a lado, quedan arriba a la derecha y el nombre baja (SplitRow).
         SplitRow(
@@ -398,7 +423,7 @@ private fun Header(full: Boolean, business: String, member: String, parkedCount:
                 color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Start, maxLines = 2, ellipsize = true,
             )
             Text(
-                stringResource(R.string.register_sold_today, money(soldToday)), Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold,
+                stringResource(if (soldLastHour) R.string.register_sold_last_hour else R.string.register_sold_today, money(soldToday)), Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Start,
             )
         }

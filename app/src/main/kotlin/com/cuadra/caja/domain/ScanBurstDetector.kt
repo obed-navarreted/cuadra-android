@@ -72,8 +72,15 @@ object ScanTiming {
     const val WEDGE_QUIET_MS = 120L
     const val WEDGE_MAX_CHARS = 64
 
-    /** El mismo código no se agrega dos veces dentro de este tiempo (cámara, teclado y DataWedge). */
+    /** Cámara: el mismo código visto en cuadros seguidos no se agrega dos veces dentro de este tiempo. */
     const val DEBOUNCE_MS = 1500L
+
+    /**
+     * Gatillo físico (DataWedge y lectores tipo teclado): cada pulsación es intencional y en una tienda se escanea varias veces el MISMO producto
+     * (seis cervezas). Con 1500 ms se perdía una de cada dos lecturas (se comparaba con la última aceptada). Solo se descarta una entrega doble del
+     * mismo disparo, que llega en milisegundos; una pulsación nueva tarda bastante más que esto.
+     */
+    const val HARDWARE_DEBOUNCE_MS = 350L
 
     /** Cuadros seguidos con el mismo valor para confirmar una lectura de cámara. */
     const val CONFIRM_FRAMES = 2

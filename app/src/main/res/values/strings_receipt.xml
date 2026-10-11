@@ -14,6 +14,8 @@
     <string name="receipt_swipe_delete">Eliminar</string>
     <string name="receipt_swipe_qty">Cantidad</string>
     <string name="receipt_line_menu">Opciones de la línea</string>
+    <string name="receipt_remove_line">Quitar línea</string>
+    <string name="receipt_edit_line_action">Editar</string>
     <string name="receipt_delete_line">Eliminar</string>
     <string name="receipt_change_qty">Cambiar cantidad</string>
     <string name="receipt_minus">Quitar uno</string>

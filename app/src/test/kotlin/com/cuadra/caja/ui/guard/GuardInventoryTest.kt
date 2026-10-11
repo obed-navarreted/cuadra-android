@@ -9,6 +9,7 @@ import com.cuadra.caja.domain.ProductForm
 import com.cuadra.caja.ui.CountDraft2
 import com.cuadra.caja.ui.HistoryState
 import com.cuadra.caja.ui.InventoryActions
+import com.cuadra.caja.ui.CodeCheckUi
 import com.cuadra.caja.ui.InventoryUi
 import com.cuadra.caja.ui.LineDraft
 import com.cuadra.caja.ui.PayDraft
@@ -49,7 +50,19 @@ class GuardInventoryTest {
         val runner = GuardRunner(rule, "inventory")
         runner.run(
             listOf(
-                GuardCase("Inventario: lista", full) { Inventory(InventoryUi()) },
+                GuardCase("Inventario: lista", full, expectTags = listOf(com.cuadra.caja.ui.common.TAG_SEARCH_SCAN, com.cuadra.caja.ui.screens.TAG_SCAN_HINT)) { Inventory(InventoryUi()) },
+                GuardCase("Inventario: lista (teclado, buscando)", GuardMatrix.KEYBOARD) { Inventory(InventoryUi(query = Fixtures.NAME_60)) },
+                GuardCase("Inventario: lista, teléfono bajo", GuardMatrix.SMALL_PHONE, expectTags = listOf(com.cuadra.caja.ui.common.TAG_SEARCH_SCAN)) { Inventory(InventoryUi()) },
+                GuardCase("Inventario: producto encontrado resaltado", full) { Inventory(InventoryUi(query = "741", highlightId = Fixtures.stock.first().product.id)) },
+                // «Comprobar producto»: las dos hojas (existe / no existe, con y sin aviso del dígito de control).
+                GuardCase("Comprobar: existe (nombre largo, monto enorme, con existencias)", full) { Check(CodeCheckUi.Found(Fixtures.products[2].copy(barcode = Fixtures.CODE_LONG, trackStock = true), 12_345_678)) },
+                GuardCase("Comprobar: existe, precio abierto, sin código", full) { Check(CodeCheckUi.Found(Fixtures.products[9].copy(barcode = null), null)) },
+                GuardCase("Comprobar: existe, catálogo sin existencias", full) { Check(CodeCheckUi.Found(Fixtures.products[1].copy(barcode = "7501000000017"), null), catalogOnly = true) },
+                GuardCase("Comprobar: existe, teléfono bajo", GuardMatrix.SMALL_PHONE) { Check(CodeCheckUi.Found(Fixtures.products[0].copy(barcode = Fixtures.CODE_LONG, trackStock = true), 999_000)) },
+                GuardCase("Comprobar: no existe", full) { Check(CodeCheckUi.Missing("5901234123457", false)) },
+                GuardCase("Comprobar: no existe, código dudoso y larguísimo", full) { Check(CodeCheckUi.Missing(Fixtures.CODE_LONG, true)) },
+                GuardCase("Comprobar: no existe, teléfono bajo", GuardMatrix.SMALL_PHONE) { Check(CodeCheckUi.Missing(Fixtures.CODE_LONG, true)) },
+                GuardCase("Comprobar: crear con el código puesto (cursor en el nombre, teclado)", GuardMatrix.KEYBOARD) { Editor(ProductEditorDraft(form = ProductForm(barcode = "5901234123457"), focusName = true, returnToList = true)) },
                 GuardCase("Inventario: filtro en revisión", full) { Inventory(InventoryUi(filter = StockFilter.REVIEW, query = Fixtures.NAME_60), review = 12_345) },
                 GuardCase("Inventario: vacío", full) { Inventory(InventoryUi(), items = emptyList()) },
                 GuardCase("Catálogo: lista", full) { Inventory(InventoryUi(), catalogOnly = true) },
@@ -57,6 +70,10 @@ class GuardInventoryTest {
                 GuardCase("Producto: detalle sin historial", full) { Detail(catalogOnly = false, canDelete = false, history = HistoryState.Offline) },
                 GuardCase("Producto: detalle de catálogo", full) { Detail(catalogOnly = true, canDelete = true, history = HistoryState.Error) },
                 GuardCase("Producto: nuevo (vacío)", full) { Editor(ProductEditorDraft()) },
+                // El precio va justo después del nombre: se ve sin desplazar (también con letra grande y con el teclado abierto).
+                GuardCase("Producto: nuevo, el precio se ve de entrada", full, expectTags = listOf(com.cuadra.caja.ui.screens.TAG_EDITOR_PRICE)) { Editor(ProductEditorDraft()) },
+                // Extremo sin lugar para ningún campo (320 dp, letra del sistema 2.0x y teclado de 300 dp): la hoja se desplaza, pero el precio no entra de entrada.
+                GuardCase("Producto: nuevo, el precio se ve de entrada (teclado)", GuardMatrix.KEYBOARD.filterNot { it.choice == com.cuadra.caja.domain.FontSizeChoice.SYSTEM && it.fontScale >= 2.0f && it.widthDp == 320 }, expectTags = listOf(com.cuadra.caja.ui.screens.TAG_EDITOR_PRICE)) { Editor(ProductEditorDraft()) },
                 GuardCase("Producto: nuevo (teclado)", GuardMatrix.KEYBOARD) { Editor(ProductEditorDraft()) },
                 GuardCase("Producto: nuevo con errores", full) { Editor(ProductEditorDraft(errors = setOf(ProductError.NAME_REQUIRED, ProductError.PRICE_REQUIRED, ProductError.COST_INVALID))) },
                 GuardCase("Producto: nuevo, precio abierto", full) { Editor(ProductEditorDraft(form = ProductForm(name = Fixtures.NAME_120, pricing = Pricing.OPEN))) },
@@ -114,6 +131,8 @@ class GuardInventoryTest {
 
     @Composable private fun Inventory(ui: InventoryUi, items: List<com.cuadra.caja.data.local.ProductStock> = Fixtures.stock, catalogOnly: Boolean = false, review: Int = 3) =
         InventoryContent(ui, items, review, null, true, "America/Managua", catalogOnly, object : InventoryActions {}, {})
+
+    @Composable private fun Check(c: CodeCheckUi, catalogOnly: Boolean = false) = com.cuadra.caja.ui.screens.CodeCheckSheet(c, catalogOnly, object : InventoryActions {})
 
     @Composable private fun Detail(catalogOnly: Boolean, canDelete: Boolean, history: HistoryState?) =
         DetailSheet(Fixtures.productDetail, history, canDelete, "America/Managua", catalogOnly, object : InventoryActions {})

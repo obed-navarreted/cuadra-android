@@ -13,14 +13,17 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35], application = android.app.Application::class)
 class DataWedgeBundleTest {
     @Test fun intentStepBecomesNestedBundles() {
-        val step = DataWedge.setConfigSteps("com.cuadra.caja")[2]
-        val b = DataWedgeClient.toBundle(step.config)
-        assertEquals("Cuentiva", b.getString("PROFILE_NAME"))
-        @Suppress("DEPRECATION") val apps = b.getParcelableArray("APP_LIST")
+        val steps = DataWedge.setConfigSteps("com.cuadra.caja")
+        // La app se liga al perfil solo en el primer paso (un arreglo de Bundle con la lista de actividades).
+        val first = DataWedgeClient.toBundle(steps[0].config)
+        @Suppress("DEPRECATION") val apps = first.getParcelableArray("APP_LIST")
         assertNotNull(apps); assertEquals(1, apps!!.size)
         val app = apps[0] as Bundle
         assertEquals("com.cuadra.caja", app.getString("PACKAGE_NAME"))
         assertEquals("*", app.getStringArray("ACTIVITY_LIST")!!.single())
+        val b = DataWedgeClient.toBundle(steps[2].config)
+        assertEquals("Cuentiva", b.getString("PROFILE_NAME"))
+        assertEquals(false, b.containsKey("APP_LIST"))
         val plugin = b.getBundle("PLUGIN_CONFIG")!!
         assertEquals("INTENT", plugin.getString("PLUGIN_NAME"))
         val params = plugin.getBundle("PARAM_LIST")!!

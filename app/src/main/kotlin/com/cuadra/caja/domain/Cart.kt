@@ -82,6 +82,31 @@ data class Cart(val lines: List<CartLine> = emptyList(), val discountMinor: Long
         })
     }
 
+    /** Resultado de `refreshProduct`: el recibo con las líneas del producto al día y si algún precio cambió. */
+    data class Refreshed(val cart: Cart, val priceChanged: Boolean)
+
+    /**
+     * Se editó un producto desde la venta: sus líneas toman el nombre, la variante, el código, el costo y (salvo en precio abierto, donde el precio es el que se
+     * escribió en esta venta) el precio nuevo. La cantidad no cambia. Si dos líneas del mismo producto quedan al mismo precio, se juntan en una (como al agregar).
+     */
+    fun refreshProduct(p: com.cuadra.caja.data.local.ProductEntity): Refreshed {
+        var changed = false
+        val updated = lines.map { l ->
+            if (l.productId != p.id) l
+            else {
+                val price = if (p.pricing == com.cuadra.caja.domain.Pricing.OPEN) l.unitPriceMinor else p.priceMinor
+                if (price != l.unitPriceMinor) changed = true
+                l.copy(name = p.name, variant = p.variant, barcode = p.barcode, unitPriceMinor = price, unitCostMinor = p.costMinor, byWeight = p.pricing == com.cuadra.caja.domain.Pricing.BY_WEIGHT)
+            }
+        }
+        val merged = ArrayList<CartLine>()
+        for (l in updated) {
+            val twin = if (l.productId == p.id && l.discountMinor == 0L) merged.indexOfFirst { it.productId == p.id && it.unitPriceMinor == l.unitPriceMinor && it.discountMinor == 0L } else -1
+            if (twin >= 0) merged[twin] = merged[twin].copy(quantityMilli = Math.addExact(merged[twin].quantityMilli, l.quantityMilli)) else merged += l
+        }
+        return Refreshed(copy(lines = merged), changed)
+    }
+
     fun setPrice(lineId: String, priceMinor: Long): Cart = copy(lines = lines.map { if (it.id == lineId) it.copy(unitPriceMinor = priceMinor) else it })
 
     fun remove(lineId: String): Cart = copy(lines = lines.filterNot { it.id == lineId })

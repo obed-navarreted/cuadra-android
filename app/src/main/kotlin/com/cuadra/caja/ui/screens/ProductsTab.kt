@@ -49,6 +49,8 @@ import com.cuadra.caja.ui.common.LinkAction
 import com.cuadra.caja.ui.common.MoneyText
 import com.cuadra.caja.ui.common.Sheet
 import com.cuadra.caja.ui.common.SplitRow
+import com.cuadra.caja.ui.common.ScanButton
+import com.cuadra.caja.ui.common.TAG_SEARCH_SCAN
 import com.cuadra.caja.ui.common.TAG_STICKY
 import com.cuadra.caja.ui.common.Text
 import com.cuadra.caja.ui.common.VoiceTextField
@@ -82,7 +84,10 @@ private fun SearchBar(query: String, actions: CajaActions, strip: (@Composable (
         VoiceTextField(
             query, actions::setQuery, Modifier.weight(1f), singleLine = true, placeholder = { Text(stringResource(R.string.products_search_hint)) },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { actions.submitCode(query) }),
+            scanFriendly = true, clearable = true,
         )
+        // Cámara: el mismo lector del botón de la tarjeta del total (cada lectura agrega el producto; si no existe ofrece crearlo con el código ya puesto).
+        ScanButton(actions::openScanner, Modifier.testTag(TAG_SEARCH_SCAN), size = 48.dp)
         val newLabel = stringResource(R.string.register_new_product)
         CuadraButton("+", actions::openDraft, Modifier.size(56.dp).semantics { contentDescription = newLabel })
     }
@@ -236,16 +241,22 @@ private fun ArrowButton(symbol: String, description: String, enabled: Boolean, o
     ) { Text(symbol, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, color = if (enabled) CuadraColors.Ink else CuadraColors.Line, maxLines = 1, minScale = 0.6f) }
 }
 
-/** Pulsación larga en un producto: marcarlo como frecuente o quitarlo (solo quien puede editar productos). */
+const val TAG_MENU_EDIT = "ProductMenuEdit"
+
+/** Pulsación larga en un producto: editarlo, marcarlo como frecuente o quitarlo (solo quien puede editar productos). */
 @Composable
 fun ProductMenuSheet(p: ProductEntity, actions: CajaActions) {
     Sheet(actions::closeProductMenu, actions = {
-        ButtonRow {
-            CuadraButton(stringResource(R.string.close), actions::closeProductMenu, Modifier.share(0.7f))
-            CuadraButton(
-                stringResource(if (p.isQuick) R.string.products_unmark_frequent else R.string.products_mark_frequent), { actions.toggleFrequent(p) }, Modifier.share(1f),
-                kind = ButtonKind.DARK,
-            )
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // «Editar producto»: abre el editor de siempre (quien llega a este menú ya puede editar productos).
+            CuadraButton(stringResource(R.string.receipt_edit_product), { actions.editProduct(p.id) }, Modifier.fillMaxWidth().testTag(TAG_MENU_EDIT), height = 48)
+            ButtonRow {
+                CuadraButton(stringResource(R.string.close), actions::closeProductMenu, Modifier.share(0.7f))
+                CuadraButton(
+                    stringResource(if (p.isQuick) R.string.products_unmark_frequent else R.string.products_mark_frequent), { actions.toggleFrequent(p) }, Modifier.share(1f),
+                    kind = ButtonKind.DARK,
+                )
+            }
         }
     }) {
         Text((if (p.isQuick) "★ " else "") + listOfNotNull(p.name, p.variant).joinToString(" · "), style = MaterialTheme.typography.headlineSmall, maxLines = 4, ellipsize = true)

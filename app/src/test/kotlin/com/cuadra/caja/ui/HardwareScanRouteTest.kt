@@ -18,4 +18,16 @@ class HardwareScanRouteTest {
         assertEquals(HardwareScanRoute.IGNORE, CajaUi(notice = Notice.TicketLocked()).hardwareScanRoute())
         assertEquals(HardwareScanRoute.IGNORE, CajaUi(draft = ProductDraft(), notice = Notice.InvalidProduct).hardwareScanRoute())
     }
+
+    // Pestaña «Productos» con el buscador (aunque tenga texto o el foco): el lector físico se comporta igual que en «Manual».
+    @Test fun productsTabAndSearchTextStillAddToTheTicket() {
+        assertEquals(HardwareScanRoute.ADD, CajaUi(tab = PosTab.PRODUCTS).hardwareScanRoute())
+        assertEquals(HardwareScanRoute.ADD, CajaUi(tab = PosTab.PRODUCTS, query = "cerv").hardwareScanRoute())
+        assertEquals(HardwareScanRoute.ADD, CajaUi(tab = PosTab.PRODUCTS, query = "7", reordering = false).hardwareScanRoute())
+    }
+
+    // Con el lector de la cámara abierto, quien recibe el físico es el propio lector (reclama el destino), no la caja.
+    @Test fun editorStillWinsOverTheProductsTab() {
+        assertEquals(HardwareScanRoute.EDITOR, CajaUi(tab = PosTab.PRODUCTS, draft = ProductDraft()).hardwareScanRoute())
+    }
 }

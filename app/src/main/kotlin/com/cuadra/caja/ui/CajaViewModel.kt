@@ -237,6 +237,11 @@ data class CajaUi(
     val saleUndo: SaleUndoUi? = null,
     /** Producto con el menú de frecuentes abierto (pulsación larga). */
     val productMenu: ProductEntity? = null,
+    /** Pedido de «Editar producto» desde la venta: la pantalla abre el editor y lo limpia (`editRequestHandled`). */
+    val editProductId: String? = null,
+    /** «Precio actualizado»: aviso flotante tras editar un producto cuyo precio cambió (y estaba en el recibo). `priceUpdatedTick` reinicia su conteo. */
+    val priceUpdated: Boolean = false,
+    val priceUpdatedTick: Int = 0,
     /** Pestaña Productos en modo «Ordenar frecuentes». */
     val reordering: Boolean = false,
     /** La línea que muestra la tira «última línea» (la última agregada o tocada); `null` = la última del recibo (ver `LastLine.of`). */
@@ -327,6 +332,10 @@ class CajaViewModel(private val c: AppContainer) : ViewModel(), CajaActions {
         viewModelScope.launch { registerCheckout.collect { on -> _ui.update { it.withRegisterSetting(on) } } }
     }
 
+    /** Con un cajero atendiendo, el encabezado dice «Tus ventas, última hora» (la misma ventana que Ventas) en vez de «Vendido hoy». */
+    val soldWindow: StateFlow<Boolean> = c.sessionStore.flow.map { com.cuadra.caja.domain.CashierWindow.applies(it.memberRole) }.distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     /** Lo vendido en la jornada actual según lo que este teléfono conoce (efectivo, fiado, etc.). */
     @OptIn(ExperimentalCoroutinesApi::class)
     val soldToday: StateFlow<Long> = combine(business, c.sessionStore.flow.map { com.cuadra.caja.domain.SoldToday.memberFilter(it.memberRole, it.memberId) }.distinctUntilChanged()) { b, member -> b to member }
@@ -334,8 +343,8 @@ class CajaViewModel(private val c: AppContainer) : ViewModel(), CajaActions {
             if (b == null) flowOf(0L) else {
                 val cal = b.calendar()
                 val day = cal.day(cal.dateOf(Instant.now()))
-                // Un cajero ve solo lo que cobró él; dueño y admins, todo el negocio (`SoldToday`).
-                (if (member == null) c.sales.dayTotals(day.startMillis, day.endMillis) else c.sales.dayTotalsBy(day.startMillis, day.endMillis, member)).map { it.total }
+                // Un cajero ve solo lo que cobró él en la ÚLTIMA HORA (docs/adr/0017); dueño y admins, todo el negocio de la jornada (`SoldToday`).
+                (if (member == null) c.sales.dayTotals(day.startMillis, day.endMillis) else c.sales.lastHourBy(member)).map { it.total }
             }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
 
@@ -404,6 +413,24 @@ class CajaViewModel(private val c: AppContainer) : ViewModel(), CajaActions {
         viewModelScope.launch {
             val current = c.db.products().get(p.id) ?: p
             c.products.save(current.id, Frequents.toggle(current, catalog.value.first))
+        }
+    }
+
+    override fun editProduct(productId: String) = _ui.update { it.copy(editProductId = productId, productMenu = null) }
+    fun editRequestHandled() = _ui.update { it.copy(editProductId = null) }
+    override fun hidePriceNotice() = _ui.update { it.copy(priceUpdated = false) }
+
+    /**
+     * El producto se editó y guardó: las líneas del recibo toman su nombre y precio nuevos con la misma cantidad; si el precio cambió, «Precio actualizado».
+     * Lo llama la pantalla cuando el editor termina de guardar.
+     */
+    fun productEdited(productId: String) {
+        viewModelScope.launch {
+            val p = c.db.products().get(productId) ?: return@launch
+            _ui.update { s ->
+                val r = s.cart.refreshProduct(p)
+                s.copy(cart = r.cart, priceUpdated = r.priceChanged, priceUpdatedTick = if (r.priceChanged) s.priceUpdatedTick + 1 else s.priceUpdatedTick)
+            }
         }
     }
 

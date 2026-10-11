@@ -33,6 +33,8 @@ const val TAG_PINNED_ACTION = "PinnedAction"
 
 /** Etiqueta de prueba de los encabezados fijos de una lista (buscador): pasan por encima de las filas que se desplazan por debajo, a propósito. */
 const val TAG_STICKY = "Sticky"
+/** Botón de cámara junto al buscador de productos (48 dp). */
+const val TAG_SEARCH_SCAN = "SearchScan"
 
 /** Etiqueta de prueba de cada tecla de la calculadora de la caja (0-9, ., ⌫, ×, Agregar): la guardia comprueba que ninguna quede oculta ni tapada. */
 const val TAG_KEY = "Key"

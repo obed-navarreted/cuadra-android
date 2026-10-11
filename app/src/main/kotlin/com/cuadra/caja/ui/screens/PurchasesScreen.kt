@@ -360,7 +360,7 @@ private fun NewPurchase(d: PurchaseDraft, suppliers: List<SupplierEntity>, actio
 fun PickDialog(d: PurchaseDraft, results: List<ProductEntity>, actions: PurchasesActions) {
     Sheet({ actions.updateDraft(d.copy(picking = false)) }, actions = { CuadraButton(stringResource(R.string.purchases_free_line), actions::pickFree, Modifier.fillMaxWidth(), height = 48) }) {
         Text(stringResource(R.string.purchases_add_line), style = MaterialTheme.typography.headlineMedium)
-        VoiceTextField(d.pickQuery, { actions.updateDraft(d.copy(pickQuery = it)) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text(stringResource(R.string.inventory_search), maxLines = 1) })
+        VoiceTextField(d.pickQuery, { actions.updateDraft(d.copy(pickQuery = it)) }, Modifier.fillMaxWidth(), singleLine = true, label = { Text(stringResource(R.string.inventory_search), maxLines = 1) }, clearable = true)
         results.take(8).forEach { p ->
             CuadraCard(onClick = { actions.pickProduct(p) }) {
                 SplitRow(end = { p.costMinor?.let { MoneyText(money(it), color = CuadraColors.Muted) } }) {

@@ -274,7 +274,9 @@ class HistoryViewModel(private val c: AppContainer, private val now: () -> Long 
         val completed = sale.completedAtMillis
         val sameDay = cal != null && completed != null && cal.dateOf(completed) == cal.dateOf(now())
         val canReturn = com.cuadra.caja.domain.SaleReturnMath.canReturn(sale.status, sale.returnable()) &&
-            com.cuadra.caja.domain.SaleReturnMath.allowed(role.value, sale.completedById != null && sale.completedById == me, sameDay)
+            com.cuadra.caja.domain.SaleReturnMath.allowed(role.value, sale.completedById != null && sale.completedById == me, sameDay) &&
+            // docs/adr/0017: el cajero no alcanza lo que ya no ve (pasó la hora).
+            (!com.cuadra.caja.domain.CashierWindow.applies(role.value) || com.cuadra.caja.domain.CashierWindow.within(completed, now()))
         val last = c.sales.lastCompletedBy(me)?.id
         val undoable = com.cuadra.caja.domain.SaleUndo.canUndo(sale.status, sale.completedById, me, last == sale.id, sale.returnedMinor, completed, now())
         return canReturn to undoable

@@ -22,10 +22,23 @@ class DataWedgeTest {
         for (s in steps) {
             assertEquals("Cuentiva", s.config["PROFILE_NAME"])
             assertEquals("true", s.config["PROFILE_ENABLED"])
-            @Suppress("UNCHECKED_CAST") val app = (s.config["APP_LIST"] as List<Map<String, Any>>).single()
-            assertEquals("com.cuadra.caja", app["PACKAGE_NAME"])
-            assertEquals(listOf("*"), app["ACTIVITY_LIST"])
         }
+        @Suppress("UNCHECKED_CAST") val app = (steps[0].config["APP_LIST"] as List<Map<String, Any>>).single()
+        assertEquals("com.cuadra.caja", app["PACKAGE_NAME"])
+        assertEquals(listOf("*"), app["ACTIVITY_LIST"])
+    }
+
+    /** Repetir la configuración (reinstalar, o «Configurar lector Zebra» otra vez) daba APP_ALREADY_ASSOCIATED: la app se liga solo en el primer paso. */
+    @Test fun onlyTheFirstStepBindsTheApp() {
+        assertTrue(steps[0].config.containsKey("APP_LIST"))
+        assertTrue(steps.drop(1).none { it.config.containsKey("APP_LIST") })
+    }
+
+    @Test fun appAlreadyAssociatedToOurProfileIsNotAFailure() {
+        val r = DataWedge.parseResult("com.symbol.datawedge.api.SET_CONFIG", "FAILURE", "cuentiva-1-profile", "PROFILE_NAME=Cuentiva, RESULT_CODE=APP_ALREADY_ASSOCIATED")!!
+        assertTrue(r.ok)
+        val other = DataWedge.parseResult("com.symbol.datawedge.api.SET_CONFIG", "FAILURE", "cuentiva-1-profile", "PROFILE_NAME=Otro, RESULT_CODE=APP_ALREADY_ASSOCIATED")!!
+        assertFalse(other.ok)
     }
 
     @Test fun firstStepCreatesTheProfileIfMissingRestUpdate() {

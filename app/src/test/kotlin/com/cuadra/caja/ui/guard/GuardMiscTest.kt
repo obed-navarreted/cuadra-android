@@ -161,7 +161,7 @@ class GuardMiscTest {
             Fixtures.BUSINESS_120, Fixtures.PERSON_LONG, status, pending, failed, language, 12_345,
             MoreActions(
                 onSettings = if (manager) go else null, onTeam = if (manager) go else null, onActivity = if (manager) go else null, onTemplates = if (manager) go else null,
-                onProducts = if (manager) go else null, onInventory = if (manager) go else null, onPurchases = if (manager) go else null,
+                onProducts = go, onInventory = if (manager) go else null, onPurchases = if (manager) go else null,
                 onSummary = if (manager) go else null, onDailyClose = if (manager) go else null, onNotifications = go, onReader = go, onPrinter = go, onHelp = go,
                 onSupport = if (manager) go else null, onMyAccount = go, onTextSize = go, onAttention = go, onPlatformConsole = if (platform) go else null,
             ),
