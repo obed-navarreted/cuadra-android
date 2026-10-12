@@ -371,7 +371,7 @@ private fun Main(
                 overlay == Overlay.NOTIFICATIONS && section == Section.MORE -> NotificationsScreen(notifVm, canSchedule = isManager, onSchedules = { overlay = Overlay.SCHEDULES }, onRoute = { container.pendingRoute.value = it }) { overlay = null }
                 cashUi.showShift || mustOpenShift -> ShiftScreen(cash, timezone, required = mustOpenShift, onBack = { cash.showShift(false) })
                 else -> when (section) {
-                Section.REGISTER -> CajaScreen(caja, container, businessName, memberName, onLock = root::lock, canManageFrequents = com.cuadra.caja.domain.ProductPermissions.canEdit(actingRole), inventory = inventory)
+                Section.REGISTER -> CajaScreen(caja, container, businessName, memberName, canManageFrequents = com.cuadra.caja.domain.ProductPermissions.canEdit(actingRole), inventory = inventory)
                 Section.CREDITS -> CreditsScreen(credits, container)
                 Section.EXPENSES -> ExpensesScreen(cash, hasShifts) { cash.showShift(true) }
                 Section.SALES -> HistoryScreen(history, container)

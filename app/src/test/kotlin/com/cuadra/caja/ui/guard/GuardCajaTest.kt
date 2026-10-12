@@ -2,6 +2,7 @@ package com.cuadra.caja.ui.guard
 
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import com.cuadra.caja.data.local.ProductEntity
+import com.cuadra.caja.domain.AmountEntry
 import com.cuadra.caja.domain.PayMethod
 import com.cuadra.caja.domain.UndoEntry
 import com.cuadra.caja.domain.PaymentEntry
@@ -61,6 +62,17 @@ class GuardCajaTest {
                 GuardCase("Caja: teclado, carrito lleno", GuardMatrix.FULL, CAJA_KEYS) { Caja(Fixtures.cajaUi(cart = Fixtures.fullCart, entry = Fixtures.entry('1', '2', '5'))) },
                 GuardCase("Caja: teclado, monto enorme", GuardMatrix.FULL, CAJA_KEYS) { Caja(Fixtures.cajaUi(cart = Fixtures.oneLineCart, entry = Fixtures.bigEntry)) },
                 GuardCase("Caja: teclado, multiplicación", GuardMatrix.FULL, CAJA_KEYS) { Caja(Fixtures.cajaUi(cart = Fixtures.oneLineCart, entry = Fixtures.entryTimes)) },
+                // Cobro rápido (monto pendiente en la calculadora): la tarjeta suma lo pendiente y dice «incluye C$ X sin agregar»; el botón lee «Cobrar · C$ total».
+                GuardCase("Cobro rápido: recibo vacío y 100 escrito", GuardMatrix.FULL, CAJA_KEYS) { Caja(Fixtures.cajaUi(entry = Fixtures.entry('1', '0', '0'))) },
+                GuardCase("Cobro rápido: recibo de 250 y 100 escrito", GuardMatrix.FULL, CAJA_KEYS) { Caja(Fixtures.cajaUi(cart = Fixtures.oneLineCart, entry = Fixtures.entry('1', '0', '0'))) },
+                GuardCase("Cobro rápido: multiplicación 5 × 20 con lector listo y negocio largo", GuardMatrix.FULL, CAJA_KEYS) { Caja(Fixtures.cajaUi(cart = Fixtures.oneLineCart, entry = AmountEntry("5", "20", true)), business = Fixtures.BUSINESS_120, member = Fixtures.PERSON_LONG, readerReady = true) },
+                GuardCase("Cobro rápido: descripción encendida", GuardMatrix.FULL, CAJA_KEYS) { Caja(Fixtures.cajaUi(cart = Fixtures.fullCart, entry = Fixtures.entry('1', '0', '0')).copy(description = Fixtures.NAME_60), askDescription = true) },
+                GuardCase("Cobro rápido: teclado del sistema", GuardMatrix.KEYBOARD, expectTotal = true) { Caja(Fixtures.cajaUi(cart = Fixtures.oneLineCart, entry = Fixtures.entry('1', '0', '0')).copy(description = Fixtures.NAME_60), askDescription = true) },
+                GuardCase("Cobro rápido: teléfono bajo, recibo vacío", GuardMatrix.SMALL_PHONE, CAJA_KEYS) { Caja(Fixtures.cajaUi(entry = Fixtures.entry('1', '0', '0')), readerReady = true) },
+                GuardCase("Cobro rápido: teléfono bajo, recibo de 15 líneas", GuardMatrix.SMALL_PHONE, CAJA_KEYS) { Caja(Fixtures.cajaUi(cart = Fixtures.cart15, entry = Fixtures.entry('1', '0', '0')), askDescription = true) },
+                GuardCase("Cobro rápido: con Enviar a caja en la barra", GuardMatrix.FULL, CAJA_KEYS, expectTags = listOf(TAG_BAR_SEND)) { Caja(Fixtures.cajaUi(entry = Fixtures.entry('1', '0', '0')), registerCheckout = true) },
+                GuardCase("Cobro rápido: con Apartar en la barra", GuardMatrix.FULL, CAJA_KEYS, expectTags = listOf(TAG_BAR_PARK)) { Caja(Fixtures.cajaUi(cart = Fixtures.oneLineCart, entry = Fixtures.entry('1', '0', '0'))) },
+                GuardCase("Cobro rápido: número del recibo con 999 líneas y monto pendiente", GuardMatrix.SMALL_PHONE, CAJA_KEYS, expectBadge = 999) { Caja(Fixtures.cajaUi(cart = Fixtures.cartOf(999), entry = Fixtures.entry('1', '0', '0'))) },
                 GuardCase("Caja: número del recibo con 3 líneas", GuardMatrix.FULL, CAJA_KEYS, expectBadge = 3) { Caja(Fixtures.cajaUi(cart = Fixtures.cartOf(3), entry = Fixtures.entry('7'))) },
                 GuardCase("Caja: número del recibo con 15 líneas", GuardMatrix.FULL, CAJA_KEYS, expectBadge = 15) { Caja(Fixtures.cajaUi(cart = Fixtures.cartOf(15), entry = Fixtures.entry('7'))) },
                 GuardCase("Caja: número del recibo con 999 líneas", GuardMatrix.FULL, CAJA_KEYS, expectBadge = 999) { Caja(Fixtures.cajaUi(cart = Fixtures.cartOf(999), entry = Fixtures.entry('7'))) },
@@ -345,7 +357,7 @@ class GuardCajaTest {
         ui: com.cuadra.caja.ui.CajaUi, tabs: List<PosTab> = this.tabs, products: com.cuadra.caja.domain.ProductsPane = Fixtures.pane,
         business: String = Fixtures.BUSINESS_NAME, member: String = "Kevin", readerReady: Boolean = false, askDescription: Boolean = false, canManage: Boolean = true,
         registerCheckout: Boolean = false, parked: List<com.cuadra.caja.data.local.SaleEntity> = Fixtures.parked,
-    ) = CajaContent(ui, tabs, products, parked, Fixtures.HUGE, business, member, object : CajaActions {}, {}, readerReady = readerReady, askDescription = askDescription, canManageFrequents = canManage,
+    ) = CajaContent(ui, tabs, products, parked, business, member, object : CajaActions {}, readerReady = readerReady, askDescription = askDescription, canManageFrequents = canManage,
         registerCheckout = registerCheckout, lineCounts = Fixtures.queueCounts)
 
     @Composable private fun Send(send: SendUi, lines: Int, total: Long) = com.cuadra.caja.ui.screens.SendSheet(send, lines, total, object : CajaActions {})

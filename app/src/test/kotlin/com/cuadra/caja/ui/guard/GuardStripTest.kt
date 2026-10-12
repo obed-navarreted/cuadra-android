@@ -78,8 +78,8 @@ class GuardStripTest {
                 GuardEnvironment(cfg) {
                     val cart = if (empty) Cart() else Cart(Fixtures.lines.take(3) + line.copy(quantityMilli = qty))
                     CajaContent(
-                        CajaUi(cart = cart, entry = Fixtures.entry('1', '2'), tab = tab), listOf(PosTab.MANUAL, PosTab.PRODUCTS), Fixtures.pane, Fixtures.parked, Fixtures.HUGE,
-                        Fixtures.BUSINESS_NAME, "Kevin", object : CajaActions {}, {},
+                        CajaUi(cart = cart, entry = Fixtures.entry('1', '2'), tab = tab), listOf(PosTab.MANUAL, PosTab.PRODUCTS), Fixtures.pane, Fixtures.parked,
+                        Fixtures.BUSINESS_NAME, "Kevin", object : CajaActions {},
                     )
                 }
             }

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -31,6 +32,8 @@ import com.cuadra.caja.ui.common.SwitchRow
 import com.cuadra.caja.ui.common.MenuItem
 import com.cuadra.caja.ui.common.Text
 import com.cuadra.caja.ui.theme.CuadraColors
+
+const val TAG_MORE_SWITCH_PERSON = "more_switch_person"
 
 /**
  * Lo que «Más» puede abrir. Cada entrada es `null` cuando esa persona (por su rol) o ese negocio (por sus módulos) no la tiene: la pantalla solo dibuja las que existen,
@@ -84,6 +87,8 @@ fun MoreScreen(
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(businessName, style = MaterialTheme.typography.headlineMedium)
                 Text(stringResource(R.string.more_signed_in_as, memberName), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                // Cambiar de persona vive aquí (no en la caja): lejos de los toques accidentales. Bloquea a quien atiende y abre «¿Quién atiende?».
+                CuadraButton(stringResource(R.string.more_switch_person), actions.onLock, Modifier.fillMaxWidth().padding(top = 6.dp).testTag(TAG_MORE_SWITCH_PERSON), height = 48)
             }
         }
         CuadraCard {
@@ -154,7 +159,6 @@ fun MoreScreen(
             listOfNotNull(
                 actions.onMyAccount?.let { MenuItem(R.drawable.ic_menu_account, stringResource(R.string.account_title), it) },
                 actions.onPlatformConsole?.let { MenuItem(R.drawable.ic_menu_settings, stringResource(R.string.more_platform_console), it, detail = stringResource(R.string.more_platform_console_help)) },
-                MenuItem(R.drawable.ic_menu_lock, stringResource(R.string.register_lock), actions.onLock),
                 MenuItem(R.drawable.ic_menu_logout, stringResource(R.string.more_sign_out), actions.onSignOut, detail = stringResource(R.string.more_sign_out_warning)),
             ),
         )

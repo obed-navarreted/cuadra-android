@@ -265,7 +265,7 @@ fun ScreenFrame(
  * si no, encima de las líneas centradas del encabezado; y si no hay ningún lugar seguro (extremo: teclado del sistema abierto), no se compone.
  *
  * `bodyNatural`: el cuerpo es solo la fila de pestañas (mide lo que mide); si no, es una lista que toma el alto que sobre (mínimo [BODY_MIN]).
- * `header(full)`: `full = false` es la fila compacta (nombre, «Apartadas», cambiar de cajero); `true` añade las líneas de estado (quién atiende, vendido hoy).
+ * `header(full)`: `full = false` es la fila compacta (nombre, «Apartadas», cambiar de cajero); `true` añade las líneas de estado (quién atiende; lo vendido no se muestra en la caja).
  */
 @Composable
 fun RegisterFrame(
@@ -273,7 +273,8 @@ fun RegisterFrame(
     spacing: Dp = 4.dp,
     bodyNatural: Boolean,
     header: @Composable (full: Boolean) -> Unit,
-    hero: @Composable () -> Unit,
+    /** `captionBudget`: el alto (px) más grande que puede medir la tarjeta sin quitarle su lugar a la barra, la calculadora y una fila de pestañas; la leyenda extra solo se dibuja si cabe. */
+    hero: @Composable (captionBudget: Int) -> Unit,
     body: @Composable () -> Unit,
     dock: (@Composable () -> Unit)? = null,
     footer: @Composable () -> Unit,
@@ -286,7 +287,7 @@ fun RegisterFrame(
      * hay para los dos, no se compone.
      */
     strip: (@Composable (compact: Boolean) -> Unit)? = null,
-    /** En «Productos» la tira vive dentro de la lista (no la compone el marco): aquí solo se reserva el alto del cuerpo que necesita (con ella), haciendo que el encabezado ceda sus líneas «Atiende» y «Vendido hoy». 0 = sin reserva. */
+    /** En «Productos» la tira vive dentro de la lista (no la compone el marco): aquí solo se reserva el alto del cuerpo que necesita (con ella), haciendo que el encabezado ceda su línea «Atiende». 0 = sin reserva. */
     reserveForStrip: Dp = 0.dp,
 ) {
     SubcomposeLayout(modifier) { constraints ->
@@ -298,7 +299,10 @@ fun RegisterFrame(
         fun one(slot: Slot, c: Constraints, content: @Composable () -> Unit) = subcompose(slot) { Box(Modifier.let { m -> if (slot == Slot.DOCK || slot == Slot.FOOTER) m.testTag(TAG_PINNED_ACTION) else m }) { content() } }.map { it.measure(c) }
         val footerP = one(Slot.FOOTER, open, footer)
         val dockP = dock?.let { one(Slot.DOCK, open, it) }.orEmpty()
-        val heroP = one(Slot.HERO, open, hero)
+        // La tarjeta del total recibe el alto máximo que puede tener (`captionBudget`) para que, si lleva una leyenda extra (cobro rápido), la dibuje solo cuando con ella
+        // siguen cabiendo la barra, la calculadora y una fila de pestañas; si no, la deja fuera (cede antes que el total mismo).
+        val captionBudget = h - dockP.sumOf { it.height } - footerP.sumOf { it.height } - (if (dockP.isNotEmpty()) 3 else 2) * g - BODY_MIN.roundToPx()
+        val heroP = one(Slot.HERO, open) { hero(captionBudget) }
         val footerH = footerP.sumOf { it.height }
         val dockH = dockP.sumOf { it.height }
         val heroH = heroP.sumOf { it.height }
@@ -311,11 +315,11 @@ fun RegisterFrame(
         val bodyMin = if (!bodyOk) 0 else if (bodyNatural) bodyFirst.sumOf { it.height } else BODY_MIN.roundToPx()
         // Encabezado: completo si cabe con holgura; si no, la fila compacta (que se desplaza por dentro si apenas cabe); si casi no queda, no se compone.
         val headerRoom = room - bodyMin - g
-        // Completo = la fila + «Atiende» + «Vendido hoy» (cada una en su línea, a la izquierda y en negrita) + los márgenes de arriba y abajo.
+        // Completo = la fila + «Atiende» (en su línea, a la izquierda y en negrita) + los márgenes de arriba y abajo.
         val lineH = 20.sp.toPx()
-        val fullEstimate = (HEADER_ROW.toPx() + 2 * lineH + 2 * HEADER_GAP.toPx() + 2 * HEADER_LINE_GAP.toPx()).toInt()
+        val fullEstimate = (HEADER_ROW.toPx() + lineH + 2 * HEADER_GAP.toPx() + HEADER_LINE_GAP.toPx()).toInt()
         val headerP = if (bodyOk && headerRoom >= HEADER_MIN.roundToPx()) {
-            // Las líneas «Atiende» y «Vendido hoy» ceden ante la tira de la última línea (Manual): sin lugar para las dos cosas, el encabezado queda compacto.
+            // La línea «Atiende» cede ante la tira de la última línea (Manual): sin lugar para las dos cosas, el encabezado queda compacto.
             val stripReserve = if (strip != null && bodyNatural && hasDock) STRIP_ROW_HEIGHT.roundToPx() + 2 * g else if (!bodyNatural) (reserveForStrip.roundToPx() - bodyMin).coerceAtLeast(0) else 0
             val full = headerRoom - stripReserve >= fullEstimate
             subcompose(Slot.HEADER) { Box(Modifier.verticalScroll(rememberScrollState())) { header(full) } }.map { it.measure(Constraints(maxWidth = w, maxHeight = headerRoom)) }
@@ -338,7 +342,7 @@ fun RegisterFrame(
         val bodyBottom = top + heroH + g + bodyH
         val dockTop = total - footerH - g - (if (hasDock) dockH + g else 0)
         val slack = if (bodyNatural && hasDock) dockTop - bodyBottom else 0
-        val noticeEstimate = if (overlayLarge) maxOf(48.dp.toPx(), 2 * 22.sp.toPx() * minOf(fontScale, LARGE_NOTICE_FONT_CAP) / fontScale + 16.dp.toPx()).toInt() else maxOf(48.dp.toPx(), (if (fontScale > 1.3f) 2 else 1) * 16.sp.toPx() + 16.dp.toPx()).toInt()
+        val noticeEstimate = if (overlayLarge) maxOf(48.dp.toPx(), 2 * 22.sp.toPx() * minOf(fontScale, LARGE_NOTICE_FONT_CAP) / fontScale + 16.dp.toPx()).toInt() else maxOf(48.dp.toPx(), (if (fontScale > 1.3f) 2.3f else 1f) * 16.sp.toPx() + 16.dp.toPx()).toInt()
         val tabsReserve = (TABS_RESERVE.toPx() + g).toInt()
         // La tira de la última línea: completa (nombre y controles), compacta (solo controles) o nada, según el alto del hueco (y el aviso flotante, que comparte el hueco).
         val stripRowEst = STRIP_ROW_HEIGHT.toPx().toInt()
@@ -445,3 +449,6 @@ fun DescriptionAmountRow(spacing: Dp = 8.dp, description: @Composable () -> Unit
 
 /** Ancho mínimo útil del campo de descripción al lado del monto. */
 private val DESC_MIN = 150.dp
+
+/** Alto fijo de la leyenda de la tarjeta del total («incluye C$ X sin agregar»): una línea de `bodyMedium`. */
+val HERO_CAPTION_HEIGHT = 18.sp

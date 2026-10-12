@@ -251,6 +251,28 @@ data class CajaUi(
     val pricingById: Map<String, String> = emptyMap(),
     val promoDay: java.time.LocalDate = java.time.LocalDate.of(2000, 1, 1),
 ) {
+    /** Aplica un cambio del recibo con su pila de «deshacer» (lo que hacía `CajaViewModel.edit`). */
+    fun edited(f: (CartWithUndo) -> CartWithUndo): CajaUi {
+        val next = f(CartWithUndo(cart, undoStack))
+        return copy(
+            cart = next.cart, undoStack = next.stack, saleNotice = null, lastLineId = com.cuadra.caja.domain.LastLine.pick(lastLineId, cart, next.cart),
+            undoShown = if (next.pushed) true else undoShown && next.stack.isNotEmpty(), undoTick = if (next.pushed) undoTick + 1 else undoTick,
+        )
+    }
+
+    /** «Agregar»: lo de la calculadora entra como línea (con la descripción) y la calculadora queda limpia. Sin nada válido, no cambia. */
+    fun withEntryAdded(decimals: Int): CajaUi {
+        val r = entry.result(decimals) ?: return this
+        return edited { it.addFree(r.unitPriceMinor, description, r.quantityMilli) }.copy(entry = AmountEntry(), description = "")
+    }
+
+    /** Monto pendiente de la calculadora (solo en «Manual»: en «Productos» no hay calculadora). Ver `QuickCharge`. */
+    fun pending(decimals: Int): com.cuadra.caja.domain.QuickCharge.Pending? =
+        if (tab != PosTab.MANUAL) null else com.cuadra.caja.domain.QuickCharge.pending(entry, decimals, cart.totalMinor)
+
+    /** Cobro rápido: lo pendiente entra como línea por el mismo camino que «Agregar». Sin nada pendiente, no cambia. */
+    fun withPendingAdded(decimals: Int): CajaUi = if (pending(decimals) == null) this else withEntryAdded(decimals)
+
     /**
      * El recibo con las promociones aplicadas (se recalcula con cada cambio del recibo, de las promociones o del día): su total es el que se cobra; sus líneas
      * llevan el descuento repartido. `cart` sigue siendo el recibo sin descuentos (así sumar el mismo producto agrupa y deshacer funciona igual).
@@ -332,22 +354,6 @@ class CajaViewModel(private val c: AppContainer) : ViewModel(), CajaActions {
         viewModelScope.launch { registerCheckout.collect { on -> _ui.update { it.withRegisterSetting(on) } } }
     }
 
-    /** Con un cajero atendiendo, el encabezado dice «Tus ventas, última hora» (la misma ventana que Ventas) en vez de «Vendido hoy». */
-    val soldWindow: StateFlow<Boolean> = c.sessionStore.flow.map { com.cuadra.caja.domain.CashierWindow.applies(it.memberRole) }.distinctUntilChanged()
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
-
-    /** Lo vendido en la jornada actual según lo que este teléfono conoce (efectivo, fiado, etc.). */
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val soldToday: StateFlow<Long> = combine(business, c.sessionStore.flow.map { com.cuadra.caja.domain.SoldToday.memberFilter(it.memberRole, it.memberId) }.distinctUntilChanged()) { b, member -> b to member }
-        .flatMapLatest { (b, member) ->
-            if (b == null) flowOf(0L) else {
-                val cal = b.calendar()
-                val day = cal.day(cal.dateOf(Instant.now()))
-                // Un cajero ve solo lo que cobró él en la ÚLTIMA HORA (docs/adr/0017); dueño y admins, todo el negocio de la jornada (`SoldToday`).
-                (if (member == null) c.sales.dayTotals(day.startMillis, day.endMillis) else c.sales.lastHourBy(member)).map { it.total }
-            }
-        }.stateIn(viewModelScope, SharingStarted.Eagerly, 0L)
-
     init {
         // Promociones: las del negocio, cómo se vende cada producto de ellas (por peso y precio abierto no entran) y la jornada de hoy (cambia sola a medianoche
         // del negocio: se revisa cada minuto).
@@ -379,19 +385,24 @@ class CajaViewModel(private val c: AppContainer) : ViewModel(), CajaActions {
     override fun setTab(tab: PosTab) = _ui.update { it.copy(tab = tab) }
 
     /** Aplica un cambio del recibo con su pila de «deshacer»: si apila algo, se muestra la tira. */
-    private fun edit(f: (CartWithUndo) -> CartWithUndo) = _ui.update { s ->
-        val next = f(CartWithUndo(s.cart, s.undoStack))
-        s.copy(
-            cart = next.cart, undoStack = next.stack, saleNotice = null, lastLineId = com.cuadra.caja.domain.LastLine.pick(s.lastLineId, s.cart, next.cart),
-            undoShown = if (next.pushed) true else s.undoShown && next.stack.isNotEmpty(), undoTick = if (next.pushed) s.undoTick + 1 else s.undoTick,
-        )
+    private fun edit(f: (CartWithUndo) -> CartWithUndo) = _ui.update { it.edited(f) }
+
+    override fun addEntry() = _ui.update { it.withEntryAdded(decimals) }
+
+    // ---------- cobro rápido: lo escrito en la calculadora entra como línea antes de cobrar / apartar / enviar ----------
+    override fun chargeNow() {
+        _ui.update { it.withPendingAdded(decimals) }
+        startCobro()
     }
 
-    override fun addEntry() {
-        val s = _ui.value
-        val r = s.entry.result(decimals) ?: return
-        edit { it.addFree(r.unitPriceMinor, s.description, r.quantityMilli) }
-        _ui.update { it.copy(entry = AmountEntry(), description = "") }
+    override fun parkNow() {
+        _ui.update { it.withPendingAdded(decimals) }
+        askPark()
+    }
+
+    override fun sendNow() {
+        _ui.update { it.withPendingAdded(decimals) }
+        askSend()
     }
 
     // ---------- productos ----------

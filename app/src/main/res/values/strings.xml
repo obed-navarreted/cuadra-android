@@ -59,7 +59,6 @@
     <string name="nav_sales">Ventas</string>
     <string name="nav_more">Más</string>
     <string name="register_total">Total</string>
-    <string name="register_sold_today">Vendido hoy %1$s</string>
     <string name="register_empty">Escribe un monto o toca un producto</string>
     <string name="register_description_hint">Descripción (opcional)</string>
     <string name="register_tab_manual">Manual</string>
@@ -90,7 +89,7 @@
     <string name="register_parked">Apartadas</string>
     <string name="register_edit_line">Editar línea</string>
     <string name="register_by_weight_unit">por libra</string>
-    <string name="register_lock">Cambiar de cajero</string>
+    <string name="more_switch_person">Cambiar de persona</string>
     <string name="unit_lb">lb</string>
     <string name="parked_title">Cuentas apartadas</string>
     <string name="parked_empty">No hay cuentas apartadas.</string>
@@ -134,7 +133,6 @@
     <string name="product_barcode">Código de barras (opcional)</string>
     <string name="product_invalid">Escribe un nombre y un precio válido.</string>
     <string name="history_title">Ventas</string>
-    <string name="register_sold_last_hour">Tus ventas, última hora %1$s</string>
     <string name="history_title_cashier">Mis ventas de la última hora</string>
     <string name="history_cashier_hint">Solo ves tus ventas de la última hora</string>
     <string name="history_cashier_empty">Todavía no hay ventas tuyas en la última hora. Cuando cobres una, aparece aquí.</string>

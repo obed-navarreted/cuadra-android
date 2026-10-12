@@ -59,7 +59,6 @@
     <string name="nav_sales">Sales</string>
     <string name="nav_more">More</string>
     <string name="register_total">Total</string>
-    <string name="register_sold_today">Sold today %1$s</string>
     <string name="register_empty">Type an amount or tap a product</string>
     <string name="register_description_hint">Description (optional)</string>
     <string name="register_tab_manual">Manual</string>
@@ -90,7 +89,7 @@
     <string name="register_parked">Parked</string>
     <string name="register_edit_line">Edit line</string>
     <string name="register_by_weight_unit">per lb</string>
-    <string name="register_lock">Switch cashier</string>
+    <string name="more_switch_person">Switch person</string>
     <string name="unit_lb">lb</string>
     <string name="parked_title">Parked tickets</string>
     <string name="parked_empty">No parked tickets.</string>
@@ -134,7 +133,6 @@
     <string name="product_barcode">Barcode (optional)</string>
     <string name="product_invalid">Enter a name and a valid price.</string>
     <string name="history_title">Sales</string>
-    <string name="register_sold_last_hour">Your sales, last hour %1$s</string>
     <string name="history_title_cashier">My sales from the last hour</string>
     <string name="history_cashier_hint">You only see your sales from the last hour</string>
     <string name="history_cashier_empty">No sales from you in the last hour yet. When you charge one, it shows up here.</string>

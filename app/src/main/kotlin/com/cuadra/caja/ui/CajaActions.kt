@@ -87,6 +87,10 @@ interface CajaActions {
     fun cancelSend() {}
     fun confirmSend() {}
     fun startCobro() {}
+    /** Cobro rápido desde la barra: lo escrito en la calculadora entra primero como línea (como «Agregar») y sigue «Cobrar» / «Apartar» / «Enviar a caja». */
+    fun chargeNow() {}
+    fun parkNow() {}
+    fun sendNow() {}
     fun cancelCobro() {}
     fun toggleMethod(m: PayMethod) {}
     fun setAmount(m: PayMethod, text: String) {}

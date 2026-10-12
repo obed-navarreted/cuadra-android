@@ -80,7 +80,7 @@ class GuardPopupTest {
         shadowOf(app.packageManager).addActivityIfNotPresent(ComponentName(app.packageName, ComponentActivity::class.java.name))
         val scenario = ActivityScenario.launch(ComponentActivity::class.java)
         val ui = CajaUi(cart = Fixtures.cart15, entry = Fixtures.entry('1', '2', '5'), description = "", tab = PosTab.MANUAL, undoStack = listOf(Fixtures.undoAdded), undoShown = true)
-        scenario.onActivity { a -> a.setContent { GuardEnvironment(cfg) { CajaContent((shown?.invoke(ui) ?: ui).copy(tab = tab), listOf(PosTab.MANUAL, PosTab.PRODUCTS), Fixtures.pane, Fixtures.parked, Fixtures.HUGE, Fixtures.BUSINESS_NAME, "Kevin", object : CajaActions {}, {}) } } }
+        scenario.onActivity { a -> a.setContent { GuardEnvironment(cfg) { CajaContent((shown?.invoke(ui) ?: ui).copy(tab = tab), listOf(PosTab.MANUAL, PosTab.PRODUCTS), Fixtures.pane, Fixtures.parked, Fixtures.BUSINESS_NAME, "Kevin", object : CajaActions {}) } } }
         for (t in PosTab.entries) for (c in GuardMatrix.FULL + GuardMatrix.SMALL_PHONE) {
             tab = t; cfg = c
             rule.waitForIdle()
@@ -126,8 +126,8 @@ class GuardPopupTest {
             a.setContent {
                 GuardEnvironment(cfg) {
                     CajaContent(
-                        (shown?.invoke(ui) ?: ui).copy(tab = tab), listOf(PosTab.MANUAL, PosTab.PRODUCTS), Fixtures.pane, Fixtures.parked, Fixtures.HUGE,
-                        Fixtures.BUSINESS_NAME, "Kevin", object : CajaActions {}, {},
+                        (shown?.invoke(ui) ?: ui).copy(tab = tab), listOf(PosTab.MANUAL, PosTab.PRODUCTS), Fixtures.pane, Fixtures.parked,
+                        Fixtures.BUSINESS_NAME, "Kevin", object : CajaActions {},
                     )
                 }
             }

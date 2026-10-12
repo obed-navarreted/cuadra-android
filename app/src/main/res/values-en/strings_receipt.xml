@@ -4,6 +4,7 @@
     <string name="register_receipt">Receipt</string>
     <string name="register_receipt_n">Receipt · %1$d</string>
     <string name="register_receipt_open">View the receipt</string>
+    <string name="register_includes_pending">includes %1$s not yet added</string>
     <string name="register_charge_total">Charge · %1$s</string>
     <string name="receipt_title">Receipt</string>
     <string name="receipt_total">Total</string>

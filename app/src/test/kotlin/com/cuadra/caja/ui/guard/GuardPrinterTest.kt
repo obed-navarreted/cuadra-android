@@ -152,7 +152,7 @@ class GuardPrinterTest {
     }
 
     @Composable private fun Caja(ui: CajaUi, readerReady: Boolean = false, business: String = Fixtures.BUSINESS_NAME) =
-        CajaContent(ui, listOf(PosTab.MANUAL, PosTab.PRODUCTS), Fixtures.pane, Fixtures.parked, Fixtures.HUGE, business, "Kevin", object : CajaActions {}, {}, readerReady = readerReady)
+        CajaContent(ui, listOf(PosTab.MANUAL, PosTab.PRODUCTS), Fixtures.pane, Fixtures.parked, business, "Kevin", object : CajaActions {}, readerReady = readerReady)
 
     @Test fun registerWithPrinterBadgeAndCobroDone() {
         val runner = GuardRunner(rule, "printer-caja")

@@ -8,6 +8,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import com.cuadra.caja.core.i18n.AppLanguage
@@ -59,5 +60,14 @@ class MoreOrderTest {
         show(MoreActions(onProducts = go, onNotifications = go, onHelp = go, onMyAccount = go))
         assertTrue(top("Productos") < top("Notificaciones"))
         assertTrue(top("Productos") < top("Ayuda y contacto"))
+    }
+
+    @Test fun switchPersonButtonSitsInTheTopCardAndLocks() {
+        var locks = 0
+        show(MoreActions(onLock = { locks++ }, onProducts = go, onNotifications = go, onHelp = go, onMyAccount = go))
+        rule.onNodeWithText("Cambiar de persona").assertIsDisplayed()
+        assertTrue("el botón va dentro de la tarjeta de arriba, antes que Productos", top("Cambiar de persona") < top("Productos"))
+        rule.onNodeWithText("Cambiar de persona").performClick()
+        assertTrue("tocarlo bloquea a quien atiende (abre «¿Quién atiende?»)", locks == 1)
     }
 }

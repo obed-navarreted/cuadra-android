@@ -10,6 +10,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -106,7 +108,7 @@ internal fun fontFactor(): Float = LocalDensity.current.fontScale.coerceIn(1f, 2
 
 @Composable
 fun CajaScreen(
-    vm: CajaViewModel, container: com.cuadra.caja.AppContainer, businessName: String, memberName: String, onLock: () -> Unit, canManageFrequents: Boolean = false,
+    vm: CajaViewModel, container: com.cuadra.caja.AppContainer, businessName: String, memberName: String, canManageFrequents: Boolean = false,
     /** El editor de productos (el de Más › Productos): «Editar producto» desde la venta lo abre aquí mismo. */
     inventory: com.cuadra.caja.ui.InventoryViewModel? = null,
 ) {
@@ -114,8 +116,6 @@ fun CajaScreen(
     val tabs by vm.tabs.collectAsState()
     val products by vm.products.collectAsState()
     val parked by vm.parked.collectAsState()
-    val sold by vm.soldToday.collectAsState()
-    val soldWindow by vm.soldWindow.collectAsState()
     val askDescription by container.display.askDescription.collectAsState()
     val registerCheckout by vm.registerCheckout.collectAsState()
     val lineCounts by vm.parkedLineCounts.collectAsState()
@@ -143,11 +143,10 @@ fun CajaScreen(
         invUi.editor?.takeIf { invUi.fromRegister }?.let { EditorDialog(it, invUi.categories, catalogOnly = true, actions = inventory) }
     }
     CajaContent(
-        ui, tabs, products, parked, sold, businessName, memberName, vm, onLock, readerReady = readerReady,
+        ui, tabs, products, parked, businessName, memberName, vm, readerReady = readerReady,
         // El comprobante de una venta (sin cliente) pide el número: hoja chica con «Elegir de contactos» y «Abrir WhatsApp». El detalle de un fiado, la de siempre.
         shareDialog = { request, dismiss -> if (request is ShareRequest.Ticket) WhatsAppNumberDialog(container, request, dismiss) else ShareDialog(container, request, dismiss) },
         askDescription = askDescription, canManageFrequents = canManageFrequents, registerCheckout = registerCheckout, lineCounts = lineCounts, zone = zone,
-        soldLastHour = soldWindow,
     )
 }
 
@@ -161,8 +160,8 @@ fun CajaScreen(
  */
 @Composable
 fun CajaContent(
-    ui: CajaUi, tabs: List<PosTab>, products: ProductsPane, parked: List<SaleEntity>, soldToday: Long,
-    businessName: String, memberName: String, actions: CajaActions, onLock: () -> Unit,
+    ui: CajaUi, tabs: List<PosTab>, products: ProductsPane, parked: List<SaleEntity>,
+    businessName: String, memberName: String, actions: CajaActions,
     shareDialog: @Composable (ShareRequest, () -> Unit) -> Unit = { _, _ -> },
     readerReady: Boolean = false,
     /** Preferencia de este teléfono «Pedir descripción al agregar» (apagada por omisión: la calculadora no muestra el campo). */
@@ -173,8 +172,6 @@ fun CajaContent(
     registerCheckout: Boolean = false,
     lineCounts: Map<String, Int> = emptyMap(),
     zone: java.time.ZoneId = java.time.ZoneId.systemDefault(),
-    /** Un cajero atiende: el encabezado dice «Tus ventas, última hora C$ X» (docs/adr/0017) en lugar de «Vendido hoy». */
-    soldLastHour: Boolean = false,
 ) {
     val activeTab = if (ui.tab in tabs) ui.tab else tabs.first()
     val cobro = ui.cobro
@@ -201,6 +198,8 @@ fun CajaContent(
     }
     val decimals = LocalMoney.current.decimals
     val entryTotal = ui.entry.totalMinor(decimals)
+    // Cobro rápido: lo que la calculadora tiene ahora (solo en «Manual») cuenta en el total y en los botones; entra como línea al cobrar (`QuickCharge`).
+    val pending = ui.pending(decimals)
 
     // El aviso «Deshacer» se oculta solo a los ~3.5 s; un aviso nuevo (undoTick) reinicia la cuenta.
     LaunchedEffect(ui.undoTick, ui.undoShown) {
@@ -217,8 +216,8 @@ fun CajaContent(
         // `RegisterFrame`: el total (`Hero`) tiene prioridad sobre las pestañas, la descripción y el encabezado; ver su documentación.
         RegisterFrame(
             Modifier.fillMaxSize().imePadding().padding(horizontal = 16.dp), spacing = 4.dp, bodyNatural = typing,
-            header = { full -> Header(full, businessName, memberName, parked.size, soldToday, onParked = { actions.toggleParked(true) }, onLock = onLock, registerCheckout = registerCheckout, soldLastHour = soldLastHour) },
-            hero = { Hero(ui.priced.cart, readerReady, ui.printer, onOpen = actions::openReceipt, onScan = actions::openScanner, onPrinter = actions::openPrinterSettings) },
+            header = { full -> Header(full, businessName, memberName, parked.size, onParked = { actions.toggleParked(true) }, registerCheckout = registerCheckout) },
+            hero = { budget -> Hero(ui.priced.cart, pending?.totalMinor ?: 0, budget, readerReady, ui.printer, onOpen = actions::openReceipt, onScan = actions::openScanner, onPrinter = actions::openPrinterSettings) },
             body = {
                 if (typing) {
                     if (tabs.size > 1) Tabs(tabs, activeTab, actions)
@@ -243,7 +242,7 @@ fun CajaContent(
             strip = ui.lastLine?.takeIf { typing && !imeOpen && !ui.receiptOpen }?.let { line -> { compact -> LastLineStrip(line, compact, actions, canEdit = canManageFrequents) } },
             footer = {
                 Column(Modifier.fillMaxWidth().testTag(TAG_BOTTOM_BAR).padding(bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PosBottomBar(ui.priced.cart, actions, com.cuadra.caja.domain.ParkRules.middle(registerCheckout), updating = ui.resumedPending)
+                    PosBottomBar(ui.priced.cart, actions, com.cuadra.caja.domain.ParkRules.middle(registerCheckout), updating = ui.resumedPending, pending = pending)
                 }
             },
             // Aviso flotante «Línea quitada · Deshacer» (agregar ya no abre aviso: la tira de la última línea lleva su − y su ✕): en el hueco libre entre las pestañas y la calculadora (o sobre el encabezado), sin ocupar lugar
@@ -318,6 +317,8 @@ private fun PosBottomBar(
     cart: Cart, actions: CajaActions, middle: com.cuadra.caja.domain.ParkRules.Middle = com.cuadra.caja.domain.ParkRules.Middle.PARK,
     /** La cuenta en pantalla se retomó de «Por cobrar en caja» (agregar productos): el botón del medio dice «Actualizar en caja». */
     updating: Boolean = false,
+    /** Lo escrito en la calculadora sin agregar (cobro rápido): cuenta en «Cobrar · C$ …» y enciende los botones; entra como línea al tocarlos. */
+    pending: com.cuadra.caja.domain.QuickCharge.Pending? = null,
 ) {
     val sending = middle == com.cuadra.caja.domain.ParkRules.Middle.SEND
     val n = cart.lineCount
@@ -326,7 +327,8 @@ private fun PosBottomBar(
     val receiptWord = stringResource(R.string.register_receipt)
     val park = stringResource(if (!sending) R.string.register_park else if (updating) R.string.send_update_confirm else R.string.send_bar)
     val chargeShort = stringResource(R.string.register_charge)
-    val chargeFull = if (cart.isEmpty) chargeShort else stringResource(R.string.register_charge_total, money(cart.totalMinor))
+    val chargeTotal = com.cuadra.caja.domain.QuickCharge.total(cart.totalMinor, pending)
+    val chargeFull = if (cart.isEmpty && pending == null) chargeShort else stringResource(R.string.register_charge_total, money(chargeTotal))
     val measurer = rememberTextMeasurer()
     CappedFontScale(1.5f) {
         val density = LocalDensity.current
@@ -362,9 +364,9 @@ private fun PosBottomBar(
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 BarButton(recWord, receiptDesc, actions::openReceipt, Modifier.width(widths[0].dp), icon = R.drawable.ic_receipt, badge = recBadge)
-                BarButton(park, park, if (sending) actions::askSend else actions::askPark, Modifier.width(widths[1].dp).testTag(if (sending) TAG_BAR_SEND else TAG_BAR_PARK), enabled = !cart.isEmpty,
+                BarButton(park, park, if (sending) actions::sendNow else actions::parkNow, Modifier.width(widths[1].dp).testTag(if (sending) TAG_BAR_SEND else TAG_BAR_PARK), enabled = com.cuadra.caja.domain.QuickCharge.canHold(cart.isEmpty, pending),
                     maxLines = if (sending) 2 else 1)
-                BarButton(chargeText, chargeText, actions::startCobro, Modifier.width(widths[2].dp), kind = ButtonKind.PRIMARY, enabled = cart.totalMinor > 0)
+                BarButton(chargeText, chargeText, actions::chargeNow, Modifier.width(widths[2].dp), kind = ButtonKind.PRIMARY, enabled = com.cuadra.caja.domain.QuickCharge.canCharge(cart.totalMinor, pending))
             }
         }
     }
@@ -396,22 +398,18 @@ private fun tabLabel(t: PosTab) = when (t) {
 }
 
 /**
- * Encabezado de la caja: la fila (nombre del negocio, «Apartadas», cambiar de cajero) con un margen chico arriba y abajo y, si hay alto de sobra (`full`),
- * «Atiende: …» en su línea y «Vendido hoy …» en la suya, las dos a la izquierda y en negrita. Es lo primero que se acorta si no hay alto para el total (ver `RegisterFrame`).
+ * Encabezado de la caja: la fila (nombre del negocio, «Apartadas») con un margen chico arriba y abajo y, si hay alto de sobra (`full`),
+ * «Atiende: …» en su línea, a la izquierda y en negrita. No muestra lo vendido (el sistema a veces lo ven los clientes; los totales viven en Ventas y Resumen). Es lo primero que se acorta si no hay alto para el total (ver `RegisterFrame`).
  */
 @Composable
-private fun Header(full: Boolean, business: String, member: String, parkedCount: Int, soldToday: Long, onParked: () -> Unit, onLock: () -> Unit, registerCheckout: Boolean = false, soldLastHour: Boolean = false) {
+private fun Header(full: Boolean, business: String, member: String, parkedCount: Int, onParked: () -> Unit, registerCheckout: Boolean = false) {
     Column(Modifier.fillMaxWidth().padding(vertical = com.cuadra.caja.ui.common.HEADER_GAP), verticalArrangement = Arrangement.spacedBy(com.cuadra.caja.ui.common.HEADER_LINE_GAP)) {
         // Los botones nunca se pisan con el nombre: si no caben lado a lado, quedan arriba a la derecha y el nombre baja (SplitRow).
         SplitRow(
             Modifier.fillMaxWidth(), endMaxFraction = 0.6f, spacing = 8.dp,
             end = {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    // Con cobro en caja: «Por cobrar en caja N» (esas cuentas y las apartadas, en un solo lugar).
-                    CuadraChip(stringResource(if (registerCheckout) R.string.register_queue_chip else R.string.register_parked) + if (parkedCount > 0) " $parkedCount" else "", parkedCount > 0, onParked,
-                        Modifier.weight(1f, fill = false))
-                    CuadraButton("⇄", onLock, Modifier.size(48.dp), height = 48)
-                }
+                // Con cobro en caja: «Por cobrar en caja N» (esas cuentas y las apartadas, en un solo lugar).
+                CuadraChip(stringResource(if (registerCheckout) R.string.register_queue_chip else R.string.register_parked) + if (parkedCount > 0) " $parkedCount" else "", parkedCount > 0, onParked)
             },
         ) {
             // El nombre del negocio es lo único que puede terminar en «…» (deliberado, etiquetado): hasta 2 líneas y, antes, la letra baja hasta 70 %.
@@ -421,10 +419,6 @@ private fun Header(full: Boolean, business: String, member: String, parkedCount:
             Text(
                 stringResource(R.string.more_signed_in_as, member), Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Start, maxLines = 2, ellipsize = true,
-            )
-            Text(
-                stringResource(if (soldLastHour) R.string.register_sold_last_hour else R.string.register_sold_today, money(soldToday)), Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Start,
             )
         }
     }
@@ -442,26 +436,42 @@ const val TAG_REGISTER_TABS = "register_tabs"
  * teléfono solo hasta 1.3× (el monto baja de tamaño si es larguísimo). Tocar el texto o la cifra abre el recibo; el botón de escanear es aparte y va a la derecha.
  */
 @Composable
-private fun Hero(cart: Cart, readerReady: Boolean, printer: PrinterBadge, onOpen: () -> Unit, onScan: () -> Unit, onPrinter: () -> Unit) {
+private fun Hero(cart: Cart, pendingMinor: Long, captionBudget: Int, readerReady: Boolean, printer: PrinterBadge, onOpen: () -> Unit, onScan: () -> Unit, onPrinter: () -> Unit) {
     val open = stringResource(R.string.register_receipt_open)
     CappedFontScale(1.3f) {
-        Row(
-            Modifier.fillMaxWidth().testTag(com.cuadra.caja.ui.common.TAG_TOTAL_CARD).background(CuadraColors.Ink, RoundedCornerShape(18.dp)).padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Column(Modifier.weight(1f).heightIn(min = 48.dp).clickable(role = Role.Button, onClickLabel = open, onClick = onOpen), verticalArrangement = Arrangement.Center) {
-                // A qué se refiere el total y, si hay lector físico encendido (las lecturas llegan solas, sin abrir la cámara), su aviso: en la misma línea o debajo.
-                ChipFlow(Modifier.fillMaxWidth(), spacing = 2.dp) {
-                    Text(
-                        stringResource(R.string.register_total) + " · " + pluralStringResource(R.plurals.register_lines, cart.lines.size, cart.lines.size) + "  ›",
-                        Modifier.padding(end = 12.dp), color = CuadraColors.Line, style = MaterialTheme.typography.bodyMedium,
-                    )
-                    if (readerReady) ReaderReadyTag()
+        val captionText = stringResource(R.string.register_includes_pending, money(pendingMinor))
+        val captionHeight = with(LocalDensity.current) { com.cuadra.caja.ui.common.HERO_CAPTION_HEIGHT.toDp() }
+        val verticalPadding = with(LocalDensity.current) { 8.dp.roundToPx() }
+        // Dos piezas: lo de siempre y, SOLO si hay monto pendiente y con ella la tarjeta cabe en `captionBudget`, la leyenda «incluye C$ X sin agregar» (una línea, de alto
+        // fijo, a todo lo ancho). Lo que no cabe no se compone (la leyenda cede antes que el total, las pestañas o las teclas).
+        SubcomposeLayout(Modifier.fillMaxWidth().testTag(com.cuadra.caja.ui.common.TAG_TOTAL_CARD).background(CuadraColors.Ink, RoundedCornerShape(18.dp)).padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp)) { constraints ->
+            val loose = Constraints(maxWidth = constraints.maxWidth)
+            val main = subcompose("main") {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.weight(1f).heightIn(min = 48.dp).clickable(role = Role.Button, onClickLabel = open, onClick = onOpen), verticalArrangement = Arrangement.Center) {
+                        // A qué se refiere el total y, si hay lector físico encendido (las lecturas llegan solas, sin abrir la cámara), su aviso: en la misma línea o debajo.
+                        ChipFlow(Modifier.fillMaxWidth(), spacing = 2.dp) {
+                            Text(
+                                stringResource(R.string.register_total) + " · " + pluralStringResource(R.plurals.register_lines, cart.lines.size, cart.lines.size) + "  ›",
+                                Modifier.padding(end = 12.dp), color = CuadraColors.Line, style = MaterialTheme.typography.bodyMedium,
+                            )
+                            if (readerReady) ReaderReadyTag()
+                        }
+                        MoneyText(money(cart.totalMinor + pendingMinor), Modifier.fillMaxWidth(), color = CuadraColors.Bg, style = MaterialTheme.typography.displayMedium)
+                    }
+                    if (printer != PrinterBadge.OFF) PrinterBadgeButton(printer, onPrinter)
+                    ScanButton(onScan, size = 48.dp)
                 }
-                MoneyText(money(cart.totalMinor), Modifier.fillMaxWidth(), color = CuadraColors.Bg, style = MaterialTheme.typography.displayMedium)
+            }.map { it.measure(loose) }
+            val mainH = main.sumOf { it.height }
+            val capH = captionHeight.roundToPx()
+            val caption = if (pendingMinor > 0 && mainH + capH + verticalPadding <= captionBudget) subcompose("caption") {
+                Text(captionText, Modifier.fillMaxWidth().height(captionHeight), color = CuadraColors.GreenSoft, style = MaterialTheme.typography.bodyMedium, maxLines = 1, minScale = 0.5f)
+            }.map { it.measure(loose) } else emptyList()
+            layout(constraints.maxWidth, mainH + caption.sumOf { it.height }) {
+                main.forEach { it.placeRelative(0, 0) }
+                caption.forEach { it.placeRelative(0, mainH) }
             }
-            if (printer != PrinterBadge.OFF) PrinterBadgeButton(printer, onPrinter)
-            ScanButton(onScan, size = 48.dp)
         }
     }
 }
